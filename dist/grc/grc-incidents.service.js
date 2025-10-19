@@ -124,6 +124,22 @@ let GrcIncidentsService = class GrcIncidentsService {
             const pendingChecker = incidentsByStatus.find(s => s.status === 'Pending Checker')?.count || 0;
             const pendingReviewer = incidentsByStatus.find(s => s.status === 'Pending Reviewer')?.count || 0;
             const pendingAcceptance = incidentsByStatus.find(s => s.status === 'Pending Acceptance')?.count || 0;
+            const listQuery = `
+        SELECT 
+          i.code,
+          i.title,
+          CASE 
+            WHEN i.acceptanceStatus = 'approved' THEN 'approved'
+            WHEN i.reviewerStatus = 'approved' THEN 'approved'
+            WHEN i.checkerStatus = 'approved' THEN 'approved'
+            ELSE ISNULL(i.preparerStatus, i.acceptanceStatus)
+          END as status,
+          i.createdAt
+        FROM Incidents i
+        WHERE i.isDeleted = 0 ${dateFilter}
+        ORDER BY i.createdAt DESC
+      `;
+            const statusOverview = await this.databaseService.query(listQuery);
             return {
                 totalIncidents,
                 pendingPreparer,
@@ -154,7 +170,9 @@ let GrcIncidentsService = class GrcIncidentsService {
                     month_year: item.month_year,
                     incident_count: item.incident_count,
                     total_loss: item.total_loss || 0
-                }))
+                })),
+                statusOverview,
+                overallStatuses: statusOverview
             };
         }
         catch (error) {
@@ -167,6 +185,46 @@ let GrcIncidentsService = class GrcIncidentsService {
             message: `Exporting incidents data in ${format} format`,
             timeframe: timeframe || 'all',
             status: 'success'
+        };
+    }
+    async getTotalIncidents(page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["i.isDeleted = 0"];
+        if (startDate)
+            where.push(`i.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`i.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        i.code,
+        i.title,
+        CASE 
+          WHEN i.acceptanceStatus = 'approved' THEN 'approved'
+          WHEN i.reviewerStatus = 'approved' THEN 'approved'
+          WHEN i.checkerStatus = 'approved' THEN 'approved'
+          ELSE ISNULL(i.preparerStatus, i.acceptanceStatus)
+        END as status,
+        i.createdAt
+      FROM Incidents i
+      ${whereSql}
+      ORDER BY i.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
         };
     }
 };

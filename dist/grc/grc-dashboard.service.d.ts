@@ -70,4 +70,70 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
+    getTestsPendingPreparer(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getTestsPendingChecker(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getTestsPendingReviewer(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getTestsPendingAcceptance(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getUnmappedIcofrControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getUnmappedNonIcofrControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
 }

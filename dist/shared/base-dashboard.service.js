@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BaseDashboardService = void 0;
 const common_1 = require("@nestjs/common");
+const db_config_1 = require("./db-config");
 const database_service_1 = require("../database/database.service");
 let BaseDashboardService = class BaseDashboardService {
     constructor(databaseService) {
@@ -129,7 +130,7 @@ let BaseDashboardService = class BaseDashboardService {
             case 'number':
                 return Number(value) || 0;
             case 'currency':
-                return `$${Number(value || 0).toLocaleString()}`;
+                return `${Number(value || 0).toLocaleString()}`;
             case 'date':
                 return value ? new Date(value).toLocaleDateString() : 'N/A';
             case 'status':
@@ -149,20 +150,73 @@ let BaseDashboardService = class BaseDashboardService {
             let dataQuery;
             let countQuery = metric.query.replace('{dateFilter}', dateFilter);
             if (cardType === 'total') {
-                dataQuery = `SELECT id, name, code FROM dbo.[Controls] WHERE 1=1 ${dateFilter}`;
+                dataQuery = `SELECT id, name, code FROM dbo.[Controls] WHERE 1=1 ${dateFilter} ORDER BY createdAt DESC`;
             }
             else if (cardType === 'unmapped') {
-                dataQuery = `SELECT c.id, c.name, c.code FROM GRCDB2.dbo.Controls c WHERE c.isDeleted = 0 ${dateFilter} AND NOT EXISTS (SELECT 1 FROM GRCDB2.dbo.ControlCosos ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`;
+                dataQuery = `SELECT c.id, c.name, c.code FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
             }
             else if (cardType.startsWith('pending')) {
                 const statusField = cardType.replace('pending', '').toLowerCase() + 'Status';
-                dataQuery = `SELECT id, name, code FROM dbo.[Controls] WHERE ${statusField} != 'approved' AND 1=1 ${dateFilter}`;
+                dataQuery = `SELECT id, name, code FROM ${(0, db_config_1.fq)('Controls')} WHERE ${statusField} != 'approved' AND isDeleted = 0 ${dateFilter} ORDER BY createdAt DESC`;
+            }
+            else if (cardType.startsWith('testsPending')) {
+                let whereClause = '';
+                if (cardType === 'testsPendingPreparer')
+                    whereClause = "t.preparerStatus <> 'sent'";
+                else if (cardType === 'testsPendingChecker')
+                    whereClause = "t.checkerStatus <> 'approved'";
+                else if (cardType === 'testsPendingReviewer')
+                    whereClause = "t.reviewerStatus <> 'sent'";
+                else if (cardType === 'testsPendingAcceptance')
+                    whereClause = "t.acceptanceStatus <> 'approved'";
+                const statusField = cardType === 'testsPendingPreparer' ? 'preparerStatus' :
+                    cardType === 'testsPendingChecker' ? 'checkerStatus' :
+                        cardType === 'testsPendingReviewer' ? 'reviewerStatus' :
+                            'acceptanceStatus';
+                dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus
+          FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
+          INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
+          WHERE ${whereClause} AND c.isDeleted = 0 AND t.function_id IS NOT NULL
+          ORDER BY c.createdAt DESC`;
+                countQuery = `SELECT COUNT(DISTINCT t.id) AS total
+          FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
+          INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
+          WHERE ${whereClause} AND c.isDeleted = 0 AND t.function_id IS NOT NULL`;
+            }
+            else if (cardType === 'unmappedIcofrControls') {
+                dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
+          'Not Mapped' as coso_component,
+          'Not Mapped' as coso_point
+          FROM ${(0, db_config_1.fq)('Controls')} c 
+          JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id 
+          WHERE c.isDeleted = 0 AND c.icof_id IS NOT NULL 
+          AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
+          AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
+               AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
+          AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')}
+          ORDER BY c.createdAt DESC`;
+            }
+            else if (cardType === 'unmappedNonIcofrControls') {
+                dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
+          'Not Mapped' as coso_component,
+          'Not Mapped' as coso_point
+          FROM ${(0, db_config_1.fq)('Controls')} c 
+          LEFT JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id 
+          WHERE c.isDeleted = 0 
+          AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
+          AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
+               AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) 
+               OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
+          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')}
+          ORDER BY c.createdAt DESC`;
             }
             else {
-                dataQuery = `SELECT id, name, code FROM dbo.[Controls] WHERE 1=1 ${dateFilter}`;
+                dataQuery = `SELECT id, name, code FROM dbo.[Controls] WHERE 1=1 ${dateFilter} ORDER BY createdAt DESC`;
             }
             const offset = (page - 1) * limit;
-            const paginatedQuery = `${dataQuery} ORDER BY id OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+            const hasOrderBy = /\border\s+by\b/i.test(dataQuery);
+            const orderClause = hasOrderBy ? '' : ' ORDER BY createdAt DESC';
+            const paginatedQuery = `${dataQuery}${orderClause} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
             const [data, countResult] = await Promise.all([
                 this.databaseService.query(paginatedQuery),
                 this.databaseService.query(countQuery)
@@ -171,8 +225,8 @@ let BaseDashboardService = class BaseDashboardService {
             const totalPages = Math.ceil(total / limit);
             return {
                 data: data.map((row, index) => ({
-                    control_code: row.code || `CTRL-${row.id}`,
-                    control_name: row.name || `Control ${row.id}`,
+                    control_code: row.code || `CTRL-${row.control_id}`,
+                    control_name: row.name || `Control ${row.control_id}`,
                     ...row
                 })),
                 pagination: {

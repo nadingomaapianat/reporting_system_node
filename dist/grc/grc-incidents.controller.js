@@ -25,6 +25,9 @@ let GrcIncidentsController = class GrcIncidentsController {
     async exportIncidents(format, timeframe) {
         return this.grcIncidentsService.exportIncidents(format, timeframe);
     }
+    async getTotalIncidents(page = 1, limit = 10, startDate, endDate) {
+        return this.grcIncidentsService.getTotalIncidents(page, limit, startDate, endDate);
+    }
 };
 exports.GrcIncidentsController = GrcIncidentsController;
 __decorate([
@@ -42,6 +45,16 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], GrcIncidentsController.prototype, "exportIncidents", null);
+__decorate([
+    (0, common_1.Get)('total'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcIncidentsController.prototype, "getTotalIncidents", null);
 exports.GrcIncidentsController = GrcIncidentsController = __decorate([
     (0, common_1.Controller)('api/grc/incidents'),
     __metadata("design:paramtypes", [grc_incidents_service_1.GrcIncidentsService])

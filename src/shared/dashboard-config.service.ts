@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BaseDashboardService, DashboardConfig, MetricConfig, ChartConfig, TableConfig } from './base-dashboard.service';
+import { DB_BRACKETED, fq } from './db-config';
 
 @Injectable()
 export class DashboardConfigService {
@@ -141,6 +142,47 @@ export class DashboardConfigService {
           color: 'blue',
           icon: 'chart-bar'
         },
+        // Control Tests pending metrics
+        {
+          id: 'testsPendingPreparer',
+          name: 'Control Tests pending Preparer',
+          query: `SELECT COUNT(DISTINCT t.id) AS total
+            FROM ${fq('ControlDesignTests')} AS t
+            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+            WHERE t.preparerStatus <> 'sent' AND t.function_id IS NOT NULL AND c.isDeleted = 0 {dateFilter}`,
+          color: 'orange',
+          icon: 'clock'
+        },
+        {
+          id: 'testsPendingChecker',
+          name: 'Control Tests pending Checker',
+          query: `SELECT COUNT(DISTINCT t.id) AS total
+            FROM ${fq('ControlDesignTests')} AS t
+            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+            WHERE t.checkerStatus <> 'approved' AND t.function_id IS NOT NULL AND c.isDeleted = 0 {dateFilter}`,
+          color: 'purple',
+          icon: 'check-circle'
+        },
+        {
+          id: 'testsPendingReviewer',
+          name: 'Control Tests pending Reviewer',
+          query: `SELECT COUNT(DISTINCT t.id) AS total
+            FROM ${fq('ControlDesignTests')} AS t
+            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+            WHERE t.reviewerStatus <> 'sent' AND t.function_id IS NOT NULL AND c.isDeleted = 0 {dateFilter}`,
+          color: 'indigo',
+          icon: 'document-check'
+        },
+        {
+          id: 'testsPendingAcceptance',
+          name: 'Control Tests pending Acceptance',
+          query: `SELECT COUNT(DISTINCT t.id) AS total
+            FROM ${fq('ControlDesignTests')} AS t
+            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+            WHERE t.acceptanceStatus <> 'approved' AND t.function_id IS NOT NULL AND c.isDeleted = 0 {dateFilter}`,
+          color: 'red',
+          icon: 'exclamation-triangle'
+        },
         {
           id: 'pendingPreparer',
           name: 'Pending Preparer',
@@ -172,8 +214,22 @@ export class DashboardConfigService {
         {
           id: 'unmapped',
           name: 'Unmapped Controls',
-          query: `SELECT COUNT(*) as total FROM GRCDB2.dbo.Controls c WHERE c.isDeleted = 0 {dateFilter} AND NOT EXISTS (SELECT 1 FROM GRCDB2.dbo.ControlCosos ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`,
+          query: `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 {dateFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`,
           color: 'yellow',
+          icon: 'exclamation-triangle'
+        },
+        {
+          id: 'unmappedIcofrControls',
+          name: 'Unmapped ICOFR Controls to COSO',
+          query: `SELECT COUNT(*) AS total FROM ${fq('Controls')} c JOIN ${fq('Assertions')} a ON c.icof_id = a.id WHERE c.isDeleted = 0 {dateFilter} AND c.icof_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) AND a.account_type IN ('Balance Sheet', 'Income Statement')) AND a.isDeleted = 0`,
+          color: 'red',
+          icon: 'exclamation-triangle'
+        },
+        {
+          id: 'unmappedNonIcofrControls',
+          name: 'Unmapped Non-ICOFR Controls to COSO',
+          query: `SELECT COUNT(*) AS total FROM ${fq('Controls')} c LEFT JOIN ${fq('Assertions')} a ON c.icof_id = a.id WHERE c.isDeleted = 0 {dateFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) AND (a.isDeleted = 0 OR a.id IS NULL)`,
+          color: 'orange',
           icon: 'exclamation-triangle'
         }
       ],
@@ -185,25 +241,292 @@ export class DashboardConfigService {
           query: `SELECT 
             f.name as name,
             COUNT(c.id) as value
-          FROM GRCDB2.dbo.Controls c
-          JOIN GRCDB2.dbo.ControlFunctions cf ON c.id = cf.control_id
-          JOIN GRCDB2.dbo.Functions f ON cf.function_id = f.id
+          FROM ${fq('Controls')} c
+          JOIN ${fq('ControlFunctions')} cf ON c.id = cf.control_id
+          JOIN ${fq('Functions')} f ON cf.function_id = f.id
           WHERE c.isDeleted = 0 {dateFilter}
           GROUP BY f.name
+          ORDER BY COUNT(c.id) DESC, f.name`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        this.CHART_TEMPLATES.statusDistribution('dbo.[Controls]', 'risk_response'),
+        {
+          id: 'quarterlyControlCreationTrend',
+          name: 'Quarterly Control Creation Trend',
+          type: 'line' as const,
+          query: `SELECT 
+            CONCAT('Q', DATEPART(QUARTER, c.createdAt), ' ', YEAR(c.createdAt)) AS name,
+            COUNT(c.id) AS value
+          FROM ${fq('Controls')} c
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY YEAR(c.createdAt), DATEPART(QUARTER, c.createdAt)
+          ORDER BY YEAR(c.createdAt), DATEPART(QUARTER, c.createdAt)`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        {
+          id: 'controlsByType',
+          name: 'Controls by Type',
+          type: 'pie' as const,
+          query: `SELECT 
+            CASE 
+              WHEN c.type IS NULL OR c.type = '' THEN 'Not Specified'
+              ELSE c.type
+            END AS name,
+            COUNT(c.id) AS value
+          FROM ${fq('Controls')} c
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY c.type
           ORDER BY COUNT(c.id) DESC`,
           xField: 'name',
           yField: 'value',
           labelField: 'name'
         },
-        this.CHART_TEMPLATES.statusDistribution('dbo.[Controls]', 'risk_response')
+        {
+          id: 'antiFraudDistribution',
+          name: 'Anti-Fraud vs Non Anti-Fraud Controls',
+          type: 'pie' as const,
+          query: `SELECT 
+            CASE 
+              WHEN c.AntiFraud = 1 THEN 'Anti-Fraud'
+              WHEN c.AntiFraud = 0 THEN 'Non-Anti-Fraud'
+              ELSE 'Unknown'
+            END AS name,
+            COUNT(c.id) AS value
+          FROM ${fq('Controls')} c
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY c.AntiFraud
+          ORDER BY COUNT(c.id) DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        {
+          id: 'controlsPerLevel',
+          name: 'Controls per Control Level',
+          type: 'bar' as const,
+          query: `SELECT 
+            CASE 
+              WHEN c.entityLevel IS NULL OR c.entityLevel = '' THEN 'Not Specified'
+              ELSE c.entityLevel
+            END AS name,
+            COUNT(c.id) AS value
+          FROM ${fq('Controls')} c
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY c.entityLevel
+          ORDER BY COUNT(c.id) DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        {
+          id: 'controlExecutionFrequency',
+          name: 'Control Execution Frequency',
+          type: 'bar' as const,
+          query: `SELECT 
+            CASE 
+              WHEN c.frequency = 'Daily' THEN 'Daily'
+              WHEN c.frequency = 'Event Base' THEN 'Event Base'
+              WHEN c.frequency = 'Weekly' THEN 'Weekly'
+              WHEN c.frequency = 'Monthly' THEN 'Monthly'
+              WHEN c.frequency = 'Quarterly' THEN 'Quarterly'
+              WHEN c.frequency = 'Semi Annually' THEN 'Semi Annually'
+              WHEN c.frequency = 'Annually' THEN 'Annually'
+              WHEN c.frequency IS NULL OR c.frequency = '' THEN 'Not Specified'
+              ELSE c.frequency
+            END AS name,
+            COUNT(c.id) AS value
+          FROM ${fq('Controls')} c
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY c.frequency
+          ORDER BY COUNT(c.id) DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        {
+          id: 'numberOfControlsByIcofrStatus',
+          name: 'Number of Controls by ICOFR Status',
+          type: 'pie' as const,
+          query: `SELECT 
+            CASE 
+              WHEN a.id IS NULL THEN 'Non-ICOFR'
+              WHEN (a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1)
+                   AND (a.account_type IN ('Balance Sheet', 'Income Statement')) 
+                THEN 'ICOFR' 
+              ELSE 'Non-ICOFR' 
+            END AS name,
+            COUNT(c.id) AS value
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('Assertions')} a ON c.icof_id = a.id AND a.isDeleted = 0
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY 
+            CASE 
+              WHEN a.id IS NULL THEN 'Non-ICOFR'
+              WHEN (a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1)
+                   AND (a.account_type IN ('Balance Sheet', 'Income Statement')) 
+                THEN 'ICOFR' 
+              ELSE 'Non-ICOFR' 
+            END
+          ORDER BY COUNT(c.id) DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        {
+          id: 'numberOfFocusPointsPerPrinciple',
+          name: 'Number of Focus Points per Principle',
+          type: 'bar' as const,
+          query: `SELECT 
+            prin.name AS name,
+            COUNT(point.id) AS value
+          FROM ${fq('CosoPrinciples')} prin
+          LEFT JOIN ${fq('CosoPoints')} point ON prin.id = point.principle_id
+          WHERE prin.deletedAt IS NULL {dateFilter}
+          GROUP BY prin.name
+          ORDER BY COUNT(point.id) DESC, prin.name`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        {
+          id: 'numberOfFocusPointsPerComponent',
+          name: 'Number of Focus Points per Component',
+          type: 'pie' as const,
+          query: `SELECT 
+            comp.name AS name,
+            COUNT(point.id) AS value
+          FROM ${fq('CosoComponents')} comp
+          JOIN ${fq('CosoPrinciples')} prin ON prin.component_id = comp.id
+          LEFT JOIN ${fq('CosoPoints')} point ON point.principle_id = prin.id
+          WHERE comp.deletedAt IS NULL AND prin.deletedAt IS NULL {dateFilter}
+          GROUP BY comp.name
+          ORDER BY COUNT(point.id) DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        {
+          id: 'actionPlansStatus',
+          name: 'Action Plans Status',
+          type: 'pie' as const,
+          query: `SELECT 
+            CASE 
+              WHEN a.done = 0 AND a.implementation_date < GETDATE() THEN 'Overdue'
+              ELSE 'Not Overdue'
+            END AS name,
+            COUNT(a.id) AS value
+          FROM ${fq('Actionplans')} a
+          WHERE a.deletedAt IS NULL {dateFilter}
+          GROUP BY 
+            CASE 
+              WHEN a.done = 0 AND a.implementation_date < GETDATE() THEN 'Overdue'
+              ELSE 'Not Overdue'
+            END
+          ORDER BY COUNT(a.id) DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        {
+          id: 'numberOfControlsPerComponent',
+          name: 'Number of Controls per Component',
+          type: 'bar' as const,
+          query: `SELECT 
+            cc.name AS name,
+            COUNT(DISTINCT c.id) AS value
+          FROM ${fq('Controls')} c
+          JOIN ${fq('ControlCosos')} ccx ON c.id = ccx.control_id
+          JOIN ${fq('CosoPoints')} cp ON ccx.coso_id = cp.id
+          JOIN ${fq('CosoPrinciples')} pr ON cp.principle_id = pr.id
+          JOIN ${fq('CosoComponents')} cc ON pr.component_id = cc.id
+          WHERE c.isDeleted = 0 
+            AND ccx.deletedAt IS NULL 
+            AND cp.deletedAt IS NULL 
+            AND pr.deletedAt IS NULL 
+            AND cc.deletedAt IS NULL {dateFilter}
+          GROUP BY cc.name
+          ORDER BY COUNT(DISTINCT c.id) DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        }
       ],
       tables: [
-        this.TABLE_TEMPLATES.statusOverview(
-          'dbo.[Controls]',
-          'id',
-          'name',
-          ['preparerStatus', 'checkerStatus', 'reviewerStatus', 'acceptanceStatus']
-        ),
+        {
+          id: 'statusOverview',
+          name: 'Control Creation Approval Cycle',
+          query: `SELECT 
+            c.id AS id,
+            c.name AS name,
+            c.createdAt,
+            c.code AS code,
+            STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS business_unit,
+            c.preparerStatus,
+            c.checkerStatus,
+            c.reviewerStatus,
+            c.acceptanceStatus
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id
+          LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY 
+            c.id,
+            c.name,
+            c.createdAt,
+            c.code,
+            c.preparerStatus,
+            c.checkerStatus,
+            c.reviewerStatus,
+            c.acceptanceStatus
+          ORDER BY 
+            c.createdAt DESC,
+            c.name`,
+          columns: [
+            { key: 'id', label: 'ID', type: 'text' as const },
+            { key: 'name', label: 'Name', type: 'text' as const },
+            { key: 'code', label: 'Code', type: 'text' as const },
+            { key: 'business_unit', label: 'Business Unit', type: 'text' as const },
+            { key: 'preparerStatus', label: 'Preparer Status', type: 'status' as const },
+            { key: 'checkerStatus', label: 'Checker Status', type: 'status' as const },
+            { key: 'reviewerStatus', label: 'Reviewer Status', type: 'status' as const },
+            { key: 'acceptanceStatus', label: 'Acceptance Status', type: 'status' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'controlsTestingApprovalCycle',
+          name: 'Controls Testing Approval Cycle',
+          query: `SELECT 
+            c.name AS [Control Name],
+            c.createdAt AS [Created At],
+            c.id AS [Control ID],
+            c.code AS [Code],
+            t.preparerStatus AS [Preparer Status],
+            t.checkerStatus AS [Checker Status],
+            t.reviewerStatus AS [Reviewer Status],
+            t.acceptanceStatus AS [Acceptance Status],
+            f.name AS [Business Unit]
+          FROM ${fq('ControlDesignTests')} AS t
+          INNER JOIN ${fq('Controls')} AS c ON t.control_id = c.id
+          INNER JOIN ${fq('Functions')} AS f ON t.function_id = f.id
+          WHERE c.isDeleted = 0 AND (t.deletedAt IS NULL) AND t.function_id IS NOT NULL {dateFilter}
+          ORDER BY c.createdAt DESC, c.name`,
+          columns: [
+            { key: 'index', label: 'Index', type: 'number' as const },
+            { key: 'Code', label: 'Code', type: 'text' as const },
+            { key: 'Control Name', label: 'Control Name', type: 'text' as const },
+            { key: 'Business Unit', label: 'Business Unit', type: 'text' as const },
+            { key: 'Preparer Status', label: 'Preparer Status', type: 'status' as const },
+            { key: 'Checker Status', label: 'Checker Status', type: 'status' as const },
+            { key: 'Reviewer Status', label: 'Reviewer Status', type: 'status' as const },
+            { key: 'Acceptance Status', label: 'Acceptance Status', type: 'status' as const }
+          ],
+          pagination: true
+        },
         {
           id: 'controlsByFunction',
           name: 'Controls by Function',
@@ -212,16 +535,335 @@ export class DashboardConfigService {
             c.id as control_id,
             c.name as control_name,
             c.code as control_code
-          FROM GRCDB2.dbo.Controls c
-          JOIN GRCDB2.dbo.ControlFunctions cf ON c.id = cf.control_id
-          JOIN GRCDB2.dbo.Functions f ON cf.function_id = f.id
+          FROM ${fq('Controls')} c
+          JOIN ${fq('ControlFunctions')} cf ON c.id = cf.control_id
+          JOIN ${fq('Functions')} f ON cf.function_id = f.id
           WHERE c.isDeleted = 0 {dateFilter}
-          ORDER BY f.name, c.name`,
+          ORDER BY c.createdAt DESC, f.name, c.name`,
           columns: [
             { key: 'function_name', label: 'Function/Department', type: 'text' },
             { key: 'control_id', label: 'Control ID', type: 'number' },
             { key: 'control_code', label: 'Control Code', type: 'text' },
             { key: 'control_name', label: 'Control Name', type: 'text' }
+          ],
+          pagination: true
+        },
+        {
+          id: 'keyNonKeyControlsPerDepartment',
+          name: 'Key vs Non-Key Controls per Department',
+          query: `SELECT 
+            COALESCE(jt.name, 'Unassigned Department') AS [Department],
+            SUM(CASE WHEN c.keyControl = 1 THEN 1 ELSE 0 END) AS [Key Controls],
+            SUM(CASE WHEN c.keyControl = 0 THEN 1 ELSE 0 END) AS [Non-Key Controls],
+            COUNT(c.id) AS [Total Controls]
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('JobTitles')} jt ON c.departmentId = jt.id
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY COALESCE(jt.name, 'Unassigned Department'), c.departmentId
+          ORDER BY COUNT(c.id) DESC, COALESCE(jt.name, 'Unassigned Department')`,
+          columns: [
+            { key: 'Department', label: 'Department', type: 'text' as const },
+            { key: 'Key Controls', label: 'Key Controls', type: 'number' as const },
+            { key: 'Non-Key Controls', label: 'Non-Key Controls', type: 'number' as const },
+            { key: 'Total Controls', label: 'Total Controls', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'keyNonKeyControlsPerProcess',
+          name: 'Key vs Non-Key Controls per Process',
+          query: `SELECT 
+            CASE 
+              WHEN p.name IS NULL THEN 'Unassigned Process'
+              ELSE p.name
+            END AS [Process],
+            SUM(CASE WHEN c.keyControl = 1 THEN 1 ELSE 0 END) AS [Key Controls],
+            SUM(CASE WHEN c.keyControl = 0 THEN 1 ELSE 0 END) AS [Non-Key Controls],
+            COUNT(c.id) AS [Total Controls]
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('ControlProcesses')} cp ON c.id = cp.control_id
+          LEFT JOIN ${fq('Processes')} p ON cp.process_id = p.id
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY 
+            CASE 
+              WHEN p.name IS NULL THEN 'Unassigned Process'
+              ELSE p.name
+            END
+          ORDER BY COUNT(c.id) DESC, 
+            CASE 
+              WHEN p.name IS NULL THEN 'Unassigned Process'
+              ELSE p.name
+            END`,
+          columns: [
+            { key: 'Process', label: 'Process', type: 'text' as const },
+            { key: 'Key Controls', label: 'Key Controls', type: 'number' as const },
+            { key: 'Non-Key Controls', label: 'Non-Key Controls', type: 'number' as const },
+            { key: 'Total Controls', label: 'Total Controls', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'keyNonKeyControlsPerBusinessUnit',
+          name: 'Key vs Non-Key Controls per Business Unit',
+          query: `SELECT 
+            f.name AS [Business Unit],
+            SUM(CASE WHEN c.keyControl = 1 THEN 1 ELSE 0 END) AS [Key Controls],
+            SUM(CASE WHEN c.keyControl = 0 THEN 1 ELSE 0 END) AS [Non-Key Controls],
+            COUNT(c.id) AS [Total Controls]
+          FROM ${fq('ControlFunctions')} cf
+          JOIN ${fq('Functions')} f ON cf.function_id = f.id
+          JOIN ${fq('Controls')} c ON cf.control_id = c.id
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY f.name
+          ORDER BY COUNT(c.id) DESC, f.name`,
+          columns: [
+            { key: 'Business Unit', label: 'Business Unit', type: 'text' as const },
+            { key: 'Key Controls', label: 'Key Controls', type: 'number' as const },
+            { key: 'Non-Key Controls', label: 'Non-Key Controls', type: 'number' as const },
+            { key: 'Total Controls', label: 'Total Controls', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'controlCountByAssertionName',
+          name: 'Control Count by Account',
+          query: `SELECT 
+            COALESCE(a.name, 'Unassigned Assertion') AS [Assertion Name],
+            COALESCE(a.account_type, 'Not Specified') AS [Type],
+            COUNT(c.id) AS [Control Count]
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('Assertions')} a ON c.icof_id = a.id AND a.isDeleted = 0
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY a.name, a.account_type
+          ORDER BY COUNT(c.id) DESC, a.name`,
+          columns: [
+            { key: 'Assertion Name', label: 'Account', type: 'text' as const },
+            { key: 'Type', label: 'Type', type: 'text' as const },
+            { key: 'Control Count', label: 'Control Count', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'icofrControlCoverageByCoso',
+          name: 'ICOFR Control Coverage by COSO Component',
+          query: `SELECT 
+            comp.name AS [Component], 
+            CASE 
+              WHEN c.icof_id IS NOT NULL 
+                AND (a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
+                AND (a.account_type IN ('Balance Sheet', 'Income Statement')) 
+              THEN 'ICOFR' 
+              WHEN c.icof_id IS NULL 
+                OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
+                    AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0)) 
+                OR a.account_type NOT IN ('Balance Sheet', 'Income Statement')
+              THEN 'Non-ICOFR'
+              ELSE 'Other'
+            END AS [IcofrStatus], 
+            COUNT(DISTINCT c.id) AS [Control Count]
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('Assertions')} a ON c.icof_id = a.id AND (a.isDeleted = 0 OR a.id IS NULL)
+          JOIN ${fq('ControlCosos')} ccx ON c.id = ccx.control_id AND ccx.deletedAt IS NULL
+          JOIN ${fq('CosoPoints')} point ON ccx.coso_id = point.id AND point.deletedAt IS NULL
+          JOIN ${fq('CosoPrinciples')} prin ON point.principle_id = prin.id AND prin.deletedAt IS NULL
+          JOIN ${fq('CosoComponents')} comp ON prin.component_id = comp.id AND comp.deletedAt IS NULL
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY comp.name, 
+            CASE 
+              WHEN c.icof_id IS NOT NULL 
+                AND (a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
+                AND (a.account_type IN ('Balance Sheet', 'Income Statement')) 
+              THEN 'ICOFR' 
+              WHEN c.icof_id IS NULL 
+                OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
+                    AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0)) 
+                OR a.account_type NOT IN ('Balance Sheet', 'Income Statement')
+              THEN 'Non-ICOFR'
+              ELSE 'Other'
+            END
+          ORDER BY comp.name, [IcofrStatus]`,
+          columns: [
+            { key: 'Component', label: 'Component', type: 'text' as const },
+            { key: 'IcofrStatus', label: 'ICOFR Status', type: 'text' as const },
+            { key: 'Control Count', label: 'Control Count', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'actionPlanForAdequacy',
+          name: 'Action Plan for Adequacy',
+          query: `SELECT 
+            COALESCE(c.name, 'N/A') AS [Control Name], 
+            COALESCE(f.name, 'N/A') AS [Function Name], 
+            ap.factor AS [Factor], 
+            ap.riskType AS [Risk Treatment], 
+            ap.control_procedure AS [Control Procedure], 
+            ap.[type] AS [Control Procedure Type], 
+            ap.responsible AS [Action Plan Owner], 
+            ap.expected_cost AS [Expected Cost], 
+            ap.business_unit AS [Business Unit Status], 
+            ap.meeting_date AS [Meeting Date], 
+            ap.implementation_date AS [Expected Implementation Date], 
+            ap.not_attend AS [Did Not Attend]
+          FROM ${fq('Actionplans')} ap
+          LEFT JOIN ${fq('ControlDesignTests')} cdt ON ap.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
+          LEFT JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0
+          LEFT JOIN ${fq('Functions')} f ON cdt.function_id = f.id AND f.deletedAt IS NULL
+          WHERE ap.[from] = 'adequacy' 
+            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilter}
+          ORDER BY ap.createdAt DESC`,
+          columns: [
+            { key: 'Control Name', label: 'Control Name', type: 'text' as const },
+            { key: 'Function Name', label: 'Function Name', type: 'text' as const },
+            { key: 'Factor', label: 'Factor', type: 'text' as const },
+            { key: 'Risk Treatment', label: 'Risk Treatment', type: 'text' as const },
+            { key: 'Control Procedure', label: 'Control Procedure', type: 'text' as const },
+            { key: 'Control Procedure Type', label: 'Control Procedure Type', type: 'text' as const },
+            { key: 'Action Plan Owner', label: 'Action Plan Owner', type: 'text' as const },
+            { key: 'Expected Cost', label: 'Expected Cost', type: 'currency' as const },
+            { key: 'Business Unit Status', label: 'Business Unit Status', type: 'text' as const },
+            { key: 'Meeting Date', label: 'Meeting Date', type: 'date' as const },
+            { key: 'Expected Implementation Date', label: 'Expected Implementation Date', type: 'date' as const },
+            { key: 'Did Not Attend', label: 'Did Not Attend', type: 'text' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'actionPlanForEffectiveness',
+          name: 'Action Plan for Effectiveness',
+          query: `SELECT 
+            COALESCE(c.name, 'N/A') AS [Control Name], 
+            COALESCE(f.name, 'N/A') AS [Function Name], 
+            ap.factor AS [Factor], 
+            ap.riskType AS [Risk Treatment], 
+            ap.control_procedure AS [Control Procedure], 
+            ap.[type] AS [Control Procedure Type], 
+            ap.responsible AS [Action Plan Owner], 
+            ap.expected_cost AS [Expected Cost], 
+            ap.business_unit AS [Business Unit Status], 
+            ap.meeting_date AS [Meeting Date], 
+            ap.implementation_date AS [Expected Implementation Date], 
+            ap.not_attend AS [Did Not Attend]
+          FROM ${fq('Actionplans')} ap
+          LEFT JOIN ${fq('ControlDesignTests')} cdt ON ap.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
+          LEFT JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0
+          LEFT JOIN ${fq('ControlFunctions')} cf ON c.id = cf.control_id
+          LEFT JOIN ${fq('Functions')} f ON cf.function_id = f.id
+          WHERE ap.[from] = 'effective' 
+            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilter}
+          ORDER BY ap.createdAt DESC`,
+          columns: [
+            { key: 'Control Name', label: 'Control Name', type: 'text' as const },
+            { key: 'Function Name', label: 'Function Name', type: 'text' as const },
+            { key: 'Factor', label: 'Factor', type: 'text' as const },
+            { key: 'Risk Treatment', label: 'Risk Treatment', type: 'text' as const },
+            { key: 'Control Procedure', label: 'Control Procedure', type: 'text' as const },
+            { key: 'Control Procedure Type', label: 'Control Procedure Type', type: 'text' as const },
+            { key: 'Action Plan Owner', label: 'Action Plan Owner', type: 'text' as const },
+            { key: 'Expected Cost', label: 'Expected Cost', type: 'currency' as const },
+            { key: 'Business Unit Status', label: 'Business Unit Status', type: 'text' as const },
+            { key: 'Meeting Date', label: 'Meeting Date', type: 'date' as const },
+            { key: 'Expected Implementation Date', label: 'Expected Implementation Date', type: 'date' as const },
+            { key: 'Did Not Attend', label: 'Did Not Attend', type: 'text' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'controlSubmissionStatusByQuarterFunction',
+          name: 'Control Submission Status by Quarter and Function',
+          query: `SELECT 
+            c.name AS [Control Name], 
+            f.name AS [Function Name], 
+            CASE WHEN cdt.quarter = 'quarterOne' THEN 1 
+                 WHEN cdt.quarter = 'quarterTwo' THEN 2 
+                 WHEN cdt.quarter = 'quarterThree' THEN 3 
+                 WHEN cdt.quarter = 'quarterFour' THEN 4 
+                 ELSE NULL END AS [Quarter], 
+            cdt.year AS [Year], 
+            -- Submitted? (Control-level full approval cycle)
+            CASE WHEN ( c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved' ) 
+                 THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Control Submitted?], 
+            -- Approved? (ControlDesignTests-level full approval cycle)
+            CASE WHEN ( cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved' ) 
+                 THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Test Approved?] 
+          FROM ${fq('ControlDesignTests')} cdt 
+          JOIN ${fq('Controls')} c ON cdt.control_id = c.id 
+          JOIN ${fq('Functions')} f ON cdt.function_id = f.id 
+          WHERE c.isDeleted = 0 AND cdt.deletedAt IS NULL {dateFilter}
+          ORDER BY c.createdAt DESC`,
+          columns: [
+            { key: 'Control Name', label: 'Control Name', type: 'text' as const },
+            { key: 'Function Name', label: 'Function Name', type: 'text' as const },
+            { key: 'Quarter', label: 'Quarter', type: 'number' as const },
+            { key: 'Year', label: 'Year', type: 'number' as const },
+            { key: 'Control Submitted?', label: 'Control Submitted?', type: 'boolean' as const },
+            { key: 'Test Approved?', label: 'Test Approved?', type: 'boolean' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'functionsWithFullyTestedControlTests',
+          name: 'Functions with Fully Tested Control Tests',
+          query: `SELECT 
+            f.name AS [Function Name],
+            CASE WHEN cdt.quarter = 'quarterOne' THEN 1 
+                 WHEN cdt.quarter = 'quarterTwo' THEN 2 
+                 WHEN cdt.quarter = 'quarterThree' THEN 3 
+                 WHEN cdt.quarter = 'quarterFour' THEN 4 
+                 ELSE NULL END AS [Quarter],
+            cdt.year AS [Year],
+            COUNT(DISTINCT c.id) AS [Total Controls],
+            COUNT(DISTINCT CASE WHEN (c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved') THEN c.id END) AS [Controls Submitted],
+            COUNT(DISTINCT CASE WHEN (cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved') THEN c.id END) AS [Tests Approved]
+          FROM ${fq('Functions')} AS f 
+          JOIN ${fq('ControlFunctions')} AS cf ON f.id = cf.function_id 
+          JOIN ${fq('Controls')} AS c ON cf.control_id = c.id AND c.isDeleted = 0 
+          LEFT JOIN ${fq('ControlDesignTests')} AS cdt ON cdt.control_id = c.id AND cdt.deletedAt IS NULL 
+          WHERE 1=1 {dateFilter}
+          GROUP BY f.name, cdt.quarter, cdt.year
+          ORDER BY f.name, cdt.year, cdt.quarter`,
+          columns: [
+            { key: 'Function Name', label: 'Function Name', type: 'text' as const },
+            { key: 'Quarter', label: 'Quarter', type: 'number' as const },
+            { key: 'Year', label: 'Year', type: 'number' as const },
+            { key: 'Total Controls', label: 'Total Controls', type: 'number' as const },
+            { key: 'Controls Submitted', label: 'Controls Submitted', type: 'number' as const },
+            { key: 'Tests Approved', label: 'Tests Approved', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'controlsNotMappedToAssertions',
+          name: 'Controls not mapped to any Account',
+          query: `SELECT 
+            c.name AS [Control Name], 
+            f.name AS [Function Name]
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id 
+          LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id 
+          WHERE c.icof_id IS NULL AND c.isDeleted = 0 {dateFilter}
+          ORDER BY c.createdAt DESC`,
+          columns: [
+            { key: 'Control Name', label: 'Control Name', type: 'text' as const },
+            { key: 'Function Name', label: 'Function Name', type: 'text' as const }
+          ],
+          pagination: true
+        },
+        {
+          id: 'controlsNotMappedToPrinciples',
+          name: 'Controls not mapped to any Principles',
+          query: `SELECT 
+            c.name AS [Control Name], 
+            f.name AS [Function Name]
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id 
+          LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id 
+          LEFT JOIN ${fq('ControlCosos')} ccx ON ccx.control_id = c.id AND ccx.deletedAt IS NULL 
+          WHERE ccx.control_id IS NULL AND c.isDeleted = 0 {dateFilter}
+          ORDER BY c.createdAt DESC`,
+          columns: [
+            { key: 'Control Name', label: 'Control Name', type: 'text' as const },
+            { key: 'Function Name', label: 'Function Name', type: 'text' as const }
           ],
           pagination: true
         }
@@ -259,9 +901,69 @@ export class DashboardConfigService {
       tableName: 'dbo.[Risks]',
       dateField: 'createdAt',
       metrics: [
-        this.METRIC_TEMPLATES.totalCount('dbo.[Risks]', 'Risks', 'red'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Risks]', 'status', 'Pending', 'yellow'),
-        this.METRIC_TEMPLATES.approvedCount('dbo.[Risks]', 'status', 'Approved', 'green')
+        // Total risks (only active)
+        {
+          id: 'total',
+          name: 'Total Risks',
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND 1=1 {dateFilter}`,
+          color: 'red',
+          icon: 'chart-bar'
+        },
+        // High risks
+        {
+          id: 'high',
+          name: 'High Risks',
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND inherent_value = 'High' AND 1=1 {dateFilter}`,
+          color: 'orange',
+          icon: 'exclamation-triangle'
+        },
+        // Medium risks
+        {
+          id: 'medium',
+          name: 'Medium Risks',
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND inherent_value = 'Medium' AND 1=1 {dateFilter}`,
+          color: 'yellow',
+          icon: 'exclamation-circle'
+        },
+        // Low risks
+        {
+          id: 'low',
+          name: 'Low Risks',
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND inherent_value = 'Low' AND 1=1 {dateFilter}`,
+          color: 'green',
+          icon: 'shield-check'
+        },
+        // Reduction (inherent - residual > 0)
+        {
+          id: 'reduction',
+          name: 'Risks Reduced',
+          query: `SELECT COUNT(*) as total 
+            FROM dbo.[Risks] r
+            INNER JOIN dbo.[Residualrisks] rr ON r.id = rr.riskId
+            WHERE r.isDeleted = 0 
+              AND rr.isDeleted = 0
+              AND rr.quarter = CASE 
+                WHEN MONTH(GETDATE()) BETWEEN 1 AND 3 THEN 'quarterOne'
+                WHEN MONTH(GETDATE()) BETWEEN 4 AND 6 THEN 'quarterTwo'
+                WHEN MONTH(GETDATE()) BETWEEN 7 AND 9 THEN 'quarterThree'
+                WHEN MONTH(GETDATE()) BETWEEN 10 AND 12 THEN 'quarterFour'
+              END
+              AND rr.year = YEAR(GETDATE())
+              AND (
+                CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END
+                - CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END
+              ) > 0 {dateFilter}`,
+          color: 'purple',
+          icon: 'arrow-trending-down'
+        },
+        // New risks this month
+        {
+          id: 'newRisks',
+          name: 'New Risks (This Month)',
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND DATEDIFF(month, createdAt, GETDATE()) = 0 {dateFilter}`,
+          color: 'indigo',
+          icon: 'sparkles'
+        }
       ],
       charts: [
         this.CHART_TEMPLATES.riskDistribution('dbo.[Risks]', 'risk_level'),

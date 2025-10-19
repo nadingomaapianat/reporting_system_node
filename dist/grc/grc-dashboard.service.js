@@ -42,6 +42,24 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
     async getPendingAcceptanceControls(page = 1, limit = 10, startDate, endDate) {
         return this.getCardData('pendingAcceptance', page, limit, startDate, endDate);
     }
+    async getTestsPendingPreparer(page = 1, limit = 10, startDate, endDate) {
+        return this.getCardData('testsPendingPreparer', page, limit, startDate, endDate);
+    }
+    async getTestsPendingChecker(page = 1, limit = 10, startDate, endDate) {
+        return this.getCardData('testsPendingChecker', page, limit, startDate, endDate);
+    }
+    async getTestsPendingReviewer(page = 1, limit = 10, startDate, endDate) {
+        return this.getCardData('testsPendingReviewer', page, limit, startDate, endDate);
+    }
+    async getTestsPendingAcceptance(page = 1, limit = 10, startDate, endDate) {
+        return this.getCardData('testsPendingAcceptance', page, limit, startDate, endDate);
+    }
+    async getUnmappedIcofrControls(page = 1, limit = 10, startDate, endDate) {
+        return this.getCardData('unmappedIcofrControls', page, limit, startDate, endDate);
+    }
+    async getUnmappedNonIcofrControls(page = 1, limit = 10, startDate, endDate) {
+        return this.getCardData('unmappedNonIcofrControls', page, limit, startDate, endDate);
+    }
 };
 exports.GrcDashboardService = GrcDashboardService;
 exports.GrcDashboardService = GrcDashboardService = __decorate([

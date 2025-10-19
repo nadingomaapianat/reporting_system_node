@@ -4,7 +4,7 @@ export declare class GrcKrisService {
     constructor(databaseService: DatabaseService);
     private buildDateFilter;
     getKrisDashboard(timeframe?: string): Promise<{
-        totalKris: any;
+        totalKris: number;
         pendingPreparer: any;
         pendingChecker: any;
         pendingReviewer: any;

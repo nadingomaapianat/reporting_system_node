@@ -33,95 +33,239 @@ export class GrcKrisService {
 
   async getKrisDashboard(timeframe?: string) {
     try {
-      const dateFilter = this.buildDateFilter(timeframe);
+      const dateFilter = ''; // use full dataset per validated SQL
 
-      // Get total KRIs
+      // Total KRIs (count)
       const totalKrisQuery = `
-        SELECT COUNT(*) as total
-        FROM Kris
-        WHERE isDeleted = 0 ${dateFilter}
+        SELECT COUNT(*) AS total
+        FROM Kris k
+        WHERE k.isDeleted = 0
+          AND k.deletedAt IS NULL
       `;
-      const totalKrisResult = await this.databaseService.query(totalKrisQuery);
-      const totalKris = totalKrisResult[0]?.total || 0;
+      let totalKris = 0;
+      try {
+        const totalKrisResult = await this.databaseService.query(totalKrisQuery);
+        totalKris = totalKrisResult[0]?.total || 0;
+      } catch (e) {
+        console.error('KRIs total query failed:', e);
+      }
 
-      // Get KRIs by status
+      // KRIs by status (cards + distribution)
       const krisByStatusQuery = `
-        SELECT 
+        SELECT
           CASE 
-            WHEN preparerStatus = 'sent' THEN 'Pending Preparer'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'pending' THEN 'Pending Reviewer'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'sent' AND acceptanceStatus = 'pending' THEN 'Pending Acceptance'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'sent' AND acceptanceStatus = 'approved' THEN 'Approved'
+            WHEN k.preparerStatus IN ('sent','draft') THEN 'Pending Preparer'
+            WHEN k.preparerStatus = 'approved' AND (k.checkerStatus IS NULL OR k.checkerStatus <> 'approved') THEN 'Pending Checker'
+            WHEN k.checkerStatus = 'approved' AND (k.reviewerStatus IS NULL OR k.reviewerStatus <> 'approved') THEN 'Pending Reviewer'
+            WHEN k.reviewerStatus = 'approved' AND (k.acceptanceStatus IS NULL OR k.acceptanceStatus <> 'approved') THEN 'Pending Acceptance'
+            WHEN k.acceptanceStatus = 'approved' THEN 'Approved'
             ELSE 'Other'
-          END as status,
-          COUNT(*) as count
-        FROM Kris
-        WHERE isDeleted = 0 ${dateFilter}
-        GROUP BY 
+          END AS status,
+          COUNT(*) AS count
+        FROM Kris k
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+        GROUP BY
           CASE 
-            WHEN preparerStatus = 'sent' THEN 'Pending Preparer'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'pending' THEN 'Pending Reviewer'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'sent' AND acceptanceStatus = 'pending' THEN 'Pending Acceptance'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'sent' AND acceptanceStatus = 'approved' THEN 'Approved'
+            WHEN k.preparerStatus IN ('sent','draft') THEN 'Pending Preparer'
+            WHEN k.preparerStatus = 'approved' AND (k.checkerStatus IS NULL OR k.checkerStatus <> 'approved') THEN 'Pending Checker'
+            WHEN k.checkerStatus = 'approved' AND (k.reviewerStatus IS NULL OR k.reviewerStatus <> 'approved') THEN 'Pending Reviewer'
+            WHEN k.reviewerStatus = 'approved' AND (k.acceptanceStatus IS NULL OR k.acceptanceStatus <> 'approved') THEN 'Pending Acceptance'
+            WHEN k.acceptanceStatus = 'approved' THEN 'Approved'
             ELSE 'Other'
           END
       `;
-      const krisByStatus = await this.databaseService.query(krisByStatusQuery);
+      let krisByStatus: any[] = [];
+      try {
+        krisByStatus = await this.databaseService.query(krisByStatusQuery);
+      } catch (e) {
+        console.error('KRIs by status query failed:', e);
+      }
 
-      // Get KRIs by level
+      // KRIs by level (use kri_level if present else derive from latest kv vs thresholds)
       const krisByLevelQuery = `
-        SELECT 
-          kri_level,
-          COUNT(*) as count
-        FROM Kris
-        WHERE isDeleted = 0 ${dateFilter}
-        AND kri_level IS NOT NULL
-        GROUP BY kri_level
+        WITH LatestKV AS (
+          SELECT kv.kriId,
+                 kv.value,
+                 ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
+          FROM KriValues kv
+          WHERE kv.deletedAt IS NULL
+        ),
+        K AS (
+          SELECT k.id,
+                 k.kri_level,
+                 CAST(k.isAscending AS int) AS isAscending,
+                 TRY_CONVERT(float, k.medium_from) AS med_thr,
+                 TRY_CONVERT(float, k.high_from)   AS high_thr
+          FROM Kris k
+          WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+        ),
+        KL AS (
+          SELECT K.id, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
+                 TRY_CONVERT(float, kv.value) AS val
+          FROM K
+          LEFT JOIN LatestKV kv ON kv.kriId = K.id AND kv.rn = 1
+        ),
+        Derived AS (
+          SELECT CASE
+                   WHEN kri_level IS NOT NULL AND LTRIM(RTRIM(kri_level)) <> '' THEN kri_level
+                   WHEN val IS NULL OR med_thr IS NULL OR high_thr IS NULL THEN 'Unknown'
+                   WHEN isAscending = 1 AND val >= high_thr THEN 'High'
+                   WHEN isAscending = 1 AND val >= med_thr THEN 'Medium'
+                   WHEN isAscending = 1 THEN 'Low'
+                   WHEN isAscending = 0 AND val <= high_thr THEN 'High'
+                   WHEN isAscending = 0 AND val <= med_thr THEN 'Medium'
+                   ELSE 'Low'
+                 END AS level_bucket
+          FROM KL
+        )
+        SELECT level_bucket AS level, COUNT(*) AS count
+        FROM Derived
+        GROUP BY level_bucket
       `;
-      const krisByLevel = await this.databaseService.query(krisByLevelQuery);
+      let krisByLevel: any[] = [];
+      try {
+        krisByLevel = await this.databaseService.query(krisByLevelQuery);
+      } catch (e) {
+        console.error('KRIs by level query failed:', e);
+      }
 
-      // Get breached KRIs by department
+      // Breached KRIs by department (latest values, KriFunctions mapping, fallbacks to related_function_id, and kri_level="High")
       const breachedKRIsByDepartmentQuery = `
+        WITH LatestKV AS (
+          SELECT 
+            COALESCE(kv.kriId, kv.kri_id) AS kriId,
+            TRY_CONVERT(float, kv.value) AS val,
+            ROW_NUMBER() OVER (
+              PARTITION BY COALESCE(kv.kriId, kv.kri_id)
+              ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC
+            ) AS rn
+          FROM KriValues kv
+          WHERE kv.deletedAt IS NULL
+        ),
+        NormK AS (
+          SELECT
+            k.id,
+            CAST(COALESCE(k.isAscending, k.is_ascending) AS int) AS isAscending,
+            TRY_CONVERT(float, k.high_from)   AS high_thr,
+            TRY_CONVERT(float, k.medium_from) AS med_thr,
+            TRY_CONVERT(float, COALESCE(k.high_from, k.highFrom, k.threshold)) AS threshold_fallback,
+            k.kri_level,
+            k.related_function_id
+          FROM Kris k
+          WHERE k.isDeleted = 0
+        ),
+        KWithLatest AS (
+          SELECT
+            n.id,
+            n.isAscending,
+            n.high_thr,
+            n.med_thr,
+            n.threshold_fallback,
+            n.kri_level,
+            n.related_function_id,
+            kv.val
+          FROM NormK n
+          LEFT JOIN LatestKV kv
+            ON kv.kriId = n.id
+           AND kv.rn = 1
+        )
         SELECT 
-          f.name as function_name,
-          COUNT(k.id) as breached_count
-        FROM Kris k
-        LEFT JOIN Functions f ON k.related_function_id = f.id
-        WHERE k.isDeleted = 0 ${dateFilter}
-        AND k.status = 'Breached'
-        GROUP BY f.name
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+          SUM(
+            CASE 
+              WHEN kl.kri_level IS NOT NULL AND LTRIM(RTRIM(LOWER(kl.kri_level))) = 'high' THEN 1
+              WHEN kl.val IS NULL THEN 0
+              -- prefer explicit high_thr when present
+              WHEN kl.high_thr IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.high_thr THEN 1
+              WHEN kl.high_thr IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.high_thr THEN 1
+              -- fallback to medium threshold if high is missing
+              WHEN kl.high_thr IS NULL AND kl.med_thr IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.med_thr THEN 1
+              WHEN kl.high_thr IS NULL AND kl.med_thr IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.med_thr THEN 1
+              -- final fallback to generic threshold
+              WHEN kl.high_thr IS NULL AND kl.med_thr IS NULL AND kl.threshold_fallback IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.threshold_fallback THEN 1
+              WHEN kl.high_thr IS NULL AND kl.med_thr IS NULL AND kl.threshold_fallback IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.threshold_fallback THEN 1
+              ELSE 0
+            END
+          ) AS breached_count
+        FROM KWithLatest kl
+        LEFT JOIN KriFunctions kf
+          ON kf.kri_id = kl.id
+        LEFT JOIN Functions fkf
+          ON fkf.id = kf.function_id
+        LEFT JOIN Functions frel
+          ON frel.id = kl.related_function_id
+        GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
+        HAVING SUM(
+            CASE 
+              WHEN kl.kri_level IS NOT NULL AND LTRIM(RTRIM(LOWER(kl.kri_level))) = 'high' THEN 1
+              WHEN kl.val IS NULL THEN 0
+              WHEN kl.high_thr IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.high_thr THEN 1
+              WHEN kl.high_thr IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.high_thr THEN 1
+              WHEN kl.high_thr IS NULL AND kl.med_thr IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.med_thr THEN 1
+              WHEN kl.high_thr IS NULL AND kl.med_thr IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.med_thr THEN 1
+              WHEN kl.high_thr IS NULL AND kl.med_thr IS NULL AND kl.threshold_fallback IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.threshold_fallback THEN 1
+              WHEN kl.high_thr IS NULL AND kl.med_thr IS NULL AND kl.threshold_fallback IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.threshold_fallback THEN 1
+              ELSE 0
+            END
+        ) > 0
         ORDER BY breached_count DESC
       `;
-      const breachedKRIsByDepartment = await this.databaseService.query(breachedKRIsByDepartmentQuery);
+      let breachedKRIsByDepartment: any[] = [];
+      try {
+        breachedKRIsByDepartment = await this.databaseService.query(breachedKRIsByDepartmentQuery);
+      } catch (e) {
+        console.error('Breached KRIs by department query failed:', e);
+      }
 
-      // Get KRI health status
+      // KRI health status (list)
       const kriHealthQuery = `
-        SELECT TOP 10
+        SELECT TOP 50
           k.kriName,
           k.status,
-          k.kri_level,
-          f.name as function_name,
+          COALESCE(k.kri_level, 'Unknown') AS kri_level,
+          COALESCE(fkf.name, frel.name, 'Unknown') AS function_name,
           k.threshold,
           k.frequency
         FROM Kris k
-        LEFT JOIN Functions f ON k.related_function_id = f.id
-        WHERE k.isDeleted = 0 ${dateFilter}
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
         ORDER BY k.createdAt DESC
       `;
-      const kriHealth = await this.databaseService.query(kriHealthQuery);
+      let kriHealth: any[] = [];
+      try {
+        kriHealth = await this.databaseService.query(kriHealthQuery);
+      } catch (e) {
+        console.error('KRI health query failed:', e);
+      }
 
-      // Get KRI assessment count by department
+      // KRI assessment count by department (latest kv per KRI)
       const kriAssessmentCountQuery = `
-        SELECT 
-          f.name as function_name,
-          COUNT(k.id) as assessment_count
+        WITH LatestKV AS (
+          SELECT kv.kriId,
+                 kv.assessment,
+                 ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
+          FROM KriValues kv
+          WHERE kv.deletedAt IS NULL
+        )
+        SELECT
+          f.name AS function_name,
+          COUNT(k.id) AS assessment_count
         FROM Kris k
-        LEFT JOIN Functions f ON k.related_function_id = f.id
-        WHERE k.isDeleted = 0 ${dateFilter}
+        JOIN LatestKV kv ON kv.kriId = k.id AND kv.rn = 1
+        JOIN KriFunctions kf ON k.id = kf.kri_id
+        JOIN Functions f ON kf.function_id = f.id
+        WHERE k.isDeleted = 0
         GROUP BY f.name
         ORDER BY assessment_count DESC
       `;
-      const kriAssessmentCount = await this.databaseService.query(kriAssessmentCountQuery);
+      let kriAssessmentCount: any[] = [];
+      try {
+        kriAssessmentCount = await this.databaseService.query(kriAssessmentCountQuery);
+      } catch (e) {
+        console.error('KRI assessment count query failed:', e);
+      }
 
       // Calculate status counts
       const pendingPreparer = krisByStatus.find(s => s.status === 'Pending Preparer')?.count || 0;
@@ -163,8 +307,21 @@ export class GrcKrisService {
         }))
       };
     } catch (error) {
-      console.error('Error fetching KRIs dashboard data:', error);
-      throw error;
+      console.error('Fatal error fetching KRIs dashboard data:', error);
+      // Return an empty-but-valid payload instead of 500 so UI can load
+      return {
+        totalKris: 0,
+        pendingPreparer: 0,
+        pendingChecker: 0,
+        pendingReviewer: 0,
+        pendingAcceptance: 0,
+        approved: 0,
+        krisByStatus: [],
+        krisByLevel: [],
+        breachedKRIsByDepartment: [],
+        kriHealth: [],
+        kriAssessmentCount: []
+      };
     }
   }
 

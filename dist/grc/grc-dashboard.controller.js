@@ -40,6 +40,24 @@ let GrcDashboardController = class GrcDashboardController {
     async getPendingAcceptanceControls(page = 1, limit = 10, startDate, endDate) {
         return this.grcDashboardService.getPendingAcceptanceControls(page, limit, startDate, endDate);
     }
+    async getTestsPendingPreparer(page = 1, limit = 10, startDate, endDate) {
+        return this.grcDashboardService.getTestsPendingPreparer(page, limit, startDate, endDate);
+    }
+    async getTestsPendingChecker(page = 1, limit = 10, startDate, endDate) {
+        return this.grcDashboardService.getTestsPendingChecker(page, limit, startDate, endDate);
+    }
+    async getTestsPendingReviewer(page = 1, limit = 10, startDate, endDate) {
+        return this.grcDashboardService.getTestsPendingReviewer(page, limit, startDate, endDate);
+    }
+    async getTestsPendingAcceptance(page = 1, limit = 10, startDate, endDate) {
+        return this.grcDashboardService.getTestsPendingAcceptance(page, limit, startDate, endDate);
+    }
+    async getUnmappedIcofrControls(page = 1, limit = 10, startDate, endDate) {
+        return this.grcDashboardService.getUnmappedIcofrControls(page, limit, startDate, endDate);
+    }
+    async getUnmappedNonIcofrControls(page = 1, limit = 10, startDate, endDate) {
+        return this.grcDashboardService.getUnmappedNonIcofrControls(page, limit, startDate, endDate);
+    }
 };
 exports.GrcDashboardController = GrcDashboardController;
 __decorate([
@@ -110,6 +128,66 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number, String, String]),
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getPendingAcceptanceControls", null);
+__decorate([
+    (0, common_1.Get)('tests/pending-preparer'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcDashboardController.prototype, "getTestsPendingPreparer", null);
+__decorate([
+    (0, common_1.Get)('tests/pending-checker'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcDashboardController.prototype, "getTestsPendingChecker", null);
+__decorate([
+    (0, common_1.Get)('tests/pending-reviewer'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcDashboardController.prototype, "getTestsPendingReviewer", null);
+__decorate([
+    (0, common_1.Get)('tests/pending-acceptance'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcDashboardController.prototype, "getTestsPendingAcceptance", null);
+__decorate([
+    (0, common_1.Get)('unmapped-icofr'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcDashboardController.prototype, "getUnmappedIcofrControls", null);
+__decorate([
+    (0, common_1.Get)('unmapped-non-icofr'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcDashboardController.prototype, "getUnmappedNonIcofrControls", null);
 exports.GrcDashboardController = GrcDashboardController = __decorate([
     (0, common_1.Controller)('api/grc/controls'),
     __metadata("design:paramtypes", [grc_dashboard_service_1.GrcDashboardService])

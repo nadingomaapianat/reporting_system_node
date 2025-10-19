@@ -25,6 +25,12 @@ let GrcRisksController = class GrcRisksController {
     async getTotalRisks(page = 1, limit = 10, startDate, endDate) {
         return this.grcRisksService.getTotalRisks(page, limit, startDate, endDate);
     }
+    async getCard(cardType, page = 1, limit = 10, startDate, endDate) {
+        return this.grcRisksService.getCardData(cardType, page, limit, startDate, endDate);
+    }
+    async getCardByParam(cardType, page = 1, limit = 10, startDate, endDate) {
+        return this.grcRisksService.getCardData(cardType, page, limit, startDate, endDate);
+    }
     async getHighRisks(page = 1, limit = 10, startDate, endDate) {
         return this.grcRisksService.getHighRisks(page, limit, startDate, endDate);
     }
@@ -60,6 +66,28 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number, String, String]),
     __metadata("design:returntype", Promise)
 ], GrcRisksController.prototype, "getTotalRisks", null);
+__decorate([
+    (0, common_1.Get)('card'),
+    __param(0, (0, common_1.Query)('cardType')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getCard", null);
+__decorate([
+    (0, common_1.Get)('card/:cardType'),
+    __param(0, (0, common_1.Param)('cardType')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getCardByParam", null);
 __decorate([
     (0, common_1.Get)('high-risk'),
     __param(0, (0, common_1.Query)('page')),

@@ -4,31 +4,50 @@ export declare class GrcRisksController {
     constructor(grcRisksService: GrcRisksService);
     getRisksDashboard(startDate?: string, endDate?: string): Promise<{
         totalRisks: any;
-        risksByCategory: {
-            name: any;
-            value: any;
-        }[];
-        risksByEventType: {
-            name: any;
-            value: any;
-        }[];
-        inherentVsResidual: any[];
+        allRisks: import("mssql").IRecordSet<any>;
+        risksByCategory: import("mssql").IRecordSet<any>;
+        risksByEventType: import("mssql").IRecordSet<any>;
+        inherentVsResidual: import("mssql").IRecordSet<any>;
         riskLevels: {
             level: string;
-            count: number;
+            count: any;
         }[];
-        riskTrends: {
-            month: any;
-            total_risks: any;
-            new_risks: any;
-            mitigated_risks: any;
-        }[];
+        riskReductionCount: any;
+        riskTrends: import("mssql").IRecordSet<any>;
+        newRisks: import("mssql").IRecordSet<any>;
     }>;
     getTotalRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
-        data: import("mssql").IRecordSet<any>;
-        total: any;
-        page: number;
-        limit: number;
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getCard(cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getCardByParam(cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
     }>;
     getHighRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;

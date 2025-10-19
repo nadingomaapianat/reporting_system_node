@@ -72,4 +72,65 @@ export class GrcDashboardController {
   ) {
     return this.grcDashboardService.getPendingAcceptanceControls(page, limit, startDate, endDate);
   }
+
+  // Control Tests pending endpoints
+  @Get('tests/pending-preparer')
+  async getTestsPendingPreparer(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcDashboardService.getTestsPendingPreparer(page, limit, startDate, endDate);
+  }
+
+  @Get('tests/pending-checker')
+  async getTestsPendingChecker(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcDashboardService.getTestsPendingChecker(page, limit, startDate, endDate);
+  }
+
+  @Get('tests/pending-reviewer')
+  async getTestsPendingReviewer(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcDashboardService.getTestsPendingReviewer(page, limit, startDate, endDate);
+  }
+
+  @Get('tests/pending-acceptance')
+  async getTestsPendingAcceptance(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcDashboardService.getTestsPendingAcceptance(page, limit, startDate, endDate);
+  }
+
+  @Get('unmapped-icofr')
+  async getUnmappedIcofrControls(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcDashboardService.getUnmappedIcofrControls(page, limit, startDate, endDate);
+  }
+
+  @Get('unmapped-non-icofr')
+  async getUnmappedNonIcofrControls(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcDashboardService.getUnmappedNonIcofrControls(page, limit, startDate, endDate);
+  }
 }

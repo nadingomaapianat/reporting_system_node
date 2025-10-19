@@ -33,10 +33,23 @@ export declare class GrcIncidentsController {
             incident_count: any;
             total_loss: any;
         }[];
+        statusOverview: import("mssql").IRecordSet<any>;
+        overallStatuses: import("mssql").IRecordSet<any>;
     }>;
     exportIncidents(format: string, timeframe?: string): Promise<{
         message: string;
         timeframe: string;
         status: string;
+    }>;
+    getTotalIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
     }>;
 }

@@ -3,7 +3,7 @@ export declare class GrcKrisController {
     private readonly grcKrisService;
     constructor(grcKrisService: GrcKrisService);
     getKrisDashboard(timeframe?: string): Promise<{
-        totalKris: any;
+        totalKris: number;
         pendingPreparer: any;
         pendingChecker: any;
         pendingReviewer: any;

@@ -34,7 +34,7 @@ export interface TableConfig {
 export interface ColumnConfig {
     key: string;
     label: string;
-    type: 'text' | 'number' | 'date' | 'status' | 'currency';
+    type: 'text' | 'number' | 'date' | 'status' | 'currency' | 'boolean';
     render?: (value: any) => any;
 }
 export declare abstract class BaseDashboardService {
@@ -45,7 +45,7 @@ export declare abstract class BaseDashboardService {
     private getMetricsData;
     private getChartsData;
     private getTablesData;
-    private buildDateFilter;
+    protected buildDateFilter(startDate?: string, endDate?: string, dateField?: string): string;
     private calculateChange;
     private formatValue;
     getCardData(cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{

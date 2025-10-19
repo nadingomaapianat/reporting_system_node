@@ -42,4 +42,29 @@ export class GrcDashboardService extends BaseDashboardService {
   async getPendingAcceptanceControls(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     return this.getCardData('pendingAcceptance', page, limit, startDate, endDate);
   }
+
+  // Control Tests pending methods
+  async getTestsPendingPreparer(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    return this.getCardData('testsPendingPreparer', page, limit, startDate, endDate);
+  }
+
+  async getTestsPendingChecker(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    return this.getCardData('testsPendingChecker', page, limit, startDate, endDate);
+  }
+
+  async getTestsPendingReviewer(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    return this.getCardData('testsPendingReviewer', page, limit, startDate, endDate);
+  }
+
+  async getTestsPendingAcceptance(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    return this.getCardData('testsPendingAcceptance', page, limit, startDate, endDate);
+  }
+
+  async getUnmappedIcofrControls(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    return this.getCardData('unmappedIcofrControls', page, limit, startDate, endDate);
+  }
+
+  async getUnmappedNonIcofrControls(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    return this.getCardData('unmappedNonIcofrControls', page, limit, startDate, endDate);
+  }
 }

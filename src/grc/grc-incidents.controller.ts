@@ -17,4 +17,14 @@ export class GrcIncidentsController {
   ) {
     return this.grcIncidentsService.exportIncidents(format, timeframe);
   }
+
+  @Get('total')
+  async getTotalIncidents(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getTotalIncidents(page, limit, startDate, endDate)
+  }
 }

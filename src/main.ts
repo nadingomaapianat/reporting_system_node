@@ -13,7 +13,7 @@ async function bootstrap() {
   
   // CORS configuration
   app.use(cors({
-    origin: ['http://localhost:3000', 'http://localhost:3002','https://reporting-system-frontend.pianat.ai','https://reporting-system-backend.pianat.ai'],
+    origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002','https://reporting-system-frontend.pianat.ai','https://reporting-system-backend.pianat.ai'],
     credentials: true,
   }));
   

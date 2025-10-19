@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Param } from '@nestjs/common';
 import { GrcRisksService } from './grc-risks.service';
 
 @Controller('api/grc/risks')
@@ -21,6 +21,29 @@ export class GrcRisksController {
     @Query('endDate') endDate?: string
   ) {
     return this.grcRisksService.getTotalRisks(page, limit, startDate, endDate);
+  }
+
+  @Get('card')
+  async getCard(
+    @Query('cardType') cardType: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcRisksService.getCardData(cardType, page, limit, startDate, endDate);
+  }
+
+  // Path-param variant for frontend compatibility: /api/grc/risks/card/high
+  @Get('card/:cardType')
+  async getCardByParam(
+    @Param('cardType') cardType: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcRisksService.getCardData(cardType, page, limit, startDate, endDate);
   }
 
   @Get('high-risk')
