@@ -82,7 +82,7 @@ export class GrcIncidentsService {
 
       // Get top financial impacts
       const topFinancialImpactsQuery = `
-        SELECT TOP 10
+        SELECT
           i.id as incident_id,
           fi.name as financial_impact_name,
           f.name as function_name,
@@ -98,7 +98,7 @@ export class GrcIncidentsService {
 
       // Get net loss and recovery data
       const netLossAndRecoveryQuery = `
-        SELECT TOP 10
+        SELECT
           i.title as incident_title,
           i.net_loss,
           i.recovery_amount,

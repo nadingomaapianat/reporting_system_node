@@ -6,17 +6,26 @@ export declare class GrcRisksService extends BaseDashboardService {
     getConfig(): DashboardConfig;
     getRisksDashboard(startDate?: string, endDate?: string): Promise<{
         totalRisks: any;
-        allRisks: import("mssql").IRecordSet<any>;
+        allRisks: any[];
         risksByCategory: import("mssql").IRecordSet<any>;
         risksByEventType: import("mssql").IRecordSet<any>;
-        inherentVsResidual: import("mssql").IRecordSet<any>;
         riskLevels: {
             level: string;
             count: any;
         }[];
         riskReductionCount: any;
-        riskTrends: import("mssql").IRecordSet<any>;
         newRisks: import("mssql").IRecordSet<any>;
+        risksPerDepartment: import("mssql").IRecordSet<any>;
+        risksPerBusinessProcess: any[];
+        createdDeletedRisksPerQuarter: import("mssql").IRecordSet<any>;
+        quarterlyRiskCreationTrends: import("mssql").IRecordSet<any>;
+        inherentResidualRiskComparison: any[];
+        riskApprovalStatusDistribution: import("mssql").IRecordSet<any>;
+        highResidualRiskOverview: any[];
+        riskDistributionByFinancialImpact: import("mssql").IRecordSet<any>;
+        risksAndControlsCount: any[];
+        controlsAndRiskCount: any[];
+        risksDetails: any[];
     }>;
     getTotalRisks(page: number, limit: number, startDate?: string, endDate?: string): Promise<{
         data: any[];

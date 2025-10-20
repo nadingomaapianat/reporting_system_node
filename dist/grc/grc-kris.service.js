@@ -221,7 +221,7 @@ let GrcKrisService = class GrcKrisService {
                 console.error('Breached KRIs by department query failed:', e);
             }
             const kriHealthQuery = `
-        SELECT TOP 50
+        SELECT
           k.kriName,
           k.status,
           COALESCE(k.kri_level, 'Unknown') AS kri_level,

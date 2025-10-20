@@ -219,7 +219,7 @@ export class GrcKrisService {
 
       // KRI health status (list)
       const kriHealthQuery = `
-        SELECT TOP 50
+        SELECT
           k.kriName,
           k.status,
           COALESCE(k.kri_level, 'Unknown') AS kri_level,

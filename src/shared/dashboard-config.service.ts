@@ -966,12 +966,361 @@ export class DashboardConfigService {
         }
       ],
       charts: [
-        this.CHART_TEMPLATES.riskDistribution('dbo.[Risks]', 'risk_level'),
-        this.CHART_TEMPLATES.categoryDistribution('dbo.[Risks]', 'category'),
-        this.CHART_TEMPLATES.monthlyTrend('dbo.[Risks]')
+        // Risks by Category
+        {
+          id: 'risksByCategory',
+          name: 'Risks by Category',
+          type: 'bar' as const,
+          query: `SELECT 
+            ISNULL(c.name, 'Uncategorized') as name,
+            COUNT(r.id) as value
+          FROM dbo.[Risks] r
+          LEFT JOIN dbo.RiskCategories rc ON r.id = rc.risk_id AND rc.isDeleted = 0
+          LEFT JOIN dbo.Categories c ON rc.category_id = c.id AND c.isDeleted = 0
+          WHERE r.isDeleted = 0 {dateFilter}
+          GROUP BY c.name
+          ORDER BY value DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        // Risks by Event Type
+        {
+          id: 'risksByEventType',
+          name: 'Risks by Event Type',
+          type: 'pie' as const,
+          query: `SELECT 
+            ISNULL(et.name, 'Unknown') as name,
+            COUNT(r.id) as value
+          FROM dbo.[Risks] r
+          LEFT JOIN dbo.[EventTypes] et ON r.event = et.id
+          WHERE r.isDeleted = 0 {dateFilter}
+          GROUP BY et.name`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
+        // Created & Deleted Risks Per Quarter
+        {
+          id: 'createdDeletedRisksPerQuarter',
+          name: 'Created & Deleted Risks Per Quarter',
+          type: 'bar' as const,
+          query: `WITH AllQuarters AS (
+            SELECT 1 AS quarter_num, 'Q1 2025' AS quarter_label, CAST('2025-01-01' AS datetime2) AS quarter_start
+            UNION ALL SELECT 2, 'Q2 2025', CAST('2025-04-01' AS datetime2)
+            UNION ALL SELECT 3, 'Q3 2025', CAST('2025-07-01' AS datetime2)
+            UNION ALL SELECT 4, 'Q4 2025', CAST('2025-10-01' AS datetime2)
+          ),
+          QuarterData AS (
+            SELECT 
+              DATEPART(quarter, r.createdAt) AS quarter_num,
+              'Q' + CAST(DATEPART(quarter, r.createdAt) AS VARCHAR(1)) + ' 2025' AS quarter_label,
+              SUM(CASE WHEN r.isDeleted = 0 AND (r.deletedAt IS NULL OR r.deletedAt = '') THEN 1 ELSE 0 END) AS created,
+              SUM(CASE WHEN r.isDeleted = 1 OR r.deletedAt IS NOT NULL THEN 1 ELSE 0 END) AS deleted
+            FROM dbo.[Risks] r
+            WHERE YEAR(r.createdAt) = YEAR(GETDATE()) {dateFilter}
+            GROUP BY DATEPART(quarter, r.createdAt), 
+                     'Q' + CAST(DATEPART(quarter, r.createdAt) AS VARCHAR(1)) + ' 2025'
+          )
+          SELECT 
+            q.quarter_label AS name,
+            ISNULL(qd.created, 0) AS created,
+            ISNULL(qd.deleted, 0) AS deleted
+          FROM AllQuarters q
+          LEFT JOIN QuarterData qd ON q.quarter_num = qd.quarter_num
+          ORDER BY q.quarter_num ASC`,
+          xField: 'name',
+          yField: 'created',
+          labelField: 'name'
+        },
+        // Quarterly Risk Creation Trends
+        {
+          id: 'quarterlyRiskCreationTrends',
+          name: 'Quarterly Risk Creation Trends',
+          type: 'line' as const,
+          query: `SELECT 
+            creation_quarter AS creation_quarter, 
+            SUM(risk_count) AS [SUM(risk_count)] 
+          FROM ( 
+            SELECT 
+              CONCAT(YEAR(r.createdAt), '-Q', DATEPART(QUARTER, r.createdAt)) AS creation_quarter, 
+              COUNT(r.id) AS risk_count 
+            FROM dbo.[Risks] r 
+            WHERE r.isDeleted = 0 {dateFilter}
+            GROUP BY YEAR(r.createdAt), DATEPART(QUARTER, r.createdAt) 
+          ) AS virtual_table 
+          GROUP BY creation_quarter 
+          ORDER BY creation_quarter`,
+          xField: 'creation_quarter',
+          yField: 'SUM(risk_count)',
+          labelField: 'creation_quarter'
+        },
+        // Risk Approval Status Distribution
+        {
+          id: 'riskApprovalStatusDistribution',
+          name: 'Risk Approval Status Distribution',
+          type: 'pie' as const,
+          query: `SELECT 
+            CASE 
+              WHEN rr.preparerResidualStatus = 'sent' AND rr.acceptanceResidualStatus = 'approved' THEN 'Approved'
+              ELSE 'Not Approved'
+            END AS approve,
+            COUNT(*) AS count
+          FROM dbo.[Risks] r
+          INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId
+          WHERE r.isDeleted = 0 {dateFilter}
+          GROUP BY 
+            CASE 
+              WHEN rr.preparerResidualStatus = 'sent' AND rr.acceptanceResidualStatus = 'approved' THEN 'Approved'
+              ELSE 'Not Approved'
+            END
+          ORDER BY approve ASC`,
+              xField: 'approve',
+              yField: 'count',
+              labelField: 'approve'
+        },
+        // Risk Distribution by Financial Impact Level
+        {
+          id: 'riskDistributionByFinancialImpact',
+          name: 'Risk Distribution by Financial Impact Level',
+          type: 'pie' as const,
+          query: `SELECT 
+            CASE 
+              WHEN r.inherent_financial_value <= 2 THEN 'Low' 
+              WHEN r.inherent_financial_value = 3 THEN 'Medium' 
+              WHEN r.inherent_financial_value >= 4 THEN 'High' 
+              ELSE 'Unknown' 
+            END AS [Financial Status],
+            COUNT(*) AS count
+          FROM dbo.[Risks] r
+          WHERE r.isDeleted = 0 {dateFilter}
+          GROUP BY 
+            CASE 
+              WHEN r.inherent_financial_value <= 2 THEN 'Low' 
+              WHEN r.inherent_financial_value = 3 THEN 'Medium' 
+              WHEN r.inherent_financial_value >= 4 THEN 'High' 
+              ELSE 'Unknown' 
+            END
+          ORDER BY [Financial Status] ASC`,
+          xField: 'Financial Status',
+          yField: 'count',
+          labelField: 'Financial Status'
+        }
       ],
       tables: [
-        this.TABLE_TEMPLATES.statusOverview('dbo.[Risks]', 'id', 'name', ['status', 'risk_level'])
+        // Total Number of Risks per Department
+        {
+          id: 'risksPerDepartment',
+          name: 'Total Number of Risks per Department',
+          query: `SELECT
+            f.name AS [Functions__name], 
+            COUNT(*) AS [count] 
+          FROM dbo.[Risks] r
+          LEFT JOIN dbo.[RiskFunctions] rf ON r.id = rf.risk_id
+          LEFT JOIN dbo.[Functions] f ON rf.function_id = f.id
+          WHERE r.isDeleted = 0 {dateFilter}
+          GROUP BY f.name
+          ORDER BY [count] DESC, f.name ASC`,
+          columns: [
+            { key: 'Functions__name', label: 'Department Name', type: 'text' as const },
+            { key: 'count', label: 'Risk Count', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        // Number of Risks per Business Process
+        {
+          id: 'risksPerBusinessProcess',
+          name: 'Number of Risks per Business Process',
+          query: `SELECT 
+            p.name AS process_name, 
+            COUNT(rp.risk_id) AS risk_count 
+          FROM dbo.[RiskProcesses] rp 
+          JOIN dbo.[Processes] p ON rp.process_id = p.id 
+          JOIN dbo.[Risks] r ON rp.risk_id = r.id
+          WHERE r.isDeleted = 0 {dateFilter}
+          GROUP BY p.name 
+          ORDER BY risk_count DESC, p.name ASC`,
+          columns: [
+            { key: 'process_name', label: 'Process Name', type: 'text' as const },
+            { key: 'risk_count', label: 'Risk Count', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        // Inherent Risk & Residual Risk Comparison
+        {
+          id: 'inherentResidualRiskComparison',
+          name: 'Inherent Risk & Residual Risk Comparison',
+          query: `SELECT 
+            r.name AS [Risk Name], 
+            d.name AS [Department Name], 
+            r.inherent_value AS [Inherent Value], 
+            rr.residual_value AS [Residual Value] 
+          FROM dbo.[Risks] r
+          JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id 
+          LEFT JOIN dbo.[Departments] d ON r.departmentId = d.id 
+          WHERE r.isDeleted = 0 AND rr.isDeleted = 0 {dateFilter}
+          ORDER BY r.createdAt DESC`,
+          columns: [
+            { key: 'Risk Name', label: 'Risk Name', type: 'text' as const },
+            { key: 'Department Name', label: 'Department Name', type: 'text' as const },
+            { key: 'Inherent Value', label: 'Inherent Value', type: 'text' as const },
+            { key: 'Residual Value', label: 'Residual Value', type: 'text' as const }
+          ],
+          pagination: true
+        },
+        // Inherent vs Residual Risk Comparison
+        {
+          id: 'highResidualRiskOverview',
+          name: 'Inherent vs Residual Risk Comparison',
+          query: `SELECT 
+            risk_name AS [Risk Name], 
+            residual_level AS [Residual Level], 
+            inherent_value AS [Inherent Value], 
+            inherent_frequency_label AS [Inherent Frequency], 
+            inherent_financial_label AS [Inherent Financial],
+            residual_frequency_label AS [Residual Frequency], 
+            residual_financial_label AS [Residual Financial],
+            quarter AS [Quarter],
+            year AS [Year]
+          FROM ( 
+            SELECT 
+              r.name AS risk_name, 
+              rr.residual_value AS residual_level, 
+              r.inherent_value AS inherent_value,
+              r.inherent_frequency AS inherent_frequency,
+              r.inherent_financial_value AS inherent_financial_value,
+              rr.residual_frequency AS residual_frequency,
+              rr.residual_financial_value AS residual_financial_value,
+              rr.quarter AS quarter,
+              rr.year AS year,
+              -- Inherent Frequency Labels
+              CASE 
+                WHEN r.inherent_frequency = 1 THEN 'Once in Three Years'
+                WHEN r.inherent_frequency = 2 THEN 'Annually'
+                WHEN r.inherent_frequency = 3 THEN 'Half Yearly'
+                WHEN r.inherent_frequency = 4 THEN 'Quarterly'
+                WHEN r.inherent_frequency = 5 THEN 'Monthly'
+                ELSE 'Unknown'
+              END AS inherent_frequency_label,
+              -- Inherent Financial Labels
+              CASE 
+                WHEN r.inherent_financial_value = 1 THEN '0 - 10,000'
+                WHEN r.inherent_financial_value = 2 THEN '10,000 - 100,000'
+                WHEN r.inherent_financial_value = 3 THEN '100,000 - 1,000,000'
+                WHEN r.inherent_financial_value = 4 THEN '1,000,000 - 10,000,000'
+                WHEN r.inherent_financial_value = 5 THEN '> 10,000,000'
+                ELSE 'Unknown'
+              END AS inherent_financial_label,
+              -- Residual Frequency Labels
+              CASE 
+                WHEN rr.residual_frequency = 1 THEN 'Once in Three Years'
+                WHEN rr.residual_frequency = 2 THEN 'Annually'
+                WHEN rr.residual_frequency = 3 THEN 'Half Yearly'
+                WHEN rr.residual_frequency = 4 THEN 'Quarterly'
+                WHEN rr.residual_frequency = 5 THEN 'Monthly'
+                ELSE 'Unknown'
+              END AS residual_frequency_label,
+              -- Residual Financial Labels
+              CASE 
+                WHEN rr.residual_financial_value = 1 THEN '0 - 10,000'
+                WHEN rr.residual_financial_value = 2 THEN '10,000 - 100,000'
+                WHEN rr.residual_financial_value = 3 THEN '100,000 - 1,000,000'
+                WHEN rr.residual_financial_value = 4 THEN '1,000,000 - 10,000,000'
+                WHEN rr.residual_financial_value = 5 THEN '> 10,000,000'
+                ELSE 'Unknown'
+              END AS residual_financial_label
+            FROM dbo.[ResidualRisks] rr 
+            JOIN dbo.[Risks] r ON rr.riskId = r.id 
+            WHERE r.isDeleted = 0 AND rr.residual_value = 'High' {dateFilter}
+          ) AS virtual_table
+          ORDER BY year DESC, quarter DESC, inherent_value DESC`,
+          columns: [
+            { key: 'Risk Name', label: 'Risk Name', type: 'text' as const },
+            { key: 'Residual Level', label: 'Residual Level', type: 'text' as const },
+            { key: 'Inherent Value', label: 'Inherent Value', type: 'text' as const },
+            { key: 'Inherent Frequency', label: 'Inherent Frequency', type: 'text' as const },
+            { key: 'Inherent Financial', label: 'Inherent Financial', type: 'text' as const },
+            { key: 'Residual Frequency', label: 'Residual Frequency', type: 'text' as const },
+            { key: 'Residual Financial', label: 'Residual Financial', type: 'text' as const },
+            { key: 'Quarter', label: 'Quarter', type: 'text' as const },
+            { key: 'Year', label: 'Year', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        // Risks and their Controls Count
+        {
+          id: 'risksAndControlsCount',
+          name: 'Risks and their Controls Count',
+          query: `SELECT 
+            r.name AS risk_name, 
+            COUNT(DISTINCT rc.control_id) AS control_count 
+          FROM dbo.[Risks] r 
+          LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id 
+          LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id 
+          WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}
+          GROUP BY r.name 
+          ORDER BY control_count DESC`,
+          columns: [
+            { key: 'risk_name', label: 'Risk Name', type: 'text' as const },
+            { key: 'control_count', label: 'Control Count', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        // Controls and Risk Count
+        {
+          id: 'controlsAndRiskCount',
+          name: 'Controls and Risk Count',
+          query: `SELECT 
+            c.name AS [Controls__name], 
+            COUNT(DISTINCT rc.risk_id) AS [count] 
+          FROM dbo.[Controls] c
+          LEFT JOIN dbo.[RiskControls] rc ON c.id = rc.control_id 
+          LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0
+          WHERE c.isDeleted = 0 {dateFilter}
+          GROUP BY c.name 
+          ORDER BY [count] DESC, c.name ASC`,
+          columns: [
+            { key: 'Controls__name', label: 'Control Name', type: 'text' as const },
+            { key: 'count', label: 'Risk Count', type: 'number' as const }
+          ],
+          pagination: true
+        },
+        // Risks Details
+        {
+          id: 'risksDetails',
+          name: 'Risks Details',
+          query: `SELECT
+            r.name AS [RiskName], 
+            r.description AS [RiskDesc], 
+            et.name AS [RiskEventName], 
+            r.approve AS [RiskApprove], 
+            r.inherent_value AS [InherentValue], 
+            r.residual_value AS [ResidualValue], 
+            r.inherent_frequency AS [InherentFrequency], 
+            r.inherent_financial_value AS [InherentFinancialValue], 
+            rr.residual_value AS [RiskResidualValue], 
+            rr.quarter AS [ResidualQuarter], 
+            rr.year AS [ResidualYear] 
+          FROM dbo.[Risks] r 
+          INNER JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id AND rr.isDeleted = 0 
+          INNER JOIN dbo.[EventTypes] et ON et.id = r.event 
+          WHERE r.isDeleted = 0 {dateFilter}
+          ORDER BY r.createdAt DESC`,
+          columns: [
+            { key: 'RiskName', label: 'Risk Name', type: 'text' as const },
+            { key: 'RiskDesc', label: 'Risk Description', type: 'text' as const },
+            { key: 'RiskEventName', label: 'Risk Event Name', type: 'text' as const },
+            { key: 'RiskApprove', label: 'Risk Approve', type: 'text' as const },
+            { key: 'InherentValue', label: 'Inherent Value', type: 'text' as const },
+            { key: 'ResidualValue', label: 'Residual Value', type: 'text' as const },
+            { key: 'InherentFrequency', label: 'Inherent Frequency', type: 'text' as const },
+            { key: 'InherentFinancialValue', label: 'Inherent Financial Value', type: 'text' as const },
+            { key: 'RiskResidualValue', label: 'Risk Residual Value', type: 'text' as const },
+            { key: 'ResidualQuarter', label: 'Residual Quarter', type: 'text' as const },
+            { key: 'ResidualYear', label: 'Residual Year', type: 'number' as const }
+          ],
+          pagination: true
+        }
       ]
     };
   }
