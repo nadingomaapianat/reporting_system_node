@@ -82,7 +82,7 @@ let GrcIncidentsService = class GrcIncidentsService {
       `;
             const incidentsByCategory = await this.databaseService.query(incidentsByCategoryQuery);
             const topFinancialImpactsQuery = `
-        SELECT TOP 10
+        SELECT
           i.id as incident_id,
           fi.name as financial_impact_name,
           f.name as function_name,
@@ -96,7 +96,7 @@ let GrcIncidentsService = class GrcIncidentsService {
       `;
             const topFinancialImpacts = await this.databaseService.query(topFinancialImpactsQuery);
             const netLossAndRecoveryQuery = `
-        SELECT TOP 10
+        SELECT
           i.title as incident_title,
           i.net_loss,
           i.recovery_amount,
