@@ -88,7 +88,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                 {
                     id: 'pendingAcceptance',
                     name: 'Pending Acceptance',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE acceptanceStatus != 'approved' AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE acceptanceStatus != 'approved' AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'red',
                     icon: 'exclamation-triangle'
                 },
@@ -978,7 +978,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                 {
                     id: 'risksPerDepartment',
                     name: 'Total Number of Risks per Department',
-                    query: `SELECT 
+                    query: `SELECT
             f.name AS [Functions__name], 
             COUNT(*) AS [count] 
           FROM dbo.[Risks] r
@@ -996,7 +996,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                 {
                     id: 'risksPerBusinessProcess',
                     name: 'Number of Risks per Business Process',
-                    query: `SELECT  
+                    query: `SELECT 
             p.name AS process_name, 
             COUNT(rp.risk_id) AS risk_count 
           FROM dbo.[RiskProcesses] rp 

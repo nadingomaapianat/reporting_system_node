@@ -207,7 +207,7 @@ export class DashboardConfigService {
         {
           id: 'pendingAcceptance',
           name: 'Pending Acceptance',
-          query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE acceptanceStatus != 'approved' AND 1=1 {dateFilter}`,
+          query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE acceptanceStatus != 'approved' AND isDeleted = 0 AND 1=1 {dateFilter}`,
           color: 'red',
           icon: 'exclamation-triangle'
         },
