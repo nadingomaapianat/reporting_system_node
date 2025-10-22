@@ -27,4 +27,44 @@ export class GrcIncidentsController {
   ) {
     return this.grcIncidentsService.getTotalIncidents(page, limit, startDate, endDate)
   }
+
+  @Get('pending-preparer')
+  async getPendingPreparerIncidents(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getPendingPreparerIncidents(page, limit, startDate, endDate);
+  }
+
+  @Get('pending-checker')
+  async getPendingCheckerIncidents(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getPendingCheckerIncidents(page, limit, startDate, endDate);
+  }
+
+  @Get('pending-reviewer')
+  async getPendingReviewerIncidents(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getPendingReviewerIncidents(page, limit, startDate, endDate);
+  }
+
+  @Get('pending-acceptance')
+  async getPendingAcceptanceIncidents(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getPendingAcceptanceIncidents(page, limit, startDate, endDate);
+  }
 }

@@ -44,29 +44,18 @@ export class GrcIncidentsService {
       const totalIncidentsResult = await this.databaseService.query(totalIncidentsQuery);
       const totalIncidents = totalIncidentsResult[0]?.total || 0;
 
-      // Get incidents by status
-      const incidentsByStatusQuery = `
+      // Get incidents status counts independently (non-exclusive), like controls metrics
+      const incidentsStatusCountsQuery = `
         SELECT 
-          CASE 
-            WHEN preparerStatus = 'sent' THEN 'Pending Preparer'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'pending' THEN 'Pending Reviewer'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'sent' AND acceptanceStatus = 'pending' THEN 'Pending Acceptance'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'sent' AND acceptanceStatus = 'approved' THEN 'Approved'
-            ELSE 'Other'
-          END as status,
-          COUNT(*) as count
+          SUM(CASE WHEN preparerStatus = 'sent' THEN 1 ELSE 0 END) AS pendingPreparer,
+          SUM(CASE WHEN checkerStatus = 'pending' THEN 1 ELSE 0 END) AS pendingChecker,
+          SUM(CASE WHEN reviewerStatus = 'pending' THEN 1 ELSE 0 END) AS pendingReviewer,
+          SUM(CASE WHEN acceptanceStatus = 'pending' THEN 1 ELSE 0 END) AS pendingAcceptance,
+          SUM(CASE WHEN acceptanceStatus = 'approved' THEN 1 ELSE 0 END) AS approved
         FROM Incidents
         WHERE isDeleted = 0 ${dateFilter}
-        GROUP BY 
-          CASE 
-            WHEN preparerStatus = 'sent' THEN 'Pending Preparer'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'pending' THEN 'Pending Reviewer'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'sent' AND acceptanceStatus = 'pending' THEN 'Pending Acceptance'
-            WHEN checkerStatus = 'approved' AND reviewerStatus = 'sent' AND acceptanceStatus = 'approved' THEN 'Approved'
-            ELSE 'Other'
-          END
       `;
-      const incidentsByStatus = await this.databaseService.query(incidentsByStatusQuery);
+      const [statusCountsRow] = await this.databaseService.query(incidentsStatusCountsQuery);
 
       // Get incidents by category
       const incidentsByCategoryQuery = `
@@ -126,21 +115,23 @@ export class GrcIncidentsService {
       const monthlyTrend = await this.databaseService.query(monthlyTrendQuery);
 
       // Calculate status counts
-      const pendingPreparer = incidentsByStatus.find(s => s.status === 'Pending Preparer')?.count || 0;
-      const pendingChecker = incidentsByStatus.find(s => s.status === 'Pending Checker')?.count || 0;
-      const pendingReviewer = incidentsByStatus.find(s => s.status === 'Pending Reviewer')?.count || 0;
-      const pendingAcceptance = incidentsByStatus.find(s => s.status === 'Pending Acceptance')?.count || 0;
+      const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
+      const pendingChecker = statusCountsRow?.pendingChecker || 0;
+      const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
+      const pendingAcceptance = statusCountsRow?.pendingAcceptance || 0;
 
-      // Fetch statusOverview (details list) like controls
+      // Fetch statusOverview (details list) like controls - Fixed to match paginated API logic
       const listQuery = `
         SELECT 
           i.code,
           i.title,
           CASE 
-            WHEN i.acceptanceStatus = 'approved' THEN 'approved'
-            WHEN i.reviewerStatus = 'approved' THEN 'approved'
-            WHEN i.checkerStatus = 'approved' THEN 'approved'
-            ELSE ISNULL(i.preparerStatus, i.acceptanceStatus)
+            WHEN i.checkerStatus = 'pending' THEN 'Pending Checker'
+            WHEN i.reviewerStatus = 'pending' THEN 'Pending Reviewer'
+            WHEN i.acceptanceStatus = 'pending' THEN 'Pending Acceptance'
+            WHEN i.preparerStatus = 'sent' THEN 'Pending Preparer'
+            WHEN i.acceptanceStatus = 'approved' THEN 'Approved'
+            ELSE 'Other'
           END as status,
           i.createdAt
         FROM Incidents i
@@ -159,10 +150,13 @@ export class GrcIncidentsService {
           category_name: item.category_name || 'Unknown',
           count: item.count
         })),
-        incidentsByStatus: incidentsByStatus.map(item => ({
-          status: item.status,
-          count: item.count
-        })),
+        incidentsByStatus: [
+          { status: 'Pending Preparer', count: pendingPreparer },
+          { status: 'Pending Checker', count: pendingChecker },
+          { status: 'Pending Reviewer', count: pendingReviewer },
+          { status: 'Pending Acceptance', count: pendingAcceptance },
+          { status: 'Approved', count: statusCountsRow?.approved || 0 }
+        ],
         topFinancialImpacts: topFinancialImpacts.map(item => ({
           incident_id: item.incident_id,
           financial_impact_name: item.financial_impact_name || 'Unknown',
@@ -220,6 +214,154 @@ export class GrcIncidentsService {
           WHEN i.checkerStatus = 'approved' THEN 'approved'
           ELSE ISNULL(i.preparerStatus, i.acceptanceStatus)
         END as status,
+        i.createdAt
+      FROM Incidents i
+      ${whereSql}
+      ORDER BY i.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `
+    const data = await this.databaseService.query(dataQuery)
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    }
+  }
+
+  async getPendingPreparerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit
+    const where: string[] = ["i.isDeleted = 0", "i.preparerStatus = 'sent'"]
+    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
+    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
+    const totalRes = await this.databaseService.query(countQuery)
+    const total = totalRes?.[0]?.total || 0
+
+    const dataQuery = `
+      SELECT 
+        i.code,
+        i.title,
+        'Pending Preparer' as status,
+        i.createdAt
+      FROM Incidents i
+      ${whereSql}
+      ORDER BY i.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `
+    const data = await this.databaseService.query(dataQuery)
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    }
+  }
+
+  async getPendingCheckerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit
+    const where: string[] = ["i.isDeleted = 0", "i.checkerStatus = 'pending'"]
+    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
+    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
+    const totalRes = await this.databaseService.query(countQuery)
+    const total = totalRes?.[0]?.total || 0
+
+    const dataQuery = `
+      SELECT 
+        i.code,
+        i.title,
+        'Pending Checker' as status,
+        i.createdAt
+      FROM Incidents i
+      ${whereSql}
+      ORDER BY i.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `
+    const data = await this.databaseService.query(dataQuery)
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    }
+  }
+
+  async getPendingReviewerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit
+    const where: string[] = ["i.isDeleted = 0", "i.reviewerStatus = 'pending'"]
+    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
+    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
+    const totalRes = await this.databaseService.query(countQuery)
+    const total = totalRes?.[0]?.total || 0
+
+    const dataQuery = `
+      SELECT 
+        i.code,
+        i.title,
+        'Pending Reviewer' as status,
+        i.createdAt
+      FROM Incidents i
+      ${whereSql}
+      ORDER BY i.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `
+    const data = await this.databaseService.query(dataQuery)
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    }
+  }
+
+  async getPendingAcceptanceIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit
+    const where: string[] = ["i.isDeleted = 0", "i.acceptanceStatus = 'pending'"]
+    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
+    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
+    const totalRes = await this.databaseService.query(countQuery)
+    const total = totalRes?.[0]?.total || 0
+
+    const dataQuery = `
+      SELECT 
+        i.code,
+        i.title,
+        'Pending Acceptance' as status,
         i.createdAt
       FROM Incidents i
       ${whereSql}
