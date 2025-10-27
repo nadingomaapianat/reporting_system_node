@@ -156,6 +156,25 @@ export class GrcIncidentsService {
       `;
       const statusOverview = await this.databaseService.query(listQuery);
 
+      // Get incidents financial details
+      const incidentsFinancialDetailsQuery = `
+        SELECT 
+          i.title AS title, 
+          i.rootCause AS rootCause, 
+          f.name AS function_name, 
+          i.net_loss AS netLoss, 
+          i.total_loss AS totalLoss, 
+          i.recovery_amount AS recoveryAmount, 
+          (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount, 
+          i.status AS status 
+        FROM Incidents i
+        LEFT JOIN Functions f ON i.function_id = f.id
+        WHERE 
+          i.isDeleted = 0 ${dateFilter}
+          AND f.deletedAt IS NULL
+      `;
+      const incidentsFinancialDetails = await this.databaseService.query(incidentsFinancialDetailsQuery);
+
       return {
         totalIncidents,
         pendingPreparer,
@@ -195,7 +214,17 @@ export class GrcIncidentsService {
           total_loss: item.total_loss || 0
         })),
         statusOverview,
-        overallStatuses: statusOverview
+        overallStatuses: statusOverview,
+        incidentsFinancialDetails: incidentsFinancialDetails.map(item => ({
+          title: item.title || 'Unknown',
+          rootCause: item.rootCause || '',
+          function_name: item.function_name || 'Unknown',
+          netLoss: item.netLoss || 0,
+          totalLoss: item.totalLoss || 0,
+          recoveryAmount: item.recoveryAmount || 0,
+          grossAmount: item.grossAmount || 0,
+          status: item.status || 'Unknown'
+        }))
       };
     } catch (error) {
       console.error('Error fetching incidents dashboard data:', error);
