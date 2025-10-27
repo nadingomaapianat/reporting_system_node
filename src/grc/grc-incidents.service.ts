@@ -175,6 +175,41 @@ export class GrcIncidentsService {
       `;
       const incidentsFinancialDetails = await this.databaseService.query(incidentsFinancialDetailsQuery);
 
+      // Get incidents by event type
+      const incidentsByEventTypeQuery = `
+        SELECT 
+          ie.name AS event_type, 
+          COUNT(i.id) AS incident_count 
+        FROM Incidents i 
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id 
+        WHERE 
+          i.isDeleted = 0 ${dateFilter}
+          AND (ie.deletedAt IS NULL)  
+          AND ie.isDeleted = 0 
+        GROUP BY 
+          ie.name 
+        ORDER BY 
+          ie.name ASC
+      `;
+      const incidentsByEventType = await this.databaseService.query(incidentsByEventTypeQuery);
+
+      // Get incidents by financial impact
+      const incidentsByFinancialImpactQuery = `
+        SELECT 
+          fi.name AS financial_impact_name, 
+          COUNT(i.id) AS incident_count 
+        FROM Incidents i
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id
+          AND fi.isDeleted = 0
+        WHERE 
+          i.isDeleted = 0 ${dateFilter}
+        GROUP BY 
+          fi.name 
+        ORDER BY 
+          fi.name ASC
+      `;
+      const incidentsByFinancialImpact = await this.databaseService.query(incidentsByFinancialImpactQuery);
+
       return {
         totalIncidents,
         pendingPreparer,
@@ -184,6 +219,14 @@ export class GrcIncidentsService {
         incidentsByCategory: incidentsByCategory.map(item => ({
           category_name: item.category_name || 'Unknown',
           count: item.count
+        })),
+        incidentsByEventType: incidentsByEventType.map(item => ({
+          event_type: item.event_type || 'Unknown',
+          incident_count: item.incident_count || 0
+        })),
+        incidentsByFinancialImpact: incidentsByFinancialImpact.map(item => ({
+          financial_impact_name: item.financial_impact_name || 'Unknown',
+          incident_count: item.incident_count || 0
         })),
         incidentsByStatus: [
           { status: 'Pending Preparer', count: pendingPreparer },
