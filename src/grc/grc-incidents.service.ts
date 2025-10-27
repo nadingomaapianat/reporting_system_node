@@ -114,6 +114,22 @@ export class GrcIncidentsService {
       `;
       const monthlyTrend = await this.databaseService.query(monthlyTrendQuery);
 
+      // Get incidents by status
+      const incidentsByStatusQuery = `
+        SELECT 
+          i.status AS status, 
+          COUNT(*) AS count 
+        FROM 
+          Incidents i
+        WHERE 
+          i.isDeleted = 0 ${dateFilter}
+        GROUP BY 
+          i.status 
+        ORDER BY 
+          i.status ASC
+      `;
+      const incidentsByStatus = await this.databaseService.query(incidentsByStatusQuery);
+
       // Calculate status counts
       const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
       const pendingChecker = statusCountsRow?.pendingChecker || 0;
@@ -157,6 +173,10 @@ export class GrcIncidentsService {
           { status: 'Pending Acceptance', count: pendingAcceptance },
           { status: 'Approved', count: statusCountsRow?.approved || 0 }
         ],
+        incidentsByStatusTable: incidentsByStatus.map(item => ({
+          status: item.status || 'Unknown',
+          count: item.count || 0
+        })),
         topFinancialImpacts: topFinancialImpacts.map(item => ({
           incident_id: item.incident_id,
           financial_impact_name: item.financial_impact_name || 'Unknown',
