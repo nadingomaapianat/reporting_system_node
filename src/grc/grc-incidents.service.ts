@@ -210,6 +210,99 @@ export class GrcIncidentsService {
       `;
       const incidentsByFinancialImpact = await this.databaseService.query(incidentsByFinancialImpactQuery);
 
+      // Get incidents time series by month
+      const incidentsTimeSeriesQuery = `
+        WITH month_series AS ( 
+          SELECT  
+            DATEFROMPARTS(YEAR(MIN(createdAt)), MONTH(MIN(createdAt)), 1) AS start_month, 
+            DATEFROMPARTS(YEAR(MAX(createdAt)), MONTH(MAX(createdAt)), 1) AS end_month 
+          FROM Incidents 
+          WHERE isDeleted = 0 ${dateFilter}
+        ), 
+        months AS ( 
+          SELECT start_month AS month_date 
+          FROM month_series 
+          UNION ALL 
+          SELECT DATEADD(MONTH, 1, month_date) 
+          FROM months, month_series 
+          WHERE DATEADD(MONTH, 1, month_date) <= (SELECT end_month FROM month_series) 
+        ) 
+        SELECT 
+          m.month_date AS month, 
+          COUNT(i.id) AS total_incidents 
+        FROM months AS m 
+        LEFT JOIN Incidents AS i 
+          ON YEAR(i.createdAt) = YEAR(m.month_date) 
+          AND MONTH(i.createdAt) = MONTH(m.month_date)
+          AND i.isDeleted = 0
+          AND i.deletedAt IS NULL
+        GROUP BY  
+          m.month_date 
+        ORDER BY  
+          m.month_date 
+        OPTION (MAXRECURSION 0)
+      `;
+      const incidentsTimeSeries = await this.databaseService.query(incidentsTimeSeriesQuery);
+
+      // Get new incidents by month
+      const newIncidentsByMonthQuery = `
+        SELECT 
+          CAST(
+            DATEFROMPARTS(
+              YEAR(i.createdAt), 
+              MONTH(i.createdAt), 
+              1 
+            ) AS datetime2
+          ) AS month, 
+          COUNT(*) AS new_incidents 
+        FROM Incidents i
+        WHERE  
+          i.isDeleted = 0 ${dateFilter}
+          AND i.deletedAt IS NULL
+        GROUP BY 
+          CAST(
+            DATEFROMPARTS(
+              YEAR(i.createdAt), 
+              MONTH(i.createdAt), 
+              1 
+            ) AS datetime2
+          )
+        ORDER BY 
+          month ASC
+      `;
+      const newIncidentsByMonth = await this.databaseService.query(newIncidentsByMonthQuery);
+
+      // Get incidents with timeframe
+      const incidentsWithTimeframeQuery = `
+        SELECT 
+          i.title AS incident_name, 
+          i.timeFrame AS time_frame 
+        FROM Incidents i
+        WHERE i.isDeleted = 0 ${dateFilter}
+          AND i.deletedAt IS NULL
+        ORDER BY i.timeFrame DESC
+      `;
+      const incidentsWithTimeframe = await this.databaseService.query(incidentsWithTimeframeQuery);
+
+      // Get incidents with financial impact and function details
+      const incidentsWithFinancialAndFunctionQuery = `
+        SELECT TOP(1048575)
+          i.title AS title, 
+          fi.name AS financial_impact_name, 
+          f.name AS function_name 
+        FROM Incidents i
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id
+          AND fi.isDeleted = 0
+          AND fi.deletedAt IS NULL
+        LEFT JOIN Functions f ON i.function_id = f.id
+          AND f.isDeleted = 0
+          AND f.deletedAt IS NULL
+        WHERE 
+          i.isDeleted = 0 ${dateFilter}
+          AND i.deletedAt IS NULL
+      `;
+      const incidentsWithFinancialAndFunction = await this.databaseService.query(incidentsWithFinancialAndFunctionQuery);
+
       return {
         totalIncidents,
         pendingPreparer,
@@ -267,6 +360,23 @@ export class GrcIncidentsService {
           recoveryAmount: item.recoveryAmount || 0,
           grossAmount: item.grossAmount || 0,
           status: item.status || 'Unknown'
+        })),
+        incidentsTimeSeries: incidentsTimeSeries.map(item => ({
+          month: item.month ? new Date(item.month).toISOString().split('T')[0] : null,
+          total_incidents: item.total_incidents || 0
+        })),
+        newIncidentsByMonth: newIncidentsByMonth.map(item => ({
+          month: item.month ? new Date(item.month).toISOString().split('T')[0] : null,
+          new_incidents: item.new_incidents || 0
+        })),
+        incidentsWithTimeframe: incidentsWithTimeframe.map(item => ({
+          incident_name: item.incident_name || 'Unknown',
+          time_frame: item.time_frame || ''
+        })),
+        incidentsWithFinancialAndFunction: incidentsWithFinancialAndFunction.map(item => ({
+          title: item.title || 'Unknown',
+          financial_impact_name: item.financial_impact_name || 'Unknown',
+          function_name: item.function_name || 'Unknown'
         }))
       };
     } catch (error) {
