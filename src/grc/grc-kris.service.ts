@@ -732,4 +732,188 @@ export class GrcKrisService {
       status: 'success'
     };
   }
+
+  async getTotalKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit;
+    const where: string[] = ["k.isDeleted = 0"];
+    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
+    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+
+    const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        CASE 
+          WHEN k.acceptanceStatus = 'approved' THEN 'approved'
+          WHEN k.reviewerStatus = 'approved' THEN 'approved'
+          WHEN k.checkerStatus = 'approved' THEN 'approved'
+          ELSE ISNULL(k.preparerStatus, k.acceptanceStatus)
+        END as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+    const data = await this.databaseService.query(dataQuery);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    };
+  }
+  async getPendingPreparerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit;
+    const where: string[] = ["k.isDeleted = 0", "k.preparerStatus = 'sent'"];
+    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
+    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+
+    const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        'Pending Preparer' as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+    const data = await this.databaseService.query(dataQuery);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    };
+  }
+
+  async getPendingCheckerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit;
+    const where: string[] = ["k.isDeleted = 0", "k.checkerStatus = 'pending'"];
+    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
+    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+
+    const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        'Pending Checker' as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+    const data = await this.databaseService.query(dataQuery);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    };
+  }
+
+  async getPendingReviewerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit;
+    const where: string[] = ["k.isDeleted = 0", "k.reviewerStatus = 'pending'"];
+    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
+    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+
+    const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        'Pending Reviewer' as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+    const data = await this.databaseService.query(dataQuery);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    };
+  }
+
+  async getPendingAcceptanceKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+    const offset = (page - 1) * limit;
+    const where: string[] = ["k.isDeleted = 0", "k.acceptanceStatus = 'pending'"];
+    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
+    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+
+    const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        'Pending Acceptance' as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+    const data = await this.databaseService.query(dataQuery);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: offset + limit < total,
+        hasPrev: page > 1
+      }
+    };
+  }
 }

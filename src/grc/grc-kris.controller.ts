@@ -17,4 +17,54 @@ export class GrcKrisController {
   ) {
     return this.grcKrisService.exportKris(format, timeframe);
   }
+
+  @Get('total')
+  async getTotalKris(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcKrisService.getTotalKris(page, limit, startDate, endDate);
+  }
+
+  @Get('pending-preparer')
+  async getPendingPreparerKris(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcKrisService.getPendingPreparerKris(page, limit, startDate, endDate);
+  }
+
+  @Get('pending-checker')
+  async getPendingCheckerKris(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcKrisService.getPendingCheckerKris(page, limit, startDate, endDate);
+  }
+
+  @Get('pending-reviewer')
+  async getPendingReviewerKris(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcKrisService.getPendingReviewerKris(page, limit, startDate, endDate);
+  }
+
+  @Get('pending-acceptance')
+  async getPendingAcceptanceKris(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcKrisService.getPendingAcceptanceKris(page, limit, startDate, endDate);
+  }
 }
