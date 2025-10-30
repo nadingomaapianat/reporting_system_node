@@ -66,4 +66,32 @@ export class DashboardController {
     
     return data;
   }
+
+  // Dashboard Activity endpoints
+  @Get('activity')
+  async getDashboardActivities(@Query('user_id') userId: string = 'default_user') {
+    // Initialize table if it doesn't exist
+    await this.dashboardService.createActivityTable();
+    
+    // Initialize default activities if none exist
+    await this.dashboardService.initializeDefaultActivities();
+    
+    // Get activities from database
+    return await this.dashboardService.getDashboardActivities(userId);
+  }
+
+  @Post('activity')
+  async updateDashboardActivity(@Body() body: { dashboard_id: string; user_id?: string; card_count?: number }) {
+    const { dashboard_id, user_id = 'default_user', card_count = 0 } = body;
+    
+    if (!dashboard_id) {
+      throw new Error('dashboard_id is required');
+    }
+    
+    // Initialize table if it doesn't exist
+    await this.dashboardService.createActivityTable();
+    
+    // Update activity
+    return await this.dashboardService.updateDashboardActivity(dashboard_id, user_id, card_count);
+  }
 }
