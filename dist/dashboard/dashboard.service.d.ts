@@ -1,7 +1,9 @@
 import { RealtimeService } from '../realtime/realtime.service';
+import { DatabaseService } from '../database/database.service';
 export declare class DashboardService {
     private readonly realtimeService;
-    constructor(realtimeService: RealtimeService);
+    private readonly databaseService;
+    constructor(realtimeService: RealtimeService, databaseService: DatabaseService);
     getConnectedClientsCount(): number;
     getCurrentMetrics(): {
         timestamp: string;
@@ -80,4 +82,8 @@ export declare class DashboardService {
         };
         timestamp: string;
     };
+    createActivityTable(): Promise<void>;
+    getDashboardActivities(userId?: string): Promise<import("mssql").IRecordSet<any>>;
+    updateDashboardActivity(dashboardId: string, userId?: string, cardCount?: number): Promise<any>;
+    initializeDefaultActivities(): Promise<void>;
 }

@@ -90,4 +90,10 @@ export declare class DashboardController {
         };
         timestamp: string;
     };
+    getDashboardActivities(userId?: string): Promise<import("mssql").IRecordSet<any>>;
+    updateDashboardActivity(body: {
+        dashboard_id: string;
+        user_id?: string;
+        card_count?: number;
+    }): Promise<any>;
 }

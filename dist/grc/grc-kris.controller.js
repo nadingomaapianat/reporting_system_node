@@ -25,6 +25,21 @@ let GrcKrisController = class GrcKrisController {
     async exportKris(format, timeframe) {
         return this.grcKrisService.exportKris(format, timeframe);
     }
+    async getTotalKris(page = 1, limit = 10, startDate, endDate) {
+        return this.grcKrisService.getTotalKris(page, limit, startDate, endDate);
+    }
+    async getPendingPreparerKris(page = 1, limit = 10, startDate, endDate) {
+        return this.grcKrisService.getPendingPreparerKris(page, limit, startDate, endDate);
+    }
+    async getPendingCheckerKris(page = 1, limit = 10, startDate, endDate) {
+        return this.grcKrisService.getPendingCheckerKris(page, limit, startDate, endDate);
+    }
+    async getPendingReviewerKris(page = 1, limit = 10, startDate, endDate) {
+        return this.grcKrisService.getPendingReviewerKris(page, limit, startDate, endDate);
+    }
+    async getPendingAcceptanceKris(page = 1, limit = 10, startDate, endDate) {
+        return this.grcKrisService.getPendingAcceptanceKris(page, limit, startDate, endDate);
+    }
 };
 exports.GrcKrisController = GrcKrisController;
 __decorate([
@@ -42,6 +57,56 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "exportKris", null);
+__decorate([
+    (0, common_1.Get)('total'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcKrisController.prototype, "getTotalKris", null);
+__decorate([
+    (0, common_1.Get)('pending-preparer'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcKrisController.prototype, "getPendingPreparerKris", null);
+__decorate([
+    (0, common_1.Get)('pending-checker'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcKrisController.prototype, "getPendingCheckerKris", null);
+__decorate([
+    (0, common_1.Get)('pending-reviewer'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcKrisController.prototype, "getPendingReviewerKris", null);
+__decorate([
+    (0, common_1.Get)('pending-acceptance'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcKrisController.prototype, "getPendingAcceptanceKris", null);
 exports.GrcKrisController = GrcKrisController = __decorate([
     (0, common_1.Controller)('api/grc/kris'),
     __metadata("design:paramtypes", [grc_kris_service_1.GrcKrisService])

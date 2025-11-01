@@ -28,6 +28,18 @@ let GrcIncidentsController = class GrcIncidentsController {
     async getTotalIncidents(page = 1, limit = 10, startDate, endDate) {
         return this.grcIncidentsService.getTotalIncidents(page, limit, startDate, endDate);
     }
+    async getPendingPreparerIncidents(page = 1, limit = 10, startDate, endDate) {
+        return this.grcIncidentsService.getPendingPreparerIncidents(page, limit, startDate, endDate);
+    }
+    async getPendingCheckerIncidents(page = 1, limit = 10, startDate, endDate) {
+        return this.grcIncidentsService.getPendingCheckerIncidents(page, limit, startDate, endDate);
+    }
+    async getPendingReviewerIncidents(page = 1, limit = 10, startDate, endDate) {
+        return this.grcIncidentsService.getPendingReviewerIncidents(page, limit, startDate, endDate);
+    }
+    async getPendingAcceptanceIncidents(page = 1, limit = 10, startDate, endDate) {
+        return this.grcIncidentsService.getPendingAcceptanceIncidents(page, limit, startDate, endDate);
+    }
 };
 exports.GrcIncidentsController = GrcIncidentsController;
 __decorate([
@@ -55,6 +67,46 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number, String, String]),
     __metadata("design:returntype", Promise)
 ], GrcIncidentsController.prototype, "getTotalIncidents", null);
+__decorate([
+    (0, common_1.Get)('pending-preparer'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcIncidentsController.prototype, "getPendingPreparerIncidents", null);
+__decorate([
+    (0, common_1.Get)('pending-checker'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcIncidentsController.prototype, "getPendingCheckerIncidents", null);
+__decorate([
+    (0, common_1.Get)('pending-reviewer'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcIncidentsController.prototype, "getPendingReviewerIncidents", null);
+__decorate([
+    (0, common_1.Get)('pending-acceptance'),
+    __param(0, (0, common_1.Query)('page')),
+    __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcIncidentsController.prototype, "getPendingAcceptanceIncidents", null);
 exports.GrcIncidentsController = GrcIncidentsController = __decorate([
     (0, common_1.Controller)('api/grc/incidents'),
     __metadata("design:paramtypes", [grc_incidents_service_1.GrcIncidentsService])

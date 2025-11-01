@@ -20,7 +20,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                 {
                     id: 'total',
                     name: 'Total Controls',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE isDeleted = 0 AND deletedAt IS NULL AND 1=1 {dateFilter}`,
                     color: 'blue',
                     icon: 'chart-bar'
                 },
@@ -30,7 +30,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
             INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
-            WHERE t.preparerStatus <> 'sent' AND t.function_id IS NOT NULL AND c.isDeleted = 0 {dateFilter}`,
+            WHERE (t.preparerStatus <> 'sent' OR t.preparerStatus IS NULL) AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
                     color: 'orange',
                     icon: 'clock'
                 },
@@ -40,7 +40,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
             INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
-            WHERE t.checkerStatus <> 'approved' AND t.function_id IS NOT NULL AND c.isDeleted = 0 {dateFilter}`,
+            WHERE (t.checkerStatus <> 'approved' OR t.checkerStatus IS NULL) AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
                     color: 'purple',
                     icon: 'check-circle'
                 },
@@ -50,7 +50,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
             INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
-            WHERE t.reviewerStatus <> 'sent' AND t.function_id IS NOT NULL AND c.isDeleted = 0 {dateFilter}`,
+            WHERE (t.reviewerStatus <> 'approved' OR t.reviewerStatus IS NULL) AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
                     color: 'indigo',
                     icon: 'document-check'
                 },
@@ -60,35 +60,35 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
             INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
-            WHERE t.acceptanceStatus <> 'approved' AND t.function_id IS NOT NULL AND c.isDeleted = 0 {dateFilter}`,
+            WHERE (t.acceptanceStatus <> 'approved' OR t.acceptanceStatus IS NULL) AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
                     color: 'red',
                     icon: 'exclamation-triangle'
                 },
                 {
                     id: 'pendingPreparer',
                     name: 'Pending Preparer',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE preparerStatus != 'approved' AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (preparerStatus != 'sent' OR preparerStatus IS NULL) AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'orange',
                     icon: 'clock'
                 },
                 {
                     id: 'pendingChecker',
                     name: 'Pending Checker',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE checkerStatus != 'approved' AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (checkerStatus != 'approved' OR checkerStatus IS NULL) AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'purple',
                     icon: 'check-circle'
                 },
                 {
                     id: 'pendingReviewer',
                     name: 'Pending Reviewer',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE reviewerStatus != 'approved' AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (reviewerStatus != 'approved' OR reviewerStatus IS NULL) AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'indigo',
                     icon: 'document-check'
                 },
                 {
                     id: 'pendingAcceptance',
                     name: 'Pending Acceptance',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE acceptanceStatus != 'approved' AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (acceptanceStatus != 'approved' OR acceptanceStatus IS NULL) AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'red',
                     icon: 'exclamation-triangle'
                 },
@@ -812,21 +812,29 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     id: 'reduction',
                     name: 'Risks Reduced',
                     query: `SELECT COUNT(*) as total 
-            FROM dbo.[Risks] r
-            INNER JOIN dbo.[Residualrisks] rr ON r.id = rr.riskId
-            WHERE r.isDeleted = 0 
-              AND rr.isDeleted = 0
-              AND rr.quarter = CASE 
-                WHEN MONTH(GETDATE()) BETWEEN 1 AND 3 THEN 'quarterOne'
-                WHEN MONTH(GETDATE()) BETWEEN 4 AND 6 THEN 'quarterTwo'
-                WHEN MONTH(GETDATE()) BETWEEN 7 AND 9 THEN 'quarterThree'
-                WHEN MONTH(GETDATE()) BETWEEN 10 AND 12 THEN 'quarterFour'
-              END
-              AND rr.year = YEAR(GETDATE())
-              AND (
-                CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END
-                - CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END
-              ) > 0 {dateFilter}`,
+    FROM dbo.[Risks] r
+    INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId
+    WHERE r.isDeleted = 0 
+      AND rr.isDeleted = 0
+      AND rr.quarter = @current_quarter
+      AND rr.year = @current_year
+      AND (
+        CASE 
+          WHEN r.inherent_value = 'High' THEN 3 
+          WHEN r.inherent_value = 'Medium' THEN 2 
+          WHEN r.inherent_value = 'Low' THEN 1 
+          ELSE NULL  -- Handle unexpected values
+        END
+        > 
+        CASE 
+          WHEN rr.residual_value = 'High' THEN 3 
+          WHEN rr.residual_value = 'Medium' THEN 2 
+          WHEN rr.residual_value = 'Low' THEN 1 
+          ELSE NULL  -- Handle unexpected values
+        END
+      ) 
+      AND r.inherent_value IS NOT NULL  -- Exclude NULL values
+      AND rr.residual_value IS NOT NULL {dateFilter}`,
                     color: 'purple',
                     icon: 'arrow-trending-down'
                 },
@@ -1251,7 +1259,7 @@ DashboardConfigService.METRIC_TEMPLATES = {
     totalCount: (tableName, label, color = 'blue') => ({
         id: 'total',
         name: `Total ${label}`,
-        query: `SELECT COUNT(*) as total FROM ${tableName} WHERE 1=1 {dateFilter}`,
+        query: `SELECT COUNT(*) as total FROM ${tableName} WHERE isDeleted = 0 AND deletedAt IS NULL AND 1=1 {dateFilter}`,
         color,
         icon: 'chart-bar'
     }),

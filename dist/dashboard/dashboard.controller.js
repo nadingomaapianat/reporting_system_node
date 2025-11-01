@@ -58,6 +58,19 @@ let DashboardController = class DashboardController {
         });
         return data;
     }
+    async getDashboardActivities(userId = 'default_user') {
+        await this.dashboardService.createActivityTable();
+        await this.dashboardService.initializeDefaultActivities();
+        return await this.dashboardService.getDashboardActivities(userId);
+    }
+    async updateDashboardActivity(body) {
+        const { dashboard_id, user_id = 'default_user', card_count = 0 } = body;
+        if (!dashboard_id) {
+            throw new Error('dashboard_id is required');
+        }
+        await this.dashboardService.createActivityTable();
+        return await this.dashboardService.updateDashboardActivity(dashboard_id, user_id, card_count);
+    }
 };
 exports.DashboardController = DashboardController;
 __decorate([
@@ -119,6 +132,20 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "refreshWidget", null);
+__decorate([
+    (0, common_1.Get)('activity'),
+    __param(0, (0, common_1.Query)('user_id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], DashboardController.prototype, "getDashboardActivities", null);
+__decorate([
+    (0, common_1.Post)('activity'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], DashboardController.prototype, "updateDashboardActivity", null);
 exports.DashboardController = DashboardController = __decorate([
     (0, common_1.Controller)('api/dashboard'),
     __metadata("design:paramtypes", [dashboard_service_1.DashboardService,

@@ -10,7 +10,7 @@ async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.use((0, helmet_1.default)());
     app.use(cors({
-        origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai'],
+        origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3000', 'http://localhost:3002'],
         credentials: true,
     }));
     app.useGlobalPipes(new common_1.ValidationPipe({

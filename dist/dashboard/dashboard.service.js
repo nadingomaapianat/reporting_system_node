@@ -12,9 +12,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DashboardService = void 0;
 const common_1 = require("@nestjs/common");
 const realtime_service_1 = require("../realtime/realtime.service");
+const database_service_1 = require("../database/database.service");
 let DashboardService = class DashboardService {
-    constructor(realtimeService) {
+    constructor(realtimeService, databaseService) {
         this.realtimeService = realtimeService;
+        this.databaseService = databaseService;
     }
     getConnectedClientsCount() {
         return this.realtimeService.getConnectedClientsCount();
@@ -112,10 +114,101 @@ let DashboardService = class DashboardService {
             timestamp: new Date().toISOString(),
         };
     }
+    async createActivityTable() {
+        const query = `
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='dashboard_activity' AND xtype='U')
+      CREATE TABLE dashboard_activity (
+          id INT IDENTITY(1,1) PRIMARY KEY,
+          dashboard_id NVARCHAR(50) NOT NULL,
+          user_id NVARCHAR(100) DEFAULT 'default_user',
+          last_seen DATETIME2 NOT NULL DEFAULT GETDATE(),
+          card_count INT DEFAULT 0,
+          created_at DATETIME2 DEFAULT GETDATE(),
+          updated_at DATETIME2 DEFAULT GETDATE()
+      )
+    `;
+        try {
+            await this.databaseService.query(query);
+            console.log('Dashboard activity table created or already exists');
+        }
+        catch (error) {
+            console.error('Error creating dashboard_activity table:', error);
+        }
+    }
+    async getDashboardActivities(userId = 'default_user') {
+        const query = `
+      SELECT 
+          dashboard_id,
+          last_seen,
+          card_count,
+          updated_at
+      FROM dashboard_activity 
+      WHERE user_id = @param0
+      ORDER BY last_seen DESC
+    `;
+        return await this.databaseService.query(query, [userId]);
+    }
+    async updateDashboardActivity(dashboardId, userId = 'default_user', cardCount = 0) {
+        try {
+            const checkQuery = `
+        SELECT id FROM dashboard_activity 
+        WHERE dashboard_id = @param0 AND user_id = @param1
+      `;
+            const existing = await this.databaseService.query(checkQuery, [dashboardId, userId]);
+            if (existing && existing.length > 0) {
+                const updateQuery = `
+          UPDATE dashboard_activity 
+          SET last_seen = GETUTCDATE(), 
+              card_count = @param0, 
+              updated_at = GETUTCDATE()
+          WHERE dashboard_id = @param1 AND user_id = @param2
+        `;
+                await this.databaseService.query(updateQuery, [cardCount, dashboardId, userId]);
+            }
+            else {
+                const insertQuery = `
+          INSERT INTO dashboard_activity (dashboard_id, user_id, last_seen, card_count)
+          VALUES (@param0, @param1, GETUTCDATE(), @param2)
+        `;
+                await this.databaseService.query(insertQuery, [dashboardId, userId, cardCount]);
+            }
+            const getQuery = `
+        SELECT 
+            dashboard_id,
+            last_seen,
+            card_count,
+            updated_at
+        FROM dashboard_activity 
+        WHERE dashboard_id = @param0 AND user_id = @param1
+      `;
+            const result = await this.databaseService.query(getQuery, [dashboardId, userId]);
+            return result && result.length > 0 ? result[0] : {};
+        }
+        catch (error) {
+            console.error('Error updating dashboard activity:', error);
+            return {};
+        }
+    }
+    async initializeDefaultActivities() {
+        const defaultDashboards = [
+            { dashboard_id: 'controls', card_count: 6 },
+            { dashboard_id: 'incidents', card_count: 7 },
+            { dashboard_id: 'kris', card_count: 5 },
+            { dashboard_id: 'risks', card_count: 8 }
+        ];
+        for (const dashboard of defaultDashboards) {
+            const existing = await this.databaseService.query('SELECT id FROM dashboard_activity WHERE dashboard_id = @param0 AND user_id = @param1', [dashboard.dashboard_id, 'default_user']);
+            if (!existing || existing.length === 0) {
+                await this.updateDashboardActivity(dashboard.dashboard_id, 'default_user', dashboard.card_count);
+                console.log(`Initialized activity for ${dashboard.dashboard_id}`);
+            }
+        }
+    }
 };
 exports.DashboardService = DashboardService;
 exports.DashboardService = DashboardService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [realtime_service_1.RealtimeService])
+    __metadata("design:paramtypes", [realtime_service_1.RealtimeService,
+        database_service_1.DatabaseService])
 ], DashboardService);
 //# sourceMappingURL=dashboard.service.js.map

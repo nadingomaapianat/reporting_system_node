@@ -12,14 +12,28 @@ export declare class GrcIncidentsController {
             category_name: any;
             count: any;
         }[];
+        incidentsByEventType: {
+            event_type: any;
+            incident_count: any;
+        }[];
+        incidentsByFinancialImpact: {
+            financial_impact_name: any;
+            incident_count: any;
+        }[];
         incidentsByStatus: {
+            status: string;
+            count: any;
+        }[];
+        incidentsByStatusDistribution: {
+            status_name: any;
+            count: any;
+        }[];
+        incidentsByStatusTable: {
             status: any;
             count: any;
         }[];
         topFinancialImpacts: {
-            incident_id: any;
             financial_impact_name: any;
-            function_name: any;
             net_loss: any;
         }[];
         netLossAndRecovery: {
@@ -31,10 +45,36 @@ export declare class GrcIncidentsController {
         monthlyTrend: {
             month_year: any;
             incident_count: any;
-            total_loss: any;
         }[];
         statusOverview: import("mssql").IRecordSet<any>;
         overallStatuses: import("mssql").IRecordSet<any>;
+        incidentsFinancialDetails: {
+            title: any;
+            rootCause: any;
+            function_name: any;
+            netLoss: any;
+            totalLoss: any;
+            recoveryAmount: any;
+            grossAmount: any;
+            status: any;
+        }[];
+        incidentsTimeSeries: {
+            month: string;
+            total_incidents: any;
+        }[];
+        newIncidentsByMonth: {
+            month: string;
+            new_incidents: any;
+        }[];
+        incidentsWithTimeframe: {
+            incident_name: any;
+            time_frame: any;
+        }[];
+        incidentsWithFinancialAndFunction: {
+            title: any;
+            financial_impact_name: any;
+            function_name: any;
+        }[];
     }>;
     exportIncidents(format: string, timeframe?: string): Promise<{
         message: string;
@@ -42,6 +82,50 @@ export declare class GrcIncidentsController {
         status: string;
     }>;
     getTotalIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getPendingPreparerIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getPendingCheckerIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getPendingReviewerIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getPendingAcceptanceIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;

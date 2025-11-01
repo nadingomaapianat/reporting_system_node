@@ -44,44 +44,77 @@ export class GrcIncidentsService {
       const totalIncidentsResult = await this.databaseService.query(totalIncidentsQuery);
       const totalIncidents = totalIncidentsResult[0]?.total || 0;
 
-      // Get incidents status counts independently (non-exclusive), like controls metrics
+      // Get incidents status counts using standardized pending rules
       const incidentsStatusCountsQuery = `
         SELECT 
-          SUM(CASE WHEN preparerStatus = 'sent' THEN 1 ELSE 0 END) AS pendingPreparer,
-          SUM(CASE WHEN checkerStatus = 'pending' THEN 1 ELSE 0 END) AS pendingChecker,
-          SUM(CASE WHEN reviewerStatus = 'pending' THEN 1 ELSE 0 END) AS pendingReviewer,
-          SUM(CASE WHEN acceptanceStatus = 'pending' THEN 1 ELSE 0 END) AS pendingAcceptance,
-          SUM(CASE WHEN acceptanceStatus = 'approved' THEN 1 ELSE 0 END) AS approved
+          SUM(CASE WHEN ISNULL(preparerStatus, '') <> 'sent' THEN 1 ELSE 0 END) AS pendingPreparer,
+          SUM(CASE WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingChecker,
+          SUM(CASE WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingReviewer,
+          SUM(CASE WHEN ISNULL(reviewerStatus, '') = 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingAcceptance,
+          SUM(CASE WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 1 ELSE 0 END) AS approved
         FROM Incidents
-        WHERE isDeleted = 0 ${dateFilter}
+        WHERE isDeleted = 0 AND deletedAt IS NULL ${dateFilter}
       `;
       const [statusCountsRow] = await this.databaseService.query(incidentsStatusCountsQuery);
+
+      // Get incidents by status distribution (for pie charts - same format as Python)
+      const incidentsByStatusDistributionQuery = `
+        WITH IncidentStatus AS (
+          SELECT 
+            i.id,
+            CASE 
+              WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+              WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
+              WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
+              WHEN ISNULL(i.reviewerStatus, '') = 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+              WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
+              ELSE 'Other'
+            END AS status
+          FROM Incidents i
+          WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter}
+        )
+        SELECT 
+          status as status_name,
+          COUNT(*) as count
+        FROM IncidentStatus
+        GROUP BY status
+        ORDER BY count DESC
+      `;
+      const incidentsByStatusDistribution = await this.databaseService.query(incidentsByStatusDistributionQuery);
 
       // Get incidents by category
       const incidentsByCategoryQuery = `
         SELECT 
-          ic.name as category_name,
+          ISNULL(ic.name, 'Unknown') as category_name,
           COUNT(i.id) as count
         FROM Incidents i
         LEFT JOIN IncidentCategories ic ON i.category_id = ic.id
-        WHERE i.isDeleted = 0 ${dateFilter}
-        GROUP BY ic.name
+          
+          AND ic.deletedAt IS NULL
+        WHERE i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          ${dateFilter}
+        GROUP BY ISNULL(ic.name, 'Unknown')
+        ORDER BY COUNT(i.id) DESC
       `;
       const incidentsByCategory = await this.databaseService.query(incidentsByCategoryQuery);
 
-      // Get top financial impacts
+      // Get top financial impacts grouped by category with total net loss
       const topFinancialImpactsQuery = `
         SELECT
-          i.id as incident_id,
-          fi.name as financial_impact_name,
-          f.name as function_name,
-          i.net_loss
+          ISNULL(fi.name, 'Unknown') as financial_impact_name,
+          ISNULL(SUM(i.net_loss), 0) as net_loss
         FROM Incidents i
         LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id
-        LEFT JOIN Functions f ON i.function_id = f.id
-        WHERE i.isDeleted = 0 ${dateFilter}
-        AND i.net_loss IS NOT NULL
-        ORDER BY i.net_loss DESC
+          AND fi.isDeleted = 0
+          AND fi.deletedAt IS NULL
+        WHERE i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          ${dateFilter}
+          AND i.net_loss IS NOT NULL
+          AND i.net_loss > 0
+        GROUP BY fi.name
+        ORDER BY net_loss DESC
       `;
       const topFinancialImpacts = await this.databaseService.query(topFinancialImpactsQuery);
 
@@ -94,8 +127,12 @@ export class GrcIncidentsService {
           f.name as function_name
         FROM Incidents i
         LEFT JOIN Functions f ON i.function_id = f.id
-        WHERE i.isDeleted = 0 ${dateFilter}
-        AND (i.net_loss IS NOT NULL OR i.recovery_amount IS NOT NULL)
+          AND f.isDeleted = 0
+          AND f.deletedAt IS NULL
+        WHERE i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          ${dateFilter}
+          AND (i.net_loss IS NOT NULL OR i.recovery_amount IS NOT NULL)
         ORDER BY i.net_loss DESC
       `;
       const netLossAndRecovery = await this.databaseService.query(netLossAndRecoveryQuery);
@@ -103,14 +140,15 @@ export class GrcIncidentsService {
       // Get monthly trend
       const monthlyTrendQuery = `
         SELECT 
-          FORMAT(i.occurrence_date, 'MMM yyyy') as month_year,
-          COUNT(i.id) as incident_count,
-          SUM(ISNULL(i.net_loss, 0)) as total_loss
+          FORMAT(i.createdAt, 'MMM yyyy') as month_year,
+          COUNT(i.id) as incident_count
         FROM Incidents i
-        WHERE i.isDeleted = 0 ${dateFilter}
-        AND i.occurrence_date IS NOT NULL
-        GROUP BY FORMAT(i.occurrence_date, 'MMM yyyy')
-        ORDER BY MIN(i.occurrence_date)
+        WHERE i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          ${dateFilter}
+          AND i.createdAt IS NOT NULL
+        GROUP BY FORMAT(i.createdAt, 'MMM yyyy')
+        ORDER BY MIN(i.createdAt)
       `;
       const monthlyTrend = await this.databaseService.query(monthlyTrendQuery);
 
@@ -136,22 +174,24 @@ export class GrcIncidentsService {
       const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
       const pendingAcceptance = statusCountsRow?.pendingAcceptance || 0;
 
-      // Fetch statusOverview (details list) like controls - Fixed to match paginated API logic
+      // Fetch statusOverview (details list) using standardized staged status logic
       const listQuery = `
         SELECT 
           i.code,
           i.title,
           CASE 
-            WHEN i.checkerStatus = 'pending' THEN 'Pending Checker'
-            WHEN i.reviewerStatus = 'pending' THEN 'Pending Reviewer'
-            WHEN i.acceptanceStatus = 'pending' THEN 'Pending Acceptance'
-            WHEN i.preparerStatus = 'sent' THEN 'Pending Preparer'
-            WHEN i.acceptanceStatus = 'approved' THEN 'Approved'
+            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(i.reviewerStatus, '') = 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Other'
           END as status,
-          i.createdAt
+          FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
         FROM Incidents i
-        WHERE i.isDeleted = 0 ${dateFilter}
+        WHERE i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          ${dateFilter}
         ORDER BY i.createdAt DESC
       `;
       const statusOverview = await this.databaseService.query(listQuery);
@@ -166,47 +206,62 @@ export class GrcIncidentsService {
           i.total_loss AS totalLoss, 
           i.recovery_amount AS recoveryAmount, 
           (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount, 
-          i.status AS status 
+          CASE 
+            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(i.reviewerStatus, '') = 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
+            ELSE 'Other'
+          END AS status 
         FROM Incidents i
         LEFT JOIN Functions f ON i.function_id = f.id
-        WHERE 
-          i.isDeleted = 0 ${dateFilter}
+          AND f.isDeleted = 0
           AND f.deletedAt IS NULL
+        WHERE 
+          i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          ${dateFilter}
       `;
       const incidentsFinancialDetails = await this.databaseService.query(incidentsFinancialDetailsQuery);
 
       // Get incidents by event type
       const incidentsByEventTypeQuery = `
         SELECT 
-          ie.name AS event_type, 
+          ISNULL(ie.name, 'Unknown') AS event_type, 
           COUNT(i.id) AS incident_count 
         FROM Incidents i 
-        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id 
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id
+          AND ie.isDeleted = 0
+          AND ie.deletedAt IS NULL
         WHERE 
-          i.isDeleted = 0 ${dateFilter}
-          AND (ie.deletedAt IS NULL)  
-          AND ie.isDeleted = 0 
+          i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          ${dateFilter}
         GROUP BY 
-          ie.name 
+          ISNULL(ie.name, 'Unknown')
         ORDER BY 
-          ie.name ASC
+          COUNT(i.id) DESC
       `;
       const incidentsByEventType = await this.databaseService.query(incidentsByEventTypeQuery);
 
       // Get incidents by financial impact
       const incidentsByFinancialImpactQuery = `
         SELECT 
-          fi.name AS financial_impact_name, 
+          ISNULL(fi.name, 'Unknown') AS financial_impact_name, 
           COUNT(i.id) AS incident_count 
         FROM Incidents i
         LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id
           AND fi.isDeleted = 0
+          AND fi.deletedAt IS NULL
         WHERE 
-          i.isDeleted = 0 ${dateFilter}
+          i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          ${dateFilter}
         GROUP BY 
-          fi.name 
+          ISNULL(fi.name, 'Unknown')
         ORDER BY 
-          fi.name ASC
+          COUNT(i.id) DESC
       `;
       const incidentsByFinancialImpact = await this.databaseService.query(incidentsByFinancialImpactQuery);
 
@@ -217,7 +272,7 @@ export class GrcIncidentsService {
             DATEFROMPARTS(YEAR(MIN(createdAt)), MONTH(MIN(createdAt)), 1) AS start_month, 
             DATEFROMPARTS(YEAR(MAX(createdAt)), MONTH(MAX(createdAt)), 1) AS end_month 
           FROM Incidents 
-          WHERE isDeleted = 0 ${dateFilter}
+          WHERE isDeleted = 0 AND deletedAt IS NULL ${dateFilter}
         ), 
         months AS ( 
           SELECT start_month AS month_date 
@@ -286,10 +341,10 @@ export class GrcIncidentsService {
 
       // Get incidents with financial impact and function details
       const incidentsWithFinancialAndFunctionQuery = `
-        SELECT TOP(1048575)
+        SELECT 
           i.title AS title, 
-          fi.name AS financial_impact_name, 
-          f.name AS function_name 
+          ISNULL(fi.name, 'Unknown') AS financial_impact_name, 
+          ISNULL(f.name, 'Unknown') AS function_name 
         FROM Incidents i
         LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id
           AND fi.isDeleted = 0
@@ -328,14 +383,17 @@ export class GrcIncidentsService {
           { status: 'Pending Acceptance', count: pendingAcceptance },
           { status: 'Approved', count: statusCountsRow?.approved || 0 }
         ],
+        // Status distribution for pie charts (same format as Python: status_name, count)
+        incidentsByStatusDistribution: incidentsByStatusDistribution.map(item => ({
+          status_name: item.status_name || 'Unknown',
+          count: item.count || 0
+        })),
         incidentsByStatusTable: incidentsByStatus.map(item => ({
           status: item.status || 'Unknown',
           count: item.count || 0
         })),
         topFinancialImpacts: topFinancialImpacts.map(item => ({
-          incident_id: item.incident_id,
           financial_impact_name: item.financial_impact_name || 'Unknown',
-          function_name: item.function_name || 'Unknown',
           net_loss: item.net_loss || 0
         })),
         netLossAndRecovery: netLossAndRecovery.map(item => ({
@@ -346,8 +404,7 @@ export class GrcIncidentsService {
         })),
         monthlyTrend: monthlyTrend.map(item => ({
           month_year: item.month_year,
-          incident_count: item.incident_count,
-          total_loss: item.total_loss || 0
+          incident_count: item.incident_count
         })),
         statusOverview,
         overallStatuses: statusOverview,
@@ -439,7 +496,7 @@ export class GrcIncidentsService {
 
   async getPendingPreparerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const offset = (page - 1) * limit
-    const where: string[] = ["i.isDeleted = 0", "i.preparerStatus = 'sent'"]
+    const where: string[] = ["i.isDeleted = 0", "i.deletedAt IS NULL", "ISNULL(i.preparerStatus, '') <> 'sent'"]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
@@ -476,7 +533,12 @@ export class GrcIncidentsService {
 
   async getPendingCheckerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const offset = (page - 1) * limit
-    const where: string[] = ["i.isDeleted = 0", "i.checkerStatus = 'pending'"]
+    const where: string[] = [
+      "i.isDeleted = 0",
+      "i.deletedAt IS NULL",
+      "ISNULL(i.preparerStatus, '') = 'sent'",
+      "ISNULL(i.checkerStatus, '') <> 'approved'"
+    ]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
@@ -513,7 +575,12 @@ export class GrcIncidentsService {
 
   async getPendingReviewerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const offset = (page - 1) * limit
-    const where: string[] = ["i.isDeleted = 0", "i.reviewerStatus = 'pending'"]
+    const where: string[] = [
+      "i.isDeleted = 0",
+      "i.deletedAt IS NULL",
+      "ISNULL(i.checkerStatus, '') = 'approved'",
+      "ISNULL(i.reviewerStatus, '') <> 'approved'"
+    ]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
@@ -550,7 +617,12 @@ export class GrcIncidentsService {
 
   async getPendingAcceptanceIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const offset = (page - 1) * limit
-    const where: string[] = ["i.isDeleted = 0", "i.acceptanceStatus = 'pending'"]
+    const where: string[] = [
+      "i.isDeleted = 0",
+      "i.deletedAt IS NULL",
+      "ISNULL(i.reviewerStatus, '') = 'approved'",
+      "ISNULL(i.acceptanceStatus, '') <> 'approved'"
+    ]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''

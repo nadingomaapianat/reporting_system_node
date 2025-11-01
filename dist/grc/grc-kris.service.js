@@ -56,35 +56,23 @@ let GrcKrisService = class GrcKrisService {
             catch (e) {
                 console.error('KRIs total query failed:', e);
             }
-            const krisByStatusQuery = `
-        SELECT
-          CASE 
-            WHEN k.preparerStatus IN ('sent','draft') THEN 'Pending Preparer'
-            WHEN k.preparerStatus = 'approved' AND (k.checkerStatus IS NULL OR k.checkerStatus <> 'approved') THEN 'Pending Checker'
-            WHEN k.checkerStatus = 'approved' AND (k.reviewerStatus IS NULL OR k.reviewerStatus <> 'approved') THEN 'Pending Reviewer'
-            WHEN k.reviewerStatus = 'approved' AND (k.acceptanceStatus IS NULL OR k.acceptanceStatus <> 'approved') THEN 'Pending Acceptance'
-            WHEN k.acceptanceStatus = 'approved' THEN 'Approved'
-            ELSE 'Other'
-          END AS status,
-          COUNT(*) AS count
+            const krisStatusCountsQuery = `
+        SELECT 
+          SUM(CASE WHEN k.preparerStatus = 'sent' THEN 1 ELSE 0 END) AS pendingPreparer,
+          SUM(CASE WHEN k.checkerStatus = 'pending' THEN 1 ELSE 0 END) AS pendingChecker,
+          SUM(CASE WHEN k.reviewerStatus = 'pending' THEN 1 ELSE 0 END) AS pendingReviewer,
+          SUM(CASE WHEN k.acceptanceStatus = 'pending' THEN 1 ELSE 0 END) AS pendingAcceptance,
+          SUM(CASE WHEN k.acceptanceStatus = 'approved' THEN 1 ELSE 0 END) AS approved
         FROM Kris k
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
-        GROUP BY
-          CASE 
-            WHEN k.preparerStatus IN ('sent','draft') THEN 'Pending Preparer'
-            WHEN k.preparerStatus = 'approved' AND (k.checkerStatus IS NULL OR k.checkerStatus <> 'approved') THEN 'Pending Checker'
-            WHEN k.checkerStatus = 'approved' AND (k.reviewerStatus IS NULL OR k.reviewerStatus <> 'approved') THEN 'Pending Reviewer'
-            WHEN k.reviewerStatus = 'approved' AND (k.acceptanceStatus IS NULL OR k.acceptanceStatus <> 'approved') THEN 'Pending Acceptance'
-            WHEN k.acceptanceStatus = 'approved' THEN 'Approved'
-            ELSE 'Other'
-          END
       `;
-            let krisByStatus = [];
+            let statusCountsRow = {};
             try {
-                krisByStatus = await this.databaseService.query(krisByStatusQuery);
+                const statusCountsResult = await this.databaseService.query(krisStatusCountsQuery);
+                statusCountsRow = statusCountsResult[0] || {};
             }
             catch (e) {
-                console.error('KRIs by status query failed:', e);
+                console.error('KRIs status counts query failed:', e);
             }
             const krisByLevelQuery = `
         WITH LatestKV AS (
@@ -268,11 +256,341 @@ let GrcKrisService = class GrcKrisService {
             catch (e) {
                 console.error('KRI assessment count query failed:', e);
             }
-            const pendingPreparer = krisByStatus.find(s => s.status === 'Pending Preparer')?.count || 0;
-            const pendingChecker = krisByStatus.find(s => s.status === 'Pending Checker')?.count || 0;
-            const pendingReviewer = krisByStatus.find(s => s.status === 'Pending Reviewer')?.count || 0;
-            const pendingAcceptance = krisByStatus.find(s => s.status === 'Pending Acceptance')?.count || 0;
-            const approved = krisByStatus.find(s => s.status === 'Approved')?.count || 0;
+            const kriMonthlyAssessmentQuery = `
+        SELECT
+          CAST(DATEADD(month, DATEPART(month, k.createdAt) - 1, DATEFROMPARTS(YEAR(k.createdAt), 1, 1)) AS datetime2) AS createdAt,
+          kv.assessment AS assessment,
+          COUNT(DISTINCT k.id) AS count
+        FROM Kris AS k
+        INNER JOIN KriValues AS kv
+          ON kv.kriId = k.id
+          AND kv.deletedAt IS NULL
+        WHERE
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+          AND kv.assessment IS NOT NULL
+        GROUP BY
+          CAST(DATEADD(month, DATEPART(month, k.createdAt) - 1, DATEFROMPARTS(YEAR(k.createdAt), 1, 1)) AS datetime2),
+          kv.assessment
+        ORDER BY
+          createdAt ASC,
+          assessment ASC
+      `;
+            let kriMonthlyAssessment = [];
+            try {
+                kriMonthlyAssessment = await this.databaseService.query(kriMonthlyAssessmentQuery);
+            }
+            catch (e) {
+                console.error('KRI monthly assessment query failed:', e);
+            }
+            const newlyCreatedKrisPerMonthQuery = `
+        SELECT 
+          CAST(DATEFROMPARTS(YEAR(k.createdAt), MONTH(k.createdAt), 1) AS datetime2) AS createdAt,
+          COUNT(*) AS count
+        FROM Kris k
+        WHERE
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+        GROUP BY
+          CAST(DATEFROMPARTS(YEAR(k.createdAt), MONTH(k.createdAt), 1) AS datetime2)
+        ORDER BY
+          createdAt ASC
+      `;
+            let newlyCreatedKrisPerMonth = [];
+            try {
+                newlyCreatedKrisPerMonth = await this.databaseService.query(newlyCreatedKrisPerMonthQuery);
+            }
+            catch (e) {
+                console.error('Newly created KRIs per month query failed:', e);
+            }
+            const deletedKrisPerMonthQuery = `
+        SELECT 
+          CAST(DATEFROMPARTS(YEAR(k.createdAt), MONTH(k.createdAt), 1) AS datetime2) AS createdAt,
+          COUNT(*) AS count
+        FROM Kris k
+        WHERE
+          k.isDeleted = 1
+          OR k.deletedAt IS NOT NULL
+        GROUP BY 
+          YEAR(k.createdAt),
+          MONTH(k.createdAt)
+        ORDER BY 
+          YEAR(k.createdAt) ASC,
+          MONTH(k.createdAt) ASC
+      `;
+            let deletedKrisPerMonth = [];
+            try {
+                deletedKrisPerMonth = await this.databaseService.query(deletedKrisPerMonthQuery);
+            }
+            catch (e) {
+                console.error('Deleted KRIs per month query failed:', e);
+            }
+            const kriOverdueStatusCountsQuery = `
+        WITH classified AS (
+          SELECT
+            k.id,
+            CASE
+              WHEN EXISTS (
+                SELECT 1
+                FROM Actionplans ap
+                WHERE ap.kri_id = k.id
+                  AND ap.deletedAt IS NULL
+                  AND ap.implementation_date < GETDATE()
+                  AND (ap.done = 0 OR ap.done IS NULL)
+              ) THEN 'Overdue'
+              ELSE 'Not Overdue'
+            END AS KRIStatus
+          FROM Kris AS k
+          WHERE k.isDeleted = 0
+            AND k.deletedAt IS NULL
+        )
+        SELECT
+          KRIStatus AS [KRI Status],
+          COUNT(*)  AS [Count]
+        FROM classified
+        GROUP BY KRIStatus
+      `;
+            let kriOverdueStatusCountsRows = [];
+            try {
+                kriOverdueStatusCountsRows = await this.databaseService.query(kriOverdueStatusCountsQuery);
+            }
+            catch (e) {
+                console.error('KRI overdue status counts query failed:', e);
+            }
+            const overdueKrisByDepartmentQuery = `
+        SELECT DISTINCT 
+          k.id        AS [KRI ID], 
+          k.kriName   AS [KRI Name], 
+          COALESCE(ap.business_unit, f.name) AS [Department]
+        FROM Kris AS k
+        INNER JOIN Actionplans AS ap
+          ON ap.kri_id = k.id
+          AND ap.deletedAt IS NULL
+          AND ap.implementation_date < GETDATE()
+          AND (ap.done = 0 OR ap.done IS NULL)
+        LEFT JOIN KriFunctions AS kf
+          ON kf.kri_id = k.id
+          AND kf.deletedAt IS NULL
+        LEFT JOIN Functions AS f
+          ON f.id = kf.function_id
+          AND f.isDeleted = 0
+          AND f.deletedAt IS NULL
+        WHERE 
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+        ORDER BY 
+          [Department], [KRI Name]
+      `;
+            let overdueKrisByDepartmentRows = [];
+            try {
+                overdueKrisByDepartmentRows = await this.databaseService.query(overdueKrisByDepartmentQuery);
+            }
+            catch (e) {
+                console.error('Overdue KRIs by department query failed:', e);
+            }
+            const allKrisSubmittedByFunctionQuery = `
+        WITH kri_function_map AS (
+          SELECT
+            f.name AS function_name,
+            k.id   AS kri_id,
+            k.kriName
+          FROM Kris AS k
+          INNER JOIN KriFunctions AS kf
+            ON k.id = kf.kri_id
+            AND kf.deletedAt IS NULL
+          INNER JOIN Functions AS f
+            ON f.id = kf.function_id
+            AND f.isDeleted = 0
+            AND f.deletedAt IS NULL
+          WHERE
+            k.isDeleted = 0
+            AND k.deletedAt IS NULL
+        ),
+        kri_submission_status AS (
+          SELECT
+            ap.kri_id,
+            MAX(CASE
+                  WHEN ap.preparerStatus = 'sent'
+                   AND ap.checkerStatus  = 'approved'
+                   AND ap.reviewerStatus = 'sent'
+                   AND ap.acceptanceStatus = 'approved'
+                  THEN 1 ELSE 0
+                END) AS is_submitted
+          FROM Actionplans AS ap
+          WHERE ap.deletedAt IS NULL
+          GROUP BY ap.kri_id
+        )
+        SELECT
+          kfm.function_name AS [Function Name],
+          CASE
+            WHEN COUNT(kfm.kri_id) = COUNT(CASE WHEN kss.is_submitted = 1 THEN 1 END)
+            THEN 'Yes' ELSE 'No'
+          END AS [All KRIs Submitted?],
+          COUNT(kfm.kri_id) AS [Total KRIs],
+          COUNT(CASE WHEN kss.is_submitted = 1 THEN 1 END) AS [Submitted KRIs]
+        FROM kri_function_map AS kfm
+        LEFT JOIN kri_submission_status AS kss
+          ON kfm.kri_id = kss.kri_id
+        GROUP BY kfm.function_name
+        ORDER BY kfm.function_name
+      `;
+            let allKrisSubmittedByFunctionRows = [];
+            try {
+                allKrisSubmittedByFunctionRows = await this.databaseService.query(allKrisSubmittedByFunctionQuery);
+            }
+            catch (e) {
+                console.error('All KRIs submitted by function query failed:', e);
+            }
+            const kriCountsByMonthYearQuery = `
+        SELECT  
+          DATENAME(month, k.createdAt) AS month_name, 
+          YEAR(k.createdAt) AS [year], 
+          COUNT(*) AS kri_count 
+        FROM Kris k 
+        WHERE k.isDeleted = 0 
+          AND k.deletedAt IS NULL
+        GROUP BY YEAR(k.createdAt), DATENAME(month, k.createdAt), MONTH(k.createdAt) 
+        ORDER BY YEAR(k.createdAt), MONTH(k.createdAt)
+      `;
+            let kriCountsByMonthYear = [];
+            try {
+                kriCountsByMonthYear = await this.databaseService.query(kriCountsByMonthYearQuery);
+            }
+            catch (e) {
+                console.error('KRI counts by Month/Year query failed:', e);
+            }
+            const kriCountsByFrequencyQuery = `
+        SELECT 
+          k.frequency AS frequency, 
+          COUNT(*) AS count 
+        FROM Kris k
+        WHERE
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+          AND k.frequency IS NOT NULL
+        GROUP BY 
+          k.frequency 
+        ORDER BY 
+          k.frequency ASC
+      `;
+            let kriCountsByFrequency = [];
+            try {
+                kriCountsByFrequency = await this.databaseService.query(kriCountsByFrequencyQuery);
+            }
+            catch (e) {
+                console.error('KRI counts by frequency query failed:', e);
+            }
+            const kriRisksByKriNameQuery = `
+        SELECT 
+          k.kriName AS kriName,
+          COUNT(*) AS count
+        FROM Risks r
+        INNER JOIN KriRisks kr
+          ON r.id = kr.risk_id
+          AND kr.deletedAt IS NULL
+        INNER JOIN Kris k
+          ON kr.kri_id = k.id
+          AND k.isDeleted = 0
+          AND k.deletedAt IS NULL
+        WHERE 
+          r.isDeleted = 0
+          AND r.deletedAt IS NULL
+          AND k.kriName IS NOT NULL
+        GROUP BY 
+          k.kriName
+        ORDER BY 
+          k.kriName ASC
+      `;
+            let kriRisksByKriName = [];
+            try {
+                kriRisksByKriName = await this.databaseService.query(kriRisksByKriNameQuery);
+            }
+            catch (e) {
+                console.error('KRI risks by KRI name query failed:', e);
+            }
+            const kriRiskRelationshipsQuery = `
+        SELECT 
+          k.kriName AS kri_name, 
+          r.name AS risk_name, 
+          r.id AS risk_id
+        FROM Kris k
+        LEFT JOIN KriRisks kr
+          ON kr.kri_id = k.id
+          AND kr.deletedAt IS NULL
+        LEFT JOIN Risks r
+          ON r.id = kr.risk_id
+          AND r.isDeleted = 0
+          AND r.deletedAt IS NULL
+        WHERE 
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+        ORDER BY 
+          k.kriName, r.name
+      `;
+            let kriRiskRelationships = [];
+            try {
+                kriRiskRelationships = await this.databaseService.query(kriRiskRelationshipsQuery);
+            }
+            catch (e) {
+                console.error('KRI risk relationships query failed:', e);
+            }
+            const kriWithoutLinkedRisksQuery = `
+        SELECT  
+          k.kriName AS kriName, 
+          k.id      AS kriId
+        FROM Kris AS k
+        WHERE  
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM KriRisks AS kr
+            WHERE kr.kri_id = k.id
+              AND kr.deletedAt IS NULL
+          )
+        ORDER BY  
+          k.kriName
+      `;
+            let kriWithoutLinkedRisks = [];
+            try {
+                kriWithoutLinkedRisks = await this.databaseService.query(kriWithoutLinkedRisksQuery);
+            }
+            catch (e) {
+                console.error('KRIs without linked risks query failed:', e);
+            }
+            const activeKrisDetailsQuery = `
+        SELECT
+          k.kriName          AS kriName,
+          k.preparerStatus   AS preparerStatus,
+          k.checkerStatus    AS checkerStatus,
+          k.reviewerStatus   AS reviewerStatus,
+          k.acceptanceStatus AS acceptanceStatus,
+          k.addedBy          AS addedBy,
+          k.modifiedBy       AS modifiedBy,
+          k.status           AS status,
+          k.frequency        AS frequency,
+          k.threshold        AS threshold,
+          k.high_from        AS high_from,
+          k.medium_from      AS medium_from,
+          k.low_from         AS low_from
+        FROM Kris k
+        WHERE
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+          AND k.status = 'active'
+      `;
+            let activeKrisDetailsRows = [];
+            try {
+                activeKrisDetailsRows = await this.databaseService.query(activeKrisDetailsQuery);
+            }
+            catch (e) {
+                console.error('Active KRIs details query failed:', e);
+            }
+            const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
+            const pendingChecker = statusCountsRow?.pendingChecker || 0;
+            const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
+            const pendingAcceptance = statusCountsRow?.pendingAcceptance || 0;
+            const approved = statusCountsRow?.approved || 0;
             return {
                 totalKris,
                 pendingPreparer,
@@ -280,10 +598,13 @@ let GrcKrisService = class GrcKrisService {
                 pendingReviewer,
                 pendingAcceptance,
                 approved,
-                krisByStatus: krisByStatus.map(item => ({
-                    status: item.status,
-                    count: item.count
-                })),
+                krisByStatus: [
+                    { status: 'Pending Preparer', count: pendingPreparer },
+                    { status: 'Pending Checker', count: pendingChecker },
+                    { status: 'Pending Reviewer', count: pendingReviewer },
+                    { status: 'Pending Acceptance', count: pendingAcceptance },
+                    { status: 'Approved', count: approved }
+                ],
                 krisByLevel: krisByLevel.map(item => ({
                     level: item.kri_level,
                     count: item.count
@@ -303,6 +624,71 @@ let GrcKrisService = class GrcKrisService {
                 kriAssessmentCount: kriAssessmentCount.map(item => ({
                     function_name: item.function_name || 'Unknown',
                     assessment_count: item.assessment_count
+                })),
+                kriMonthlyAssessment: kriMonthlyAssessment.map(item => ({
+                    month: item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : null,
+                    assessment: item.assessment || 'Unknown',
+                    count: item.count || 0
+                })),
+                newlyCreatedKrisPerMonth: newlyCreatedKrisPerMonth.map(item => ({
+                    month: item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : null,
+                    count: item.count || 0
+                })),
+                deletedKrisPerMonth: deletedKrisPerMonth.map(item => ({
+                    month: item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : null,
+                    count: item.count || 0
+                })),
+                kriOverdueStatusCounts: kriOverdueStatusCountsRows.map(item => ({
+                    status: item['KRI Status'] || 'Unknown',
+                    count: item['Count'] || 0
+                })),
+                overdueKrisByDepartment: overdueKrisByDepartmentRows.map(item => ({
+                    kriId: item['KRI ID'] || null,
+                    kriName: item['KRI Name'] || 'Unknown',
+                    department: item['Department'] || 'Unknown'
+                })),
+                allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map(item => ({
+                    function_name: item['Function Name'] || 'Unknown',
+                    all_submitted: item['All KRIs Submitted?'] || 'No',
+                    total_kris: item['Total KRIs'] || 0,
+                    submitted_kris: item['Submitted KRIs'] || 0
+                })),
+                kriCountsByMonthYear: kriCountsByMonthYear.map(item => ({
+                    month_name: item.month_name || 'Unknown',
+                    year: item.year || 0,
+                    kri_count: item.kri_count || 0
+                })),
+                kriCountsByFrequency: kriCountsByFrequency.map(item => ({
+                    frequency: item.frequency || 'Unknown',
+                    count: item.count || 0
+                })),
+                kriRisksByKriName: kriRisksByKriName.map(item => ({
+                    kriName: item.kriName || 'Unknown',
+                    count: item.count || 0
+                })),
+                kriRiskRelationships: kriRiskRelationships.map(item => ({
+                    kri_name: item.kri_name || 'Unknown',
+                    risk_name: item.risk_name || 'Unknown',
+                    risk_id: item.risk_id || null
+                })),
+                kriWithoutLinkedRisks: kriWithoutLinkedRisks.map(item => ({
+                    kriName: item.kriName || 'Unknown',
+                    kriId: item.kriId || null
+                })),
+                activeKrisDetails: activeKrisDetailsRows.map(item => ({
+                    kriName: item.kriName || 'Unknown',
+                    preparerStatus: item.preparerStatus || 'Unknown',
+                    checkerStatus: item.checkerStatus || 'Unknown',
+                    reviewerStatus: item.reviewerStatus || 'Unknown',
+                    acceptanceStatus: item.acceptanceStatus || 'Unknown',
+                    addedBy: item.addedBy || 'Unknown',
+                    modifiedBy: item.modifiedBy || 'Unknown',
+                    status: item.status || 'Unknown',
+                    frequency: item.frequency || 'Unknown',
+                    threshold: item.threshold || null,
+                    high_from: item.high_from || null,
+                    medium_from: item.medium_from || null,
+                    low_from: item.low_from || null
                 }))
             };
         }
@@ -328,6 +714,181 @@ let GrcKrisService = class GrcKrisService {
             message: `Exporting KRIs data in ${format} format`,
             timeframe: timeframe || 'all',
             status: 'success'
+        };
+    }
+    async getTotalKris(page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0"];
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        CASE 
+          WHEN k.acceptanceStatus = 'approved' THEN 'approved'
+          WHEN k.reviewerStatus = 'approved' THEN 'approved'
+          WHEN k.checkerStatus = 'approved' THEN 'approved'
+          ELSE ISNULL(k.preparerStatus, k.acceptanceStatus)
+        END as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getPendingPreparerKris(page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.preparerStatus = 'sent'"];
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        'Pending Preparer' as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getPendingCheckerKris(page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.checkerStatus = 'pending'"];
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        'Pending Checker' as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getPendingReviewerKris(page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.reviewerStatus = 'pending'"];
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        'Pending Reviewer' as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getPendingAcceptanceKris(page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.acceptanceStatus = 'pending'"];
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.kriName as title,
+        'Pending Acceptance' as status,
+        k.createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
         };
     }
 };
