@@ -57,19 +57,32 @@ let GrcKrisService = class GrcKrisService {
                 console.error('KRIs total query failed:', e);
             }
             const krisStatusCountsQuery = `
+        WITH KrisStatus AS (
+          SELECT 
+            CASE 
+              WHEN ISNULL(preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
+              WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' THEN 'pendingChecker'
+              WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'approved' THEN 'pendingReviewer'
+              WHEN ISNULL(reviewerStatus, '') = 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
+              WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 'approved'
+              ELSE 'Other'
+            END AS status
+          FROM Kris
+          WHERE isDeleted = 0 AND deletedAt IS NULL
+        )
         SELECT 
-          SUM(CASE WHEN k.preparerStatus = 'sent' THEN 1 ELSE 0 END) AS pendingPreparer,
-          SUM(CASE WHEN k.checkerStatus = 'pending' THEN 1 ELSE 0 END) AS pendingChecker,
-          SUM(CASE WHEN k.reviewerStatus = 'pending' THEN 1 ELSE 0 END) AS pendingReviewer,
-          SUM(CASE WHEN k.acceptanceStatus = 'pending' THEN 1 ELSE 0 END) AS pendingAcceptance,
-          SUM(CASE WHEN k.acceptanceStatus = 'approved' THEN 1 ELSE 0 END) AS approved
-        FROM Kris k
-        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          CAST(SUM(CASE WHEN status = 'pendingPreparer' THEN 1 ELSE 0 END) AS INT) AS pendingPreparer,
+          CAST(SUM(CASE WHEN status = 'pendingChecker' THEN 1 ELSE 0 END) AS INT) AS pendingChecker,
+          CAST(SUM(CASE WHEN status = 'pendingReviewer' THEN 1 ELSE 0 END) AS INT) AS pendingReviewer,
+          CAST(SUM(CASE WHEN status = 'pendingAcceptance' THEN 1 ELSE 0 END) AS INT) AS pendingAcceptance,
+          CAST(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS INT) AS approved
+        FROM KrisStatus
       `;
             let statusCountsRow = {};
             try {
-                const statusCountsResult = await this.databaseService.query(krisStatusCountsQuery);
-                statusCountsRow = statusCountsResult[0] || {};
+                const [statusCountsResult] = await this.databaseService.query(krisStatusCountsQuery);
+                statusCountsRow = statusCountsResult || {};
+                console.log('[KRI Dashboard] Status counts query result:', JSON.stringify(statusCountsRow));
             }
             catch (e) {
                 console.error('KRIs status counts query failed:', e);
@@ -90,6 +103,7 @@ let GrcKrisService = class GrcKrisService {
                  TRY_CONVERT(float, k.high_from)   AS high_thr
           FROM Kris k
           WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+            ${dateFilter}
         ),
         KL AS (
           SELECT K.id, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
@@ -113,6 +127,7 @@ let GrcKrisService = class GrcKrisService {
         SELECT level_bucket AS level, COUNT(*) AS count
         FROM Derived
         GROUP BY level_bucket
+        ORDER BY count DESC
       `;
             let krisByLevel = [];
             try {
@@ -122,83 +137,24 @@ let GrcKrisService = class GrcKrisService {
                 console.error('KRIs by level query failed:', e);
             }
             const breachedKRIsByDepartmentQuery = `
-        WITH LatestKV AS (
-          SELECT 
-            COALESCE(kv.kriId, kv.kri_id) AS kriId,
-            TRY_CONVERT(float, kv.value) AS val,
-            ROW_NUMBER() OVER (
-              PARTITION BY COALESCE(kv.kriId, kv.kri_id)
-              ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC
-            ) AS rn
-          FROM KriValues kv
-          WHERE kv.deletedAt IS NULL
-        ),
-        NormK AS (
-          SELECT
-            k.id,
-            CAST(COALESCE(k.isAscending, k.is_ascending) AS int) AS isAscending,
-            TRY_CONVERT(float, k.high_from)   AS high_thr,
-            TRY_CONVERT(float, k.medium_from) AS med_thr,
-            TRY_CONVERT(float, COALESCE(k.high_from, k.highFrom, k.threshold)) AS threshold_fallback,
-            k.kri_level,
-            k.related_function_id
-          FROM Kris k
-          WHERE k.isDeleted = 0
-        ),
-        KWithLatest AS (
-          SELECT
-            n.id,
-            n.isAscending,
-            n.high_thr,
-            n.med_thr,
-            n.threshold_fallback,
-            n.kri_level,
-            n.related_function_id,
-            kv.val
-          FROM NormK n
-          LEFT JOIN LatestKV kv
-            ON kv.kriId = n.id
-           AND kv.rn = 1
-        )
         SELECT 
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-          SUM(
-            CASE 
-              WHEN kl.kri_level IS NOT NULL AND LTRIM(RTRIM(LOWER(kl.kri_level))) = 'high' THEN 1
-              WHEN kl.val IS NULL THEN 0
-              -- prefer explicit high_thr when present
-              WHEN kl.high_thr IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.high_thr THEN 1
-              WHEN kl.high_thr IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.high_thr THEN 1
-              -- fallback to medium threshold if high is missing
-              WHEN kl.high_thr IS NULL AND kl.med_thr IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.med_thr THEN 1
-              WHEN kl.high_thr IS NULL AND kl.med_thr IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.med_thr THEN 1
-              -- final fallback to generic threshold
-              WHEN kl.high_thr IS NULL AND kl.med_thr IS NULL AND kl.threshold_fallback IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.threshold_fallback THEN 1
-              WHEN kl.high_thr IS NULL AND kl.med_thr IS NULL AND kl.threshold_fallback IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.threshold_fallback THEN 1
-              ELSE 0
-            END
-          ) AS breached_count
-        FROM KWithLatest kl
+          COUNT(k.id) AS breached_count
+        FROM Kris k
         LEFT JOIN KriFunctions kf
-          ON kf.kri_id = kl.id
+          ON kf.kri_id = k.id
+          AND kf.deletedAt IS NULL
         LEFT JOIN Functions fkf
           ON fkf.id = kf.function_id
+          AND fkf.isDeleted = 0
+          AND fkf.deletedAt IS NULL
         LEFT JOIN Functions frel
-          ON frel.id = kl.related_function_id
+          ON frel.id = k.related_function_id
+          AND frel.isDeleted = 0
+          AND frel.deletedAt IS NULL
+        WHERE k.isDeleted = 0 
+          AND k.deletedAt IS NULL
         GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
-        HAVING SUM(
-            CASE 
-              WHEN kl.kri_level IS NOT NULL AND LTRIM(RTRIM(LOWER(kl.kri_level))) = 'high' THEN 1
-              WHEN kl.val IS NULL THEN 0
-              WHEN kl.high_thr IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.high_thr THEN 1
-              WHEN kl.high_thr IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.high_thr THEN 1
-              WHEN kl.high_thr IS NULL AND kl.med_thr IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.med_thr THEN 1
-              WHEN kl.high_thr IS NULL AND kl.med_thr IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.med_thr THEN 1
-              WHEN kl.high_thr IS NULL AND kl.med_thr IS NULL AND kl.threshold_fallback IS NOT NULL AND kl.isAscending = 1 AND kl.val > kl.threshold_fallback THEN 1
-              WHEN kl.high_thr IS NULL AND kl.med_thr IS NULL AND kl.threshold_fallback IS NOT NULL AND kl.isAscending = 0 AND kl.val < kl.threshold_fallback THEN 1
-              ELSE 0
-            END
-        ) > 0
         ORDER BY breached_count DESC
       `;
             let breachedKRIsByDepartment = [];
@@ -206,7 +162,7 @@ let GrcKrisService = class GrcKrisService {
                 breachedKRIsByDepartment = await this.databaseService.query(breachedKRIsByDepartmentQuery);
             }
             catch (e) {
-                console.error('Breached KRIs by department query failed:', e);
+                console.error('Breached KRIs by function query failed:', e);
             }
             const kriHealthQuery = `
         SELECT
@@ -231,22 +187,23 @@ let GrcKrisService = class GrcKrisService {
                 console.error('KRI health query failed:', e);
             }
             const kriAssessmentCountQuery = `
-        WITH LatestKV AS (
-          SELECT kv.kriId,
-                 kv.assessment,
-                 ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
-          FROM KriValues kv
-          WHERE kv.deletedAt IS NULL
-        )
         SELECT
-          f.name AS function_name,
-          COUNT(k.id) AS assessment_count
-        FROM Kris k
-        JOIN LatestKV kv ON kv.kriId = k.id AND kv.rn = 1
-        JOIN KriFunctions kf ON k.id = kf.kri_id
-        JOIN Functions f ON kf.function_id = f.id
-        WHERE k.isDeleted = 0
-        GROUP BY f.name
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+          COUNT(kv.id) AS assessment_count
+        FROM KriValues kv
+        INNER JOIN Kris k ON kv.kriId = k.id
+          AND k.isDeleted = 0 
+          AND k.deletedAt IS NULL
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
+          AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id
+          AND fkf.isDeleted = 0
+          AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id
+          AND frel.isDeleted = 0
+          AND frel.deletedAt IS NULL
+        WHERE kv.deletedAt IS NULL
+        GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
         ORDER BY assessment_count DESC
       `;
             let kriAssessmentCount = [];
@@ -258,9 +215,9 @@ let GrcKrisService = class GrcKrisService {
             }
             const kriMonthlyAssessmentQuery = `
         SELECT
-          CAST(DATEADD(month, DATEPART(month, k.createdAt) - 1, DATEFROMPARTS(YEAR(k.createdAt), 1, 1)) AS datetime2) AS createdAt,
+          CAST(DATEADD(month, DATEPART(month, kv.createdAt) - 1, DATEFROMPARTS(YEAR(kv.createdAt), 1, 1)) AS datetime2) AS createdAt,
           kv.assessment AS assessment,
-          COUNT(DISTINCT k.id) AS count
+          COUNT(kv.id) AS count
         FROM Kris AS k
         INNER JOIN KriValues AS kv
           ON kv.kriId = k.id
@@ -269,8 +226,9 @@ let GrcKrisService = class GrcKrisService {
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           AND kv.assessment IS NOT NULL
+          ${dateFilter}
         GROUP BY
-          CAST(DATEADD(month, DATEPART(month, k.createdAt) - 1, DATEFROMPARTS(YEAR(k.createdAt), 1, 1)) AS datetime2),
+          CAST(DATEADD(month, DATEPART(month, kv.createdAt) - 1, DATEFROMPARTS(YEAR(kv.createdAt), 1, 1)) AS datetime2),
           kv.assessment
         ORDER BY
           createdAt ASC,
@@ -343,6 +301,7 @@ let GrcKrisService = class GrcKrisService {
           FROM Kris AS k
           WHERE k.isDeleted = 0
             AND k.deletedAt IS NULL
+            ${dateFilter}
         )
         SELECT
           KRIStatus AS [KRI Status],
@@ -359,9 +318,9 @@ let GrcKrisService = class GrcKrisService {
             }
             const overdueKrisByDepartmentQuery = `
         SELECT DISTINCT 
-          k.id        AS [KRI ID], 
+          k.code      AS [KRI Code], 
           k.kriName   AS [KRI Name], 
-          COALESCE(ap.business_unit, f.name) AS [Department]
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function]
         FROM Kris AS k
         INNER JOIN Actionplans AS ap
           ON ap.kri_id = k.id
@@ -369,17 +328,22 @@ let GrcKrisService = class GrcKrisService {
           AND ap.implementation_date < GETDATE()
           AND (ap.done = 0 OR ap.done IS NULL)
         LEFT JOIN KriFunctions AS kf
-          ON kf.kri_id = k.id
+          ON k.id = kf.kri_id
           AND kf.deletedAt IS NULL
-        LEFT JOIN Functions AS f
-          ON f.id = kf.function_id
-          AND f.isDeleted = 0
-          AND f.deletedAt IS NULL
+        LEFT JOIN Functions AS fkf
+          ON fkf.id = kf.function_id
+          AND fkf.isDeleted = 0
+          AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions AS frel
+          ON frel.id = k.related_function_id
+          AND frel.isDeleted = 0
+          AND frel.deletedAt IS NULL
         WHERE 
           k.isDeleted = 0
           AND k.deletedAt IS NULL
+          ${dateFilter}
         ORDER BY 
-          [Department], [KRI Name]
+          [Function], [KRI Name]
       `;
             let overdueKrisByDepartmentRows = [];
             try {
@@ -389,50 +353,38 @@ let GrcKrisService = class GrcKrisService {
                 console.error('Overdue KRIs by department query failed:', e);
             }
             const allKrisSubmittedByFunctionQuery = `
-        WITH kri_function_map AS (
-          SELECT
-            f.name AS function_name,
-            k.id   AS kri_id,
-            k.kriName
-          FROM Kris AS k
-          INNER JOIN KriFunctions AS kf
-            ON k.id = kf.kri_id
-            AND kf.deletedAt IS NULL
-          INNER JOIN Functions AS f
-            ON f.id = kf.function_id
-            AND f.isDeleted = 0
-            AND f.deletedAt IS NULL
-          WHERE
-            k.isDeleted = 0
-            AND k.deletedAt IS NULL
-        ),
-        kri_submission_status AS (
-          SELECT
-            ap.kri_id,
-            MAX(CASE
-                  WHEN ap.preparerStatus = 'sent'
-                   AND ap.checkerStatus  = 'approved'
-                   AND ap.reviewerStatus = 'sent'
-                   AND ap.acceptanceStatus = 'approved'
-                  THEN 1 ELSE 0
-                END) AS is_submitted
-          FROM Actionplans AS ap
-          WHERE ap.deletedAt IS NULL
-          GROUP BY ap.kri_id
-        )
         SELECT
-          kfm.function_name AS [Function Name],
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function Name],
+          COUNT(k.id) AS [Total KRIs],
+          COUNT(CASE
+            WHEN ISNULL(k.preparerStatus, '') = 'sent'
+             AND ISNULL(k.acceptanceStatus, '') = 'approved'
+            THEN 1 END) AS [Submitted KRIs],
           CASE
-            WHEN COUNT(kfm.kri_id) = COUNT(CASE WHEN kss.is_submitted = 1 THEN 1 END)
+            WHEN COUNT(k.id) = COUNT(CASE
+              WHEN ISNULL(k.preparerStatus, '') = 'sent'
+               AND ISNULL(k.acceptanceStatus, '') = 'approved'
+              THEN 1 END)
             THEN 'Yes' ELSE 'No'
-          END AS [All KRIs Submitted?],
-          COUNT(kfm.kri_id) AS [Total KRIs],
-          COUNT(CASE WHEN kss.is_submitted = 1 THEN 1 END) AS [Submitted KRIs]
-        FROM kri_function_map AS kfm
-        LEFT JOIN kri_submission_status AS kss
-          ON kfm.kri_id = kss.kri_id
-        GROUP BY kfm.function_name
-        ORDER BY kfm.function_name
+          END AS [All KRIs Submitted?]
+        FROM Kris AS k
+        LEFT JOIN KriFunctions AS kf
+          ON k.id = kf.kri_id
+          AND kf.deletedAt IS NULL
+        LEFT JOIN Functions AS fkf
+          ON fkf.id = kf.function_id
+          AND fkf.isDeleted = 0
+          AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions AS frel
+          ON frel.id = k.related_function_id
+          AND frel.isDeleted = 0
+          AND frel.deletedAt IS NULL
+        WHERE
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+          ${dateFilter}
+        GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
+        ORDER BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
       `;
             let allKrisSubmittedByFunctionRows = [];
             try {
@@ -443,35 +395,38 @@ let GrcKrisService = class GrcKrisService {
             }
             const kriCountsByMonthYearQuery = `
         SELECT  
+          FORMAT(k.createdAt, 'MMM yyyy') AS month_year,
           DATENAME(month, k.createdAt) AS month_name, 
-          YEAR(k.createdAt) AS [year], 
+          YEAR(k.createdAt) AS year, 
           COUNT(*) AS kri_count 
         FROM Kris k 
         WHERE k.isDeleted = 0 
           AND k.deletedAt IS NULL
-        GROUP BY YEAR(k.createdAt), DATENAME(month, k.createdAt), MONTH(k.createdAt) 
+          ${dateFilter}
+        GROUP BY FORMAT(k.createdAt, 'MMM yyyy'), YEAR(k.createdAt), DATENAME(month, k.createdAt), MONTH(k.createdAt) 
         ORDER BY YEAR(k.createdAt), MONTH(k.createdAt)
       `;
             let kriCountsByMonthYear = [];
             try {
                 kriCountsByMonthYear = await this.databaseService.query(kriCountsByMonthYearQuery);
+                console.log('[KRI Dashboard] kriCountsByMonthYear query result:', JSON.stringify(kriCountsByMonthYear.slice(0, 3)));
             }
             catch (e) {
                 console.error('KRI counts by Month/Year query failed:', e);
             }
             const kriCountsByFrequencyQuery = `
         SELECT 
-          k.frequency AS frequency, 
+          ISNULL(k.frequency, 'Unknown') AS frequency, 
           COUNT(*) AS count 
         FROM Kris k
         WHERE
           k.isDeleted = 0
           AND k.deletedAt IS NULL
-          AND k.frequency IS NOT NULL
+          ${dateFilter}
         GROUP BY 
-          k.frequency 
+          ISNULL(k.frequency, 'Unknown')
         ORDER BY 
-          k.frequency ASC
+          frequency ASC
       `;
             let kriCountsByFrequency = [];
             try {
@@ -492,6 +447,7 @@ let GrcKrisService = class GrcKrisService {
           ON kr.kri_id = k.id
           AND k.isDeleted = 0
           AND k.deletedAt IS NULL
+          ${dateFilter}
         WHERE 
           r.isDeleted = 0
           AND r.deletedAt IS NULL
@@ -510,20 +466,22 @@ let GrcKrisService = class GrcKrisService {
             }
             const kriRiskRelationshipsQuery = `
         SELECT 
+          k.code AS kri_code,
           k.kriName AS kri_name, 
-          r.name AS risk_name, 
-          r.id AS risk_id
+          r.code AS risk_code,
+          r.name AS risk_name
         FROM Kris k
-        LEFT JOIN KriRisks kr
+        INNER JOIN KriRisks kr
           ON kr.kri_id = k.id
           AND kr.deletedAt IS NULL
-        LEFT JOIN Risks r
+        INNER JOIN Risks r
           ON r.id = kr.risk_id
           AND r.isDeleted = 0
           AND r.deletedAt IS NULL
         WHERE 
           k.isDeleted = 0
           AND k.deletedAt IS NULL
+          ${dateFilter}
         ORDER BY 
           k.kriName, r.name
       `;
@@ -537,11 +495,12 @@ let GrcKrisService = class GrcKrisService {
             const kriWithoutLinkedRisksQuery = `
         SELECT  
           k.kriName AS kriName, 
-          k.id      AS kriId
+          k.code    AS kriCode
         FROM Kris AS k
         WHERE  
           k.isDeleted = 0
           AND k.deletedAt IS NULL
+          ${dateFilter}
           AND NOT EXISTS (
             SELECT 1
             FROM KriRisks AS kr
@@ -558,22 +517,71 @@ let GrcKrisService = class GrcKrisService {
             catch (e) {
                 console.error('KRIs without linked risks query failed:', e);
             }
+            const kriStatusQuery = `
+        SELECT
+          k.code             AS code,
+          k.kriName          AS kri_name,
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+          CASE 
+            WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(k.reviewerStatus, '') = 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
+            ELSE 'Unknown'
+          END AS status
+        FROM Kris k
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
+          AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id
+          AND fkf.isDeleted = 0
+          AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id
+          AND frel.isDeleted = 0
+          AND frel.deletedAt IS NULL
+        WHERE
+          k.isDeleted = 0
+          AND k.deletedAt IS NULL
+          ${dateFilter}
+        ORDER BY k.kriName
+      `;
+            let kriStatusRows = [];
+            try {
+                kriStatusRows = await this.databaseService.query(kriStatusQuery);
+            }
+            catch (e) {
+                console.error('Overall KRI statuses query failed:', e);
+            }
             const activeKrisDetailsQuery = `
         SELECT
           k.kriName          AS kriName,
-          k.preparerStatus   AS preparerStatus,
-          k.checkerStatus    AS checkerStatus,
-          k.reviewerStatus   AS reviewerStatus,
-          k.acceptanceStatus AS acceptanceStatus,
-          k.addedBy          AS addedBy,
-          k.modifiedBy       AS modifiedBy,
+          CASE 
+            WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(k.reviewerStatus, '') = 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
+            ELSE 'Unknown'
+          END AS combined_status,
+          u.name AS assignedPersonId,
+          u2.name AS addedBy,
           k.status           AS status,
           k.frequency        AS frequency,
           k.threshold        AS threshold,
           k.high_from        AS high_from,
           k.medium_from      AS medium_from,
-          k.low_from         AS low_from
+          k.low_from         AS low_from,
+          ISNULL(f.name, NULL) AS function_name
         FROM Kris k
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
+          AND kf.deletedAt IS NULL
+        LEFT JOIN Functions f ON f.id = kf.function_id
+          AND f.isDeleted = 0
+          AND f.deletedAt IS NULL
+        LEFT JOIN users u ON k.assignedPersonId = u.id
+          AND u.deletedAt IS NULL
+        LEFT JOIN users u2 ON k.addedBy = u2.id
+          AND u2.deletedAt IS NULL
         WHERE
           k.isDeleted = 0
           AND k.deletedAt IS NULL
@@ -586,11 +594,11 @@ let GrcKrisService = class GrcKrisService {
             catch (e) {
                 console.error('Active KRIs details query failed:', e);
             }
-            const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
-            const pendingChecker = statusCountsRow?.pendingChecker || 0;
-            const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
-            const pendingAcceptance = statusCountsRow?.pendingAcceptance || 0;
-            const approved = statusCountsRow?.approved || 0;
+            const pendingPreparer = Number(statusCountsRow?.pendingPreparer || 0);
+            const pendingChecker = Number(statusCountsRow?.pendingChecker || 0);
+            const pendingReviewer = Number(statusCountsRow?.pendingReviewer || 0);
+            const pendingAcceptance = Number(statusCountsRow?.pendingAcceptance || 0);
+            const approved = Number(statusCountsRow?.approved || 0);
             return {
                 totalKris,
                 pendingPreparer,
@@ -606,7 +614,7 @@ let GrcKrisService = class GrcKrisService {
                     { status: 'Approved', count: approved }
                 ],
                 krisByLevel: krisByLevel.map(item => ({
-                    level: item.kri_level,
+                    level: item.level || item.kri_level || 'Unknown',
                     count: item.count
                 })),
                 breachedKRIsByDepartment: breachedKRIsByDepartment.map(item => ({
@@ -643,9 +651,9 @@ let GrcKrisService = class GrcKrisService {
                     count: item['Count'] || 0
                 })),
                 overdueKrisByDepartment: overdueKrisByDepartmentRows.map(item => ({
-                    kriId: item['KRI ID'] || null,
+                    kriCode: item['KRI Code'] || null,
                     kriName: item['KRI Name'] || 'Unknown',
-                    department: item['Department'] || 'Unknown'
+                    function_name: item['Function'] || 'Unknown'
                 })),
                 allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map(item => ({
                     function_name: item['Function Name'] || 'Unknown',
@@ -654,9 +662,10 @@ let GrcKrisService = class GrcKrisService {
                     submitted_kris: item['Submitted KRIs'] || 0
                 })),
                 kriCountsByMonthYear: kriCountsByMonthYear.map(item => ({
-                    month_name: item.month_name || 'Unknown',
-                    year: item.year || 0,
-                    kri_count: item.kri_count || 0
+                    month_year: item.month_year || `${item.month_name || item.month || ''} ${item.year || item['year'] || ''}`.trim() || 'Unknown',
+                    month_name: item.month_name || item.month || 'Unknown',
+                    year: item.year || item['year'] || 0,
+                    kri_count: item.kri_count || item.count || 0
                 })),
                 kriCountsByFrequency: kriCountsByFrequency.map(item => ({
                     frequency: item.frequency || 'Unknown',
@@ -667,28 +676,33 @@ let GrcKrisService = class GrcKrisService {
                     count: item.count || 0
                 })),
                 kriRiskRelationships: kriRiskRelationships.map(item => ({
+                    kri_code: item.kri_code || null,
                     kri_name: item.kri_name || 'Unknown',
-                    risk_name: item.risk_name || 'Unknown',
-                    risk_id: item.risk_id || null
+                    risk_code: item.risk_code || null,
+                    risk_name: item.risk_name || 'Unknown'
                 })),
                 kriWithoutLinkedRisks: kriWithoutLinkedRisks.map(item => ({
                     kriName: item.kriName || 'Unknown',
-                    kriId: item.kriId || null
+                    kriCode: item.kriCode || null
+                })),
+                kriStatus: kriStatusRows.map(item => ({
+                    code: item.code || null,
+                    kri_name: item.kri_name || 'Unknown',
+                    function_name: item.function_name || 'Unknown',
+                    status: item.status || 'Unknown'
                 })),
                 activeKrisDetails: activeKrisDetailsRows.map(item => ({
                     kriName: item.kriName || 'Unknown',
-                    preparerStatus: item.preparerStatus || 'Unknown',
-                    checkerStatus: item.checkerStatus || 'Unknown',
-                    reviewerStatus: item.reviewerStatus || 'Unknown',
-                    acceptanceStatus: item.acceptanceStatus || 'Unknown',
-                    addedBy: item.addedBy || 'Unknown',
-                    modifiedBy: item.modifiedBy || 'Unknown',
+                    combined_status: item.combined_status || 'Unknown',
+                    assignedPersonId: item.assignedPersonId || null,
+                    addedBy: item.addedBy || null,
                     status: item.status || 'Unknown',
                     frequency: item.frequency || 'Unknown',
                     threshold: item.threshold || null,
                     high_from: item.high_from || null,
                     medium_from: item.medium_from || null,
-                    low_from: item.low_from || null
+                    low_from: item.low_from || null,
+                    function_name: item.function_name || null
                 }))
             };
         }
@@ -708,13 +722,6 @@ let GrcKrisService = class GrcKrisService {
                 kriAssessmentCount: []
             };
         }
-    }
-    async exportKris(format, timeframe) {
-        return {
-            message: `Exporting KRIs data in ${format} format`,
-            timeframe: timeframe || 'all',
-            status: 'success'
-        };
     }
     async getTotalKris(page = 1, limit = 10, startDate, endDate) {
         const offset = (page - 1) * limit;
@@ -757,7 +764,7 @@ let GrcKrisService = class GrcKrisService {
     }
     async getPendingPreparerKris(page = 1, limit = 10, startDate, endDate) {
         const offset = (page - 1) * limit;
-        const where = ["k.isDeleted = 0", "k.preparerStatus = 'sent'"];
+        const where = ["k.isDeleted = 0", "k.deletedAt IS NULL", "ISNULL(k.preparerStatus, '') <> 'sent'"];
         if (startDate)
             where.push(`k.createdAt >= '${startDate}'`);
         if (endDate)
@@ -768,6 +775,7 @@ let GrcKrisService = class GrcKrisService {
         const total = totalRes?.[0]?.total || 0;
         const dataQuery = `
       SELECT 
+        k.code,
         k.kriName as title,
         'Pending Preparer' as status,
         k.createdAt
@@ -791,7 +799,12 @@ let GrcKrisService = class GrcKrisService {
     }
     async getPendingCheckerKris(page = 1, limit = 10, startDate, endDate) {
         const offset = (page - 1) * limit;
-        const where = ["k.isDeleted = 0", "k.checkerStatus = 'pending'"];
+        const where = [
+            "k.isDeleted = 0",
+            "k.deletedAt IS NULL",
+            "ISNULL(k.preparerStatus, '') = 'sent'",
+            "ISNULL(k.checkerStatus, '') <> 'approved'"
+        ];
         if (startDate)
             where.push(`k.createdAt >= '${startDate}'`);
         if (endDate)
@@ -802,6 +815,7 @@ let GrcKrisService = class GrcKrisService {
         const total = totalRes?.[0]?.total || 0;
         const dataQuery = `
       SELECT 
+        k.code,
         k.kriName as title,
         'Pending Checker' as status,
         k.createdAt
@@ -825,7 +839,12 @@ let GrcKrisService = class GrcKrisService {
     }
     async getPendingReviewerKris(page = 1, limit = 10, startDate, endDate) {
         const offset = (page - 1) * limit;
-        const where = ["k.isDeleted = 0", "k.reviewerStatus = 'pending'"];
+        const where = [
+            "k.isDeleted = 0",
+            "k.deletedAt IS NULL",
+            "ISNULL(k.checkerStatus, '') = 'approved'",
+            "ISNULL(k.reviewerStatus, '') <> 'approved'"
+        ];
         if (startDate)
             where.push(`k.createdAt >= '${startDate}'`);
         if (endDate)
@@ -836,6 +855,7 @@ let GrcKrisService = class GrcKrisService {
         const total = totalRes?.[0]?.total || 0;
         const dataQuery = `
       SELECT 
+        k.code,
         k.kriName as title,
         'Pending Reviewer' as status,
         k.createdAt
@@ -859,7 +879,12 @@ let GrcKrisService = class GrcKrisService {
     }
     async getPendingAcceptanceKris(page = 1, limit = 10, startDate, endDate) {
         const offset = (page - 1) * limit;
-        const where = ["k.isDeleted = 0", "k.acceptanceStatus = 'pending'"];
+        const where = [
+            "k.isDeleted = 0",
+            "k.deletedAt IS NULL",
+            "ISNULL(k.reviewerStatus, '') = 'approved'",
+            "ISNULL(k.acceptanceStatus, '') <> 'approved'"
+        ];
         if (startDate)
             where.push(`k.createdAt >= '${startDate}'`);
         if (endDate)
@@ -870,6 +895,7 @@ let GrcKrisService = class GrcKrisService {
         const total = totalRes?.[0]?.total || 0;
         const dataQuery = `
       SELECT 
+        k.code,
         k.kriName as title,
         'Pending Acceptance' as status,
         k.createdAt
@@ -889,6 +915,13 @@ let GrcKrisService = class GrcKrisService {
                 hasNext: offset + limit < total,
                 hasPrev: page > 1
             }
+        };
+    }
+    async exportKris(format, timeframe) {
+        return {
+            message: `Exporting KRIs data in ${format} format`,
+            timeframe: timeframe || 'all',
+            status: 'success'
         };
     }
 };

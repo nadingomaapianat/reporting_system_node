@@ -5,14 +5,14 @@ export declare class GrcKrisService {
     private buildDateFilter;
     getKrisDashboard(timeframe?: string): Promise<{
         totalKris: number;
-        pendingPreparer: any;
-        pendingChecker: any;
-        pendingReviewer: any;
-        pendingAcceptance: any;
-        approved: any;
+        pendingPreparer: number;
+        pendingChecker: number;
+        pendingReviewer: number;
+        pendingAcceptance: number;
+        approved: number;
         krisByStatus: {
             status: string;
-            count: any;
+            count: number;
         }[];
         krisByLevel: {
             level: any;
@@ -52,9 +52,9 @@ export declare class GrcKrisService {
             count: any;
         }[];
         overdueKrisByDepartment: {
-            kriId: any;
+            kriCode: any;
             kriName: any;
-            department: any;
+            function_name: any;
         }[];
         allKrisSubmittedByFunction: {
             function_name: any;
@@ -63,6 +63,7 @@ export declare class GrcKrisService {
             submitted_kris: any;
         }[];
         kriCountsByMonthYear: {
+            month_year: any;
             month_name: any;
             year: any;
             kri_count: any;
@@ -76,28 +77,33 @@ export declare class GrcKrisService {
             count: any;
         }[];
         kriRiskRelationships: {
+            kri_code: any;
             kri_name: any;
+            risk_code: any;
             risk_name: any;
-            risk_id: any;
         }[];
         kriWithoutLinkedRisks: {
             kriName: any;
-            kriId: any;
+            kriCode: any;
+        }[];
+        kriStatus: {
+            code: any;
+            kri_name: any;
+            function_name: any;
+            status: any;
         }[];
         activeKrisDetails: {
             kriName: any;
-            preparerStatus: any;
-            checkerStatus: any;
-            reviewerStatus: any;
-            acceptanceStatus: any;
+            combined_status: any;
+            assignedPersonId: any;
             addedBy: any;
-            modifiedBy: any;
             status: any;
             frequency: any;
             threshold: any;
             high_from: any;
             medium_from: any;
             low_from: any;
+            function_name: any;
         }[];
     } | {
         totalKris: number;
@@ -122,12 +128,8 @@ export declare class GrcKrisService {
         kriRisksByKriName?: undefined;
         kriRiskRelationships?: undefined;
         kriWithoutLinkedRisks?: undefined;
+        kriStatus?: undefined;
         activeKrisDetails?: undefined;
-    }>;
-    exportKris(format: string, timeframe?: string): Promise<{
-        message: string;
-        timeframe: string;
-        status: string;
     }>;
     getTotalKris(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
@@ -183,5 +185,10 @@ export declare class GrcKrisService {
             hasNext: boolean;
             hasPrev: boolean;
         };
+    }>;
+    exportKris(format: string, timeframe?: string): Promise<{
+        message: string;
+        timeframe: string;
+        status: string;
     }>;
 }
