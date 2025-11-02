@@ -656,4 +656,195 @@ export class GrcIncidentsService {
       }
     }
   }
+
+  async getIncidentsByCategory(
+    category: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string
+  ) {
+    try {
+      const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
+      const offset = (page - 1) * limit;
+      
+      const query = `
+        SELECT 
+          i.code as incident_code,
+          i.title as incident_title,
+          i.createdAt as created_at
+        FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[IncidentCategories] ic ON i.categoryId = ic.id AND ic.isDeleted = 0 AND ic.deletedAt IS NULL
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
+          AND ISNULL(ic.name, 'Unknown') = @param0
+          ${dateFilter}
+        ORDER BY i.createdAt DESC
+        OFFSET @param1 ROWS
+        FETCH NEXT @param2 ROWS ONLY
+      `;
+
+      const result = await this.databaseService.query(query, [category, offset, limit]);
+
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[IncidentCategories] ic ON i.categoryId = ic.id AND ic.isDeleted = 0 AND ic.deletedAt IS NULL
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
+          AND ISNULL(ic.name, 'Unknown') = @param0
+          ${dateFilter}
+      `;
+      const countResult = await this.databaseService.query(countQuery, [category]);
+      const total = countResult[0]?.total || 0;
+
+      return {
+        data: result.map((row: any) => ({
+          code: row.incident_code || 'N/A',
+          name: row.incident_title || 'N/A',
+          createdAt: row.created_at || null
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasNext: page * limit < total,
+          hasPrev: page > 1
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching incidents by category:', error);
+      throw error;
+    }
+  }
+
+  async getIncidentsByEventType(
+    eventType: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string
+  ) {
+    try {
+      const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
+      const offset = (page - 1) * limit;
+      
+      const query = `
+        SELECT 
+          i.code as incident_code,
+          i.title as incident_title,
+          i.createdAt as created_at
+        FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[IncidentEventTypes] ie ON i.eventTypeId = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
+          AND ISNULL(ie.name, 'Unknown') = @param0
+          ${dateFilter}
+        ORDER BY i.createdAt DESC
+        OFFSET @param1 ROWS
+        FETCH NEXT @param2 ROWS ONLY
+      `;
+
+      const result = await this.databaseService.query(query, [eventType, offset, limit]);
+
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[IncidentEventTypes] ie ON i.eventTypeId = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
+          AND ISNULL(ie.name, 'Unknown') = @param0
+          ${dateFilter}
+      `;
+      const countResult = await this.databaseService.query(countQuery, [eventType]);
+      const total = countResult[0]?.total || 0;
+
+      return {
+        data: result.map((row: any) => ({
+          code: row.incident_code || 'N/A',
+          name: row.incident_title || 'N/A',
+          createdAt: row.created_at || null
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasNext: page * limit < total,
+          hasPrev: page > 1
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching incidents by event type:', error);
+      throw error;
+    }
+  }
+
+  async getIncidentsByFinancialImpact(
+    financialImpact: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string
+  ) {
+    try {
+      const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
+      const offset = (page - 1) * limit;
+      
+      const query = `
+        SELECT 
+          i.code as incident_code,
+          i.title as incident_title,
+          i.createdAt as created_at
+        FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[FinancialImpacts] fi ON i.financialImpactId = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
+          AND ISNULL(fi.name, 'Unknown') = @param0
+          ${dateFilter}
+        ORDER BY i.createdAt DESC
+        OFFSET @param1 ROWS
+        FETCH NEXT @param2 ROWS ONLY
+      `;
+
+      const result = await this.databaseService.query(query, [financialImpact, offset, limit]);
+
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[FinancialImpacts] fi ON i.financialImpactId = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
+          AND ISNULL(fi.name, 'Unknown') = @param0
+          ${dateFilter}
+      `;
+      const countResult = await this.databaseService.query(countQuery, [financialImpact]);
+      const total = countResult[0]?.total || 0;
+
+      return {
+        data: result.map((row: any) => ({
+          code: row.incident_code || 'N/A',
+          name: row.incident_title || 'N/A',
+          createdAt: row.created_at || null
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasNext: page * limit < total,
+          hasPrev: page > 1
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching incidents by financial impact:', error);
+      throw error;
+    }
+  }
+
+  private buildDateRangeFilter(startDate?: string, endDate?: string, field: string = 'createdAt'): string {
+    let filter = '';
+    if (startDate) {
+      filter += ` AND ${field} >= '${startDate}'`;
+    }
+    if (endDate) {
+      filter += ` AND ${field} <= '${endDate}'`;
+    }
+    return filter;
+  }
 }

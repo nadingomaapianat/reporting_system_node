@@ -136,4 +136,49 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
+    getIncidentsByCategory(category: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsByEventType(eventType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsByFinancialImpact(financialImpact: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
 }

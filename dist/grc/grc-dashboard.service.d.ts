@@ -136,4 +136,275 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
+    getControlsByQuarter(quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByDepartment(department: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByType(type: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByLevel(level: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByFrequency(frequency: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByRiskResponse(riskResponse: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByAntiFraud(antiFraud: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByIcofrStatus(icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getFocusPointsByPrinciple(principle: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByComponent(component: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getFocusPointsByComponent(component: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByDepartmentAndKeyControl(department: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByProcessAndKeyControl(process: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByBusinessUnitAndKeyControl(businessUnit: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByAssertion(assertionName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByComponentAndIcofrStatus(component: string, icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByFunctionQuarterYear(functionName: string, quarter: number, year: number, columnType?: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getActionPlansByStatus(status: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    private buildDateFilterForQuery;
 }

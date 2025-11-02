@@ -67,4 +67,46 @@ export class GrcIncidentsController {
   ) {
     return this.grcIncidentsService.getPendingAcceptanceIncidents(page, limit, startDate, endDate);
   }
+
+  @Get('by-category')
+  async getIncidentsByCategory(
+    @Query('category') category: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!category) {
+      throw new Error('category parameter is required');
+    }
+    return this.grcIncidentsService.getIncidentsByCategory(category, page, limit, startDate, endDate);
+  }
+
+  @Get('by-event-type')
+  async getIncidentsByEventType(
+    @Query('eventType') eventType: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!eventType) {
+      throw new Error('eventType parameter is required');
+    }
+    return this.grcIncidentsService.getIncidentsByEventType(eventType, page, limit, startDate, endDate);
+  }
+
+  @Get('by-financial-impact')
+  async getIncidentsByFinancialImpact(
+    @Query('financialImpact') financialImpact: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!financialImpact) {
+      throw new Error('financialImpact parameter is required');
+    }
+    return this.grcIncidentsService.getIncidentsByFinancialImpact(financialImpact, page, limit, startDate, endDate);
+  }
 }

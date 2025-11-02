@@ -251,7 +251,21 @@ export class DashboardConfigService {
           yField: 'value',
           labelField: 'name'
         },
-        this.CHART_TEMPLATES.statusDistribution('dbo.[Controls]', 'risk_response'),
+        {
+          id: 'statusDistribution',
+          name: 'Controls by Risk Response Type',
+          type: 'pie' as const,
+          query: `SELECT 
+            ISNULL(c.risk_response, 'Unknown') AS name,
+            COUNT(c.id) AS value
+          FROM ${fq('Controls')} c
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}
+          GROUP BY ISNULL(c.risk_response, 'Unknown')
+          ORDER BY COUNT(c.id) DESC`,
+          xField: 'name',
+          yField: 'value',
+          labelField: 'name'
+        },
         {
           id: 'quarterlyControlCreationTrend',
           name: 'Quarterly Control Creation Trend',
@@ -818,8 +832,10 @@ export class DashboardConfigService {
           FROM ${fq('Functions')} AS f 
           JOIN ${fq('ControlFunctions')} AS cf ON f.id = cf.function_id 
           JOIN ${fq('Controls')} AS c ON cf.control_id = c.id AND c.isDeleted = 0 
-          LEFT JOIN ${fq('ControlDesignTests')} AS cdt ON cdt.control_id = c.id AND cdt.deletedAt IS NULL 
-          WHERE 1=1 {dateFilter}
+          LEFT JOIN ${fq('ControlDesignTests')} AS cdt ON cdt.control_id = c.id 
+            AND cdt.function_id = f.id 
+            AND cdt.deletedAt IS NULL 
+          WHERE cdt.id IS NOT NULL {dateFilter}
           GROUP BY f.name, cdt.quarter, cdt.year
           ORDER BY f.name, cdt.year, cdt.quarter`,
           columns: [

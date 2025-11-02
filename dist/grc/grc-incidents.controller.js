@@ -40,6 +40,24 @@ let GrcIncidentsController = class GrcIncidentsController {
     async getPendingAcceptanceIncidents(page = 1, limit = 10, startDate, endDate) {
         return this.grcIncidentsService.getPendingAcceptanceIncidents(page, limit, startDate, endDate);
     }
+    async getIncidentsByCategory(category, page = 1, limit = 10, startDate, endDate) {
+        if (!category) {
+            throw new Error('category parameter is required');
+        }
+        return this.grcIncidentsService.getIncidentsByCategory(category, page, limit, startDate, endDate);
+    }
+    async getIncidentsByEventType(eventType, page = 1, limit = 10, startDate, endDate) {
+        if (!eventType) {
+            throw new Error('eventType parameter is required');
+        }
+        return this.grcIncidentsService.getIncidentsByEventType(eventType, page, limit, startDate, endDate);
+    }
+    async getIncidentsByFinancialImpact(financialImpact, page = 1, limit = 10, startDate, endDate) {
+        if (!financialImpact) {
+            throw new Error('financialImpact parameter is required');
+        }
+        return this.grcIncidentsService.getIncidentsByFinancialImpact(financialImpact, page, limit, startDate, endDate);
+    }
 };
 exports.GrcIncidentsController = GrcIncidentsController;
 __decorate([
@@ -107,6 +125,39 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number, String, String]),
     __metadata("design:returntype", Promise)
 ], GrcIncidentsController.prototype, "getPendingAcceptanceIncidents", null);
+__decorate([
+    (0, common_1.Get)('by-category'),
+    __param(0, (0, common_1.Query)('category')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcIncidentsController.prototype, "getIncidentsByCategory", null);
+__decorate([
+    (0, common_1.Get)('by-event-type'),
+    __param(0, (0, common_1.Query)('eventType')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcIncidentsController.prototype, "getIncidentsByEventType", null);
+__decorate([
+    (0, common_1.Get)('by-financial-impact'),
+    __param(0, (0, common_1.Query)('financialImpact')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcIncidentsController.prototype, "getIncidentsByFinancialImpact", null);
 exports.GrcIncidentsController = GrcIncidentsController = __decorate([
     (0, common_1.Controller)('api/grc/incidents'),
     __metadata("design:paramtypes", [grc_incidents_service_1.GrcIncidentsService])
