@@ -81,4 +81,114 @@ export declare class GrcRisksService extends BaseDashboardService {
     }>;
     exportRisks(format: 'pdf' | 'excel', startDate?: string, endDate?: string): Promise<any>;
     private calculateRiskLevels;
+    getRisksByCategory(category: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByEventType(eventType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByQuarter(quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByApprovalStatus(approvalStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByFinancialImpact(financialImpact: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByFunction(functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByBusinessProcess(processName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByName(riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByControlName(controlName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksForComparison(riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
 }

@@ -138,9 +138,9 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
             WHEN rr.preparerResidualStatus = 'sent' AND rr.acceptanceResidualStatus = 'approved' THEN 'Approved'
             ELSE 'Not Approved'
           END AS approve,
-          COUNT(*) AS count
+          COUNT(DISTINCT r.id) AS count
         FROM dbo.[Risks] r
-        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId
+        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
         WHERE r.isDeleted = 0 ${dateFilter}
         GROUP BY 
           CASE 
@@ -198,8 +198,8 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
           SELECT 
             DATEPART(quarter, r.createdAt) AS quarter_num,
             'Q' + CAST(DATEPART(quarter, r.createdAt) AS VARCHAR(1)) + ' 2025' AS quarter_label,
-            SUM(CASE WHEN r.isDeleted = 0 AND (r.deletedAt IS NULL OR r.deletedAt = '') THEN 1 ELSE 0 END) AS created,
-            SUM(CASE WHEN r.isDeleted = 1 OR r.deletedAt IS NOT NULL THEN 1 ELSE 0 END) AS deleted
+            ISNULL(SUM(CASE WHEN r.isDeleted = 0 AND (r.deletedAt IS NULL OR r.deletedAt = '') THEN 1 ELSE 0 END), 0) AS created,
+            ISNULL(SUM(CASE WHEN r.isDeleted = 1 OR (r.deletedAt IS NOT NULL AND r.deletedAt != '') THEN 1 ELSE 0 END), 0) AS deleted
           FROM dbo.[Risks] r
           WHERE YEAR(r.createdAt) = YEAR(GETDATE()) ${dateFilter}
           GROUP BY DATEPART(quarter, r.createdAt), 
@@ -207,8 +207,8 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
         )
         SELECT 
           q.quarter_label AS name,
-          ISNULL(qd.created, 0) AS created,
-          ISNULL(qd.deleted, 0) AS deleted
+          CAST(ISNULL(qd.created, 0) AS INT) AS created,
+          CAST(ISNULL(qd.deleted, 0) AS INT) AS deleted
         FROM AllQuarters q
         LEFT JOIN QuarterData qd ON q.quarter_num = qd.quarter_num
         ORDER BY q.quarter_num ASC
@@ -253,12 +253,13 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
                 const inherentResidualRiskComparisonQuery = `
           SELECT 
             r.name AS [Risk Name], 
-            d.name AS [Department Name], 
+            f.name AS [Department Name], 
             r.inherent_value AS [Inherent Value], 
             rr.residual_value AS [Residual Value] 
           FROM dbo.[Risks] r
           JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id 
-          LEFT JOIN dbo.[Departments] d ON r.departmentId = d.id 
+          LEFT JOIN dbo.[RiskFunctions] rf ON r.id = rf.risk_id
+          LEFT JOIN dbo.[Functions] f ON rf.function_id = f.id
           WHERE r.isDeleted = 0 AND rr.isDeleted = 0 ${dateFilter}
           ORDER BY r.createdAt DESC
         `;
@@ -783,6 +784,625 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
             }
         });
         return Object.entries(levels).map(([level, count]) => ({ level, count }));
+    }
+    async getRisksByCategory(category, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        const isUncategorized = category === 'Uncategorized';
+        let categoryFilter = '';
+        if (isUncategorized) {
+            categoryFilter = `AND (c.name IS NULL OR c.name = '')`;
+        }
+        else {
+            categoryFilter = `AND c.name = @param2`;
+        }
+        let countCategoryFilter = '';
+        if (isUncategorized) {
+            countCategoryFilter = `AND (c.name IS NULL OR c.name = '')`;
+        }
+        else {
+            countCategoryFilter = `AND c.name = @param0`;
+        }
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name AS name,
+        ISNULL(c.name, 'Uncategorized') AS category_name,
+        r.inherent_value,
+        r.residual_value,
+        r.createdAt AS createdAt
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.RiskCategories rc ON r.id = rc.risk_id AND rc.isDeleted = 0
+      LEFT JOIN dbo.Categories c ON rc.category_id = c.id AND c.isDeleted = 0
+      WHERE r.isDeleted = 0 ${dateFilter} ${categoryFilter}
+      ORDER BY r.createdAt DESC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.RiskCategories rc ON r.id = rc.risk_id AND rc.isDeleted = 0
+      LEFT JOIN dbo.Categories c ON rc.category_id = c.id AND c.isDeleted = 0
+      WHERE r.isDeleted = 0 ${dateFilter} ${countCategoryFilter}
+    `;
+        const dataParams = isUncategorized ? [offset, limit] : [offset, limit, category];
+        const countParams = isUncategorized ? [] : [category];
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, dataParams),
+                this.databaseService.query(countQuery, countParams)
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksByCategory:', error);
+            console.error('Category:', category);
+            console.error('Data params:', dataParams);
+            console.error('Count params:', countParams);
+            throw error;
+        }
+    }
+    async getRisksByEventType(eventType, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        const isUnknown = eventType === 'Unknown';
+        let eventTypeFilter = '';
+        if (isUnknown) {
+            eventTypeFilter = `AND (et.name IS NULL OR et.name = '')`;
+        }
+        else {
+            eventTypeFilter = `AND et.name = @param2`;
+        }
+        let countEventTypeFilter = '';
+        if (isUnknown) {
+            countEventTypeFilter = `AND (et.name IS NULL OR et.name = '')`;
+        }
+        else {
+            countEventTypeFilter = `AND et.name = @param0`;
+        }
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name AS name,
+        ISNULL(et.name, 'Unknown') AS event_type_name,
+        r.inherent_value,
+        r.residual_value,
+        r.createdAt AS createdAt
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.[EventTypes] et ON r.event = et.id
+      WHERE r.isDeleted = 0 ${dateFilter} ${eventTypeFilter}
+      ORDER BY r.createdAt DESC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.[EventTypes] et ON r.event = et.id
+      WHERE r.isDeleted = 0 ${dateFilter} ${countEventTypeFilter}
+    `;
+        const dataParams = isUnknown ? [offset, limit] : [offset, limit, eventType];
+        const countParams = isUnknown ? [] : [eventType];
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, dataParams),
+                this.databaseService.query(countQuery, countParams)
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksByEventType:', error);
+            console.error('EventType:', eventType);
+            console.error('Data params:', dataParams);
+            console.error('Count params:', countParams);
+            throw error;
+        }
+    }
+    async getRisksByQuarter(quarter, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        let quarterNum;
+        let year;
+        const format1Match = quarter.match(/(\d{4})-Q(\d+)/);
+        if (format1Match) {
+            year = parseInt(format1Match[1]);
+            quarterNum = parseInt(format1Match[2]);
+        }
+        else {
+            const format2Match = quarter.match(/Q(\d+)\s+(\d+)/);
+            if (format2Match) {
+                quarterNum = parseInt(format2Match[1]);
+                year = parseInt(format2Match[2]);
+            }
+            else {
+                throw new Error(`Invalid quarter format: "${quarter}". Expected format: "Q1 2025" or "2025-Q2"`);
+            }
+        }
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name AS name,
+        r.inherent_value,
+        r.residual_value,
+        r.createdAt AS createdAt,
+        CONCAT(YEAR(r.createdAt), '-Q', DATEPART(QUARTER, r.createdAt)) AS quarter
+      FROM dbo.[Risks] r
+      WHERE r.isDeleted = 0 
+        AND DATEPART(QUARTER, r.createdAt) = @param2
+        AND YEAR(r.createdAt) = @param3
+        ${dateFilter}
+      ORDER BY r.createdAt DESC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM dbo.[Risks] r
+      WHERE r.isDeleted = 0 
+        AND DATEPART(QUARTER, r.createdAt) = @param0
+        AND YEAR(r.createdAt) = @param1
+        ${dateFilter}
+    `;
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, [offset, limit, quarterNum, year]),
+                this.databaseService.query(countQuery, [quarterNum, year])
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksByQuarter:', error);
+            console.error('Quarter:', quarter);
+            console.error('QuarterNum:', quarterNum, 'Year:', year);
+            throw error;
+        }
+    }
+    async getRisksByApprovalStatus(approvalStatus, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        let dataQuery = '';
+        let countQuery = '';
+        if (approvalStatus === 'Approved') {
+            dataQuery = `
+        SELECT DISTINCT
+          r.code,
+          r.name AS name,
+          'Approved' AS approval_status,
+          r.inherent_value,
+          r.residual_value,
+          r.createdAt AS createdAt
+        FROM dbo.[Risks] r
+        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
+        WHERE r.isDeleted = 0 
+          AND rr.preparerResidualStatus = 'sent' 
+          AND rr.acceptanceResidualStatus = 'approved'
+          ${dateFilter}
+        ORDER BY r.createdAt DESC
+        OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+      `;
+            countQuery = `
+        SELECT COUNT(DISTINCT r.id) as total
+        FROM dbo.[Risks] r
+        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
+        WHERE r.isDeleted = 0 
+          AND rr.preparerResidualStatus = 'sent' 
+          AND rr.acceptanceResidualStatus = 'approved'
+          ${dateFilter}
+      `;
+        }
+        else {
+            dataQuery = `
+        SELECT 
+          r.code,
+          r.name AS name,
+          'Not Approved' AS approval_status,
+          r.inherent_value,
+          r.residual_value,
+          r.createdAt AS createdAt
+        FROM dbo.[Risks] r
+        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
+        WHERE r.isDeleted = 0 
+          AND NOT EXISTS (
+            SELECT 1 
+            FROM dbo.[ResidualRisks] rr2 
+            WHERE rr2.riskId = r.id 
+              AND rr2.isDeleted = 0
+              AND rr2.preparerResidualStatus = 'sent' 
+              AND rr2.acceptanceResidualStatus = 'approved'
+          )
+          ${dateFilter}
+        GROUP BY r.id, r.code, r.name, r.inherent_value, r.residual_value, r.createdAt
+        ORDER BY r.createdAt DESC
+        OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+      `;
+            countQuery = `
+        SELECT COUNT(DISTINCT r.id) as total
+        FROM dbo.[Risks] r
+        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
+        WHERE r.isDeleted = 0 
+          AND NOT EXISTS (
+            SELECT 1 
+            FROM dbo.[ResidualRisks] rr2 
+            WHERE rr2.riskId = r.id 
+              AND rr2.isDeleted = 0
+              AND rr2.preparerResidualStatus = 'sent' 
+              AND rr2.acceptanceResidualStatus = 'approved'
+          )
+          ${dateFilter}
+      `;
+        }
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, [offset, limit]),
+                this.databaseService.query(countQuery)
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksByApprovalStatus:', error);
+            console.error('ApprovalStatus:', approvalStatus);
+            throw error;
+        }
+    }
+    async getRisksByFinancialImpact(financialImpact, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        let financialFilter = '';
+        if (financialImpact === 'Low') {
+            financialFilter = `AND r.inherent_financial_value <= 2`;
+        }
+        else if (financialImpact === 'Medium') {
+            financialFilter = `AND r.inherent_financial_value = 3`;
+        }
+        else if (financialImpact === 'High') {
+            financialFilter = `AND r.inherent_financial_value >= 4`;
+        }
+        else if (financialImpact === 'Unknown') {
+            financialFilter = `AND (r.inherent_financial_value IS NULL OR r.inherent_financial_value = 0)`;
+        }
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name AS name,
+        CASE 
+          WHEN r.inherent_financial_value <= 2 THEN 'Low' 
+          WHEN r.inherent_financial_value = 3 THEN 'Medium' 
+          WHEN r.inherent_financial_value >= 4 THEN 'High' 
+          ELSE 'Unknown' 
+        END AS financial_status,
+        r.inherent_value,
+        r.residual_value,
+        r.createdAt AS createdAt
+      FROM dbo.[Risks] r
+      WHERE r.isDeleted = 0 ${dateFilter} ${financialFilter}
+      ORDER BY r.createdAt DESC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM dbo.[Risks] r
+      WHERE r.isDeleted = 0 ${dateFilter} ${financialFilter}
+    `;
+        const [data, count] = await Promise.all([
+            this.databaseService.query(dataQuery, [offset, limit]),
+            this.databaseService.query(countQuery)
+        ]);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total: count[0]?.total || 0,
+                totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getRisksByFunction(functionName, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        const hasFunction = functionName && functionName !== '';
+        let functionFilter = '';
+        let countFunctionFilter = '';
+        if (hasFunction) {
+            functionFilter = `AND f.name = @param2`;
+            countFunctionFilter = `AND f.name = @param0`;
+        }
+        else {
+            functionFilter = `AND (f.name IS NULL OR f.name = '')`;
+            countFunctionFilter = `AND (f.name IS NULL OR f.name = '')`;
+        }
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name AS name,
+        f.name AS function_name,
+        r.inherent_value,
+        r.residual_value,
+        r.createdAt AS createdAt
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.[RiskFunctions] rf ON r.id = rf.risk_id
+      LEFT JOIN dbo.[Functions] f ON rf.function_id = f.id
+      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
+      ORDER BY r.createdAt DESC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.[RiskFunctions] rf ON r.id = rf.risk_id
+      LEFT JOIN dbo.[Functions] f ON rf.function_id = f.id
+      WHERE r.isDeleted = 0 ${dateFilter} ${countFunctionFilter}
+    `;
+        const params = hasFunction ? [offset, limit, functionName] : [offset, limit];
+        const countParams = hasFunction ? [functionName] : [];
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, params),
+                this.databaseService.query(countQuery, countParams)
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksByFunction:', error);
+            console.error('FunctionName:', functionName);
+            throw error;
+        }
+    }
+    async getRisksByBusinessProcess(processName, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name AS name,
+        p.name AS process_name,
+        r.inherent_value,
+        r.residual_value,
+        r.createdAt AS createdAt
+      FROM dbo.[Risks] r
+      JOIN dbo.[RiskProcesses] rp ON r.id = rp.risk_id
+      JOIN dbo.[Processes] p ON rp.process_id = p.id
+      WHERE r.isDeleted = 0 ${dateFilter} AND p.name = @param2
+      ORDER BY r.createdAt DESC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM dbo.[Risks] r
+      JOIN dbo.[RiskProcesses] rp ON r.id = rp.risk_id
+      JOIN dbo.[Processes] p ON rp.process_id = p.id
+      WHERE r.isDeleted = 0 ${dateFilter} AND p.name = @param0
+    `;
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, [offset, limit, processName]),
+                this.databaseService.query(countQuery, [processName])
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksByBusinessProcess:', error);
+            console.error('ProcessName:', processName);
+            throw error;
+        }
+    }
+    async getRisksByName(riskName, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        const dataQuery = `
+      SELECT 
+        c.code,
+        c.name AS name,
+        r.name AS risk_name,
+        c.code AS control_code,
+        rc.control_id,
+        c.createdAt AS createdAt
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
+      LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      WHERE r.isDeleted = 0 
+        AND r.deletedAt IS NULL 
+        AND r.name = @param2
+        ${dateFilter}
+      ORDER BY c.name ASC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(DISTINCT rc.control_id) as total
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
+      LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      WHERE r.isDeleted = 0 
+        AND r.deletedAt IS NULL 
+        AND r.name = @param0
+        ${dateFilter}
+    `;
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, [offset, limit, riskName]),
+                this.databaseService.query(countQuery, [riskName])
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksByName:', error);
+            console.error('RiskName:', riskName);
+            throw error;
+        }
+    }
+    async getRisksByControlName(controlName, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name AS name,
+        c.name AS control_name,
+        r.inherent_value,
+        r.residual_value,
+        r.createdAt AS createdAt
+      FROM dbo.[Controls] c
+      LEFT JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
+      LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL
+      WHERE c.isDeleted = 0 
+        AND c.deletedAt IS NULL
+        AND c.name = @param2
+        ${dateFilter}
+      ORDER BY r.name ASC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(DISTINCT rc.risk_id) as total
+      FROM dbo.[Controls] c
+      LEFT JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
+      LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL
+      WHERE c.isDeleted = 0 
+        AND c.deletedAt IS NULL
+        AND c.name = @param0
+        ${dateFilter}
+    `;
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, [offset, limit, controlName]),
+                this.databaseService.query(countQuery, [controlName])
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksByControlName:', error);
+            console.error('ControlName:', controlName);
+            throw error;
+        }
+    }
+    async getRisksForComparison(riskName, page = 1, limit = 10, startDate, endDate) {
+        const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
+        const offset = (page - 1) * limit;
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name AS name,
+        r.inherent_value,
+        r.residual_value,
+        f.name AS function_name,
+        r.createdAt AS createdAt
+      FROM dbo.[Risks] r
+      LEFT JOIN dbo.[RiskFunctions] rf ON r.id = rf.risk_id
+      LEFT JOIN dbo.[Functions] f ON rf.function_id = f.id
+      WHERE r.isDeleted = 0 
+        AND r.name = @param2
+        ${dateFilter}
+      ORDER BY r.createdAt DESC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM dbo.[Risks] r
+      WHERE r.isDeleted = 0 
+        AND r.name = @param0
+        ${dateFilter}
+    `;
+        try {
+            const [data, count] = await Promise.all([
+                this.databaseService.query(dataQuery, [offset, limit, riskName]),
+                this.databaseService.query(countQuery, [riskName])
+            ]);
+            return {
+                data,
+                pagination: {
+                    page,
+                    limit,
+                    total: count[0]?.total || 0,
+                    totalPages: Math.ceil((count[0]?.total || 0) / limit),
+                    hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
+                    hasPrev: page > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error('Error in getRisksForComparison:', error);
+            console.error('RiskName:', riskName);
+            throw error;
+        }
     }
 };
 exports.GrcRisksService = GrcRisksService;

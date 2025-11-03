@@ -46,6 +46,96 @@ let GrcRisksController = class GrcRisksController {
     async getNewRisks(page = 1, limit = 10, startDate, endDate) {
         return this.grcRisksService.getNewRisks(page, limit, startDate, endDate);
     }
+    async getRisksByCategory(category, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByCategory(category, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByCategory:', error);
+            throw error;
+        }
+    }
+    async getRisksByEventType(eventType, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByEventType(eventType, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByEventType:', error);
+            throw error;
+        }
+    }
+    async getRisksByQuarter(quarter, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByQuarter(quarter, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByQuarter:', error);
+            throw error;
+        }
+    }
+    async getRisksByApprovalStatus(approvalStatus, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByApprovalStatus(approvalStatus, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByApprovalStatus:', error);
+            throw error;
+        }
+    }
+    async getRisksByFinancialImpact(financialImpact, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByFinancialImpact(financialImpact, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByFinancialImpact:', error);
+            throw error;
+        }
+    }
+    async getRisksByFunction(functionName, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByFunction(functionName, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByFunction:', error);
+            throw error;
+        }
+    }
+    async getRisksByBusinessProcess(processName, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByBusinessProcess(processName, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByBusinessProcess:', error);
+            throw error;
+        }
+    }
+    async getRisksByName(riskName, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByName(riskName, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByName:', error);
+            throw error;
+        }
+    }
+    async getRisksByControlName(controlName, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksByControlName(controlName, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksByControlName:', error);
+            throw error;
+        }
+    }
+    async getRisksForComparison(riskName, page = 1, limit = 10, startDate, endDate) {
+        try {
+            return await this.grcRisksService.getRisksForComparison(riskName, page, limit, startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getRisksForComparison:', error);
+            throw error;
+        }
+    }
 };
 exports.GrcRisksController = GrcRisksController;
 __decorate([
@@ -138,6 +228,116 @@ __decorate([
     __metadata("design:paramtypes", [Number, Number, String, String]),
     __metadata("design:returntype", Promise)
 ], GrcRisksController.prototype, "getNewRisks", null);
+__decorate([
+    (0, common_1.Get)('by-category'),
+    __param(0, (0, common_1.Query)('category')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByCategory", null);
+__decorate([
+    (0, common_1.Get)('by-event-type'),
+    __param(0, (0, common_1.Query)('eventType')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByEventType", null);
+__decorate([
+    (0, common_1.Get)('by-quarter'),
+    __param(0, (0, common_1.Query)('quarter')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByQuarter", null);
+__decorate([
+    (0, common_1.Get)('by-approval-status'),
+    __param(0, (0, common_1.Query)('approvalStatus')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByApprovalStatus", null);
+__decorate([
+    (0, common_1.Get)('by-financial-impact'),
+    __param(0, (0, common_1.Query)('financialImpact')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByFinancialImpact", null);
+__decorate([
+    (0, common_1.Get)('by-function'),
+    __param(0, (0, common_1.Query)('functionName')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByFunction", null);
+__decorate([
+    (0, common_1.Get)('by-business-process'),
+    __param(0, (0, common_1.Query)('processName')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByBusinessProcess", null);
+__decorate([
+    (0, common_1.Get)('by-name'),
+    __param(0, (0, common_1.Query)('riskName')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByName", null);
+__decorate([
+    (0, common_1.Get)('by-control-name'),
+    __param(0, (0, common_1.Query)('controlName')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksByControlName", null);
+__decorate([
+    (0, common_1.Get)('for-comparison'),
+    __param(0, (0, common_1.Query)('riskName')),
+    __param(1, (0, common_1.Query)('page')),
+    __param(2, (0, common_1.Query)('limit')),
+    __param(3, (0, common_1.Query)('startDate')),
+    __param(4, (0, common_1.Query)('endDate')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:returntype", Promise)
+], GrcRisksController.prototype, "getRisksForComparison", null);
 exports.GrcRisksController = GrcRisksController = __decorate([
     (0, common_1.Controller)('api/grc/risks'),
     __metadata("design:paramtypes", [grc_risks_service_1.GrcRisksService])
