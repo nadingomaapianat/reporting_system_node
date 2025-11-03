@@ -203,6 +203,7 @@ let GrcKrisService = class GrcKrisService {
           AND frel.isDeleted = 0
           AND frel.deletedAt IS NULL
         WHERE kv.deletedAt IS NULL
+          ${dateFilter}
         GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
         ORDER BY assessment_count DESC
       `;
@@ -215,6 +216,7 @@ let GrcKrisService = class GrcKrisService {
             }
             const kriMonthlyAssessmentQuery = `
         SELECT
+          FORMAT(kv.createdAt, 'MMM yyyy') AS month,
           CAST(DATEADD(month, DATEPART(month, kv.createdAt) - 1, DATEFROMPARTS(YEAR(kv.createdAt), 1, 1)) AS datetime2) AS createdAt,
           kv.assessment AS assessment,
           COUNT(kv.id) AS count
@@ -228,6 +230,7 @@ let GrcKrisService = class GrcKrisService {
           AND kv.assessment IS NOT NULL
           ${dateFilter}
         GROUP BY
+          FORMAT(kv.createdAt, 'MMM yyyy'),
           CAST(DATEADD(month, DATEPART(month, kv.createdAt) - 1, DATEFROMPARTS(YEAR(kv.createdAt), 1, 1)) AS datetime2),
           kv.assessment
         ORDER BY
@@ -922,6 +925,693 @@ let GrcKrisService = class GrcKrisService {
             message: `Exporting KRIs data in ${format} format`,
             timeframe: timeframe || 'all',
             status: 'success'
+        };
+    }
+    async getKrisByStatus(status, page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
+        switch (status) {
+            case 'Pending Preparer':
+                where.push("ISNULL(k.preparerStatus, '') <> 'sent'");
+                break;
+            case 'Pending Checker':
+                where.push("ISNULL(k.preparerStatus, '') = 'sent'");
+                where.push("ISNULL(k.checkerStatus, '') <> 'approved'");
+                break;
+            case 'Pending Reviewer':
+                where.push("ISNULL(k.checkerStatus, '') = 'approved'");
+                where.push("ISNULL(k.reviewerStatus, '') <> 'approved'");
+                break;
+            case 'Pending Acceptance':
+                where.push("ISNULL(k.reviewerStatus, '') = 'approved'");
+                where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
+                break;
+            case 'Approved':
+                where.push("ISNULL(k.acceptanceStatus, '') = 'approved'");
+                break;
+            default:
+                return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+        }
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.code,
+        k.kriName as name,
+        k.createdAt as createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getKrisByLevel(level, page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        let dateFilter = '';
+        if (startDate)
+            dateFilter += `AND k.createdAt >= '${startDate}'`;
+        if (endDate)
+            dateFilter += `AND k.createdAt <= '${endDate}'`;
+        const query = `
+      WITH LatestKV AS (
+        SELECT kv.kriId,
+               kv.value,
+               ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
+        FROM KriValues kv
+        WHERE kv.deletedAt IS NULL
+      ),
+      K AS (
+        SELECT k.id,
+               k.code,
+               k.kriName,
+               k.createdAt,
+               k.kri_level,
+               CAST(k.isAscending AS int) AS isAscending,
+               TRY_CONVERT(float, k.medium_from) AS med_thr,
+               TRY_CONVERT(float, k.high_from)   AS high_thr
+        FROM Kris k
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          ${dateFilter}
+      ),
+      KL AS (
+        SELECT K.id, K.code, K.kriName, K.createdAt, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
+               TRY_CONVERT(float, kv.value) AS val
+        FROM K
+        LEFT JOIN LatestKV kv ON kv.kriId = K.id AND kv.rn = 1
+      ),
+      Derived AS (
+        SELECT 
+          code,
+          kriName AS name,
+          createdAt,
+          CASE
+            WHEN kri_level IS NOT NULL AND LTRIM(RTRIM(kri_level)) <> '' THEN kri_level
+            WHEN val IS NULL OR med_thr IS NULL OR high_thr IS NULL THEN 'Unknown'
+            WHEN isAscending = 1 AND val >= high_thr THEN 'High'
+            WHEN isAscending = 1 AND val >= med_thr THEN 'Medium'
+            WHEN isAscending = 1 THEN 'Low'
+            WHEN isAscending = 0 AND val <= high_thr THEN 'High'
+            WHEN isAscending = 0 AND val <= med_thr THEN 'Medium'
+            ELSE 'Low'
+          END AS level_bucket
+        FROM KL
+      )
+      SELECT 
+        code,
+        name,
+        createdAt
+      FROM Derived
+      WHERE level_bucket = '${level === 'Unknown' ? 'Unknown' : level.replace(/'/g, "''")}'
+      ORDER BY createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const countQuery = `
+      WITH LatestKV AS (
+        SELECT kv.kriId,
+               kv.value,
+               ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
+        FROM KriValues kv
+        WHERE kv.deletedAt IS NULL
+      ),
+      K AS (
+        SELECT k.id,
+               k.kri_level,
+               CAST(k.isAscending AS int) AS isAscending,
+               TRY_CONVERT(float, k.medium_from) AS med_thr,
+               TRY_CONVERT(float, k.high_from)   AS high_thr
+        FROM Kris k
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          ${dateFilter}
+      ),
+      KL AS (
+        SELECT K.id, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
+               TRY_CONVERT(float, kv.value) AS val
+        FROM K
+        LEFT JOIN LatestKV kv ON kv.kriId = K.id AND kv.rn = 1
+      ),
+      Derived AS (
+        SELECT 
+          id,
+          CASE
+            WHEN kri_level IS NOT NULL AND LTRIM(RTRIM(kri_level)) <> '' THEN kri_level
+            WHEN val IS NULL OR med_thr IS NULL OR high_thr IS NULL THEN 'Unknown'
+            WHEN isAscending = 1 AND val >= high_thr THEN 'High'
+            WHEN isAscending = 1 AND val >= med_thr THEN 'Medium'
+            WHEN isAscending = 1 THEN 'Low'
+            WHEN isAscending = 0 AND val <= high_thr THEN 'High'
+            WHEN isAscending = 0 AND val <= med_thr THEN 'Medium'
+            ELSE 'Low'
+          END AS level_bucket
+        FROM KL
+      )
+      SELECT COUNT(*) as total
+      FROM Derived
+      WHERE level_bucket = '${level === 'Unknown' ? 'Unknown' : level.replace(/'/g, "''")}'
+    `;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const data = await this.databaseService.query(query);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getKrisByFunction(functionName, page = 1, limit = 10, startDate, endDate, submissionStatus) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
+        if (functionName === 'Unknown') {
+            where.push("(COALESCE(fkf.name, frel.name) IS NULL OR COALESCE(fkf.name, frel.name) = '')");
+        }
+        else {
+            where.push(`(fkf.name = '${functionName.replace(/'/g, "''")}' OR frel.name = '${functionName.replace(/'/g, "''")}')`);
+        }
+        if (submissionStatus === 'submitted') {
+            where.push("ISNULL(k.preparerStatus, '') = 'sent'");
+            where.push("ISNULL(k.acceptanceStatus, '') = 'approved'");
+        }
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `
+      SELECT COUNT(DISTINCT k.id) as total 
+      FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      ${whereSql}
+    `;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT DISTINCT
+        k.code,
+        k.kriName as name,
+        k.createdAt as createdAt
+      FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getKrisWithAssessmentsByFunction(functionName, page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        let dateFilter = '';
+        if (startDate)
+            dateFilter += `AND kv.createdAt >= '${startDate}'`;
+        if (endDate)
+            dateFilter += `AND kv.createdAt <= '${endDate}'`;
+        let functionFilter = '';
+        if (functionName === 'Unknown') {
+            functionFilter = "AND (COALESCE(fkf.name, frel.name) IS NULL OR COALESCE(fkf.name, frel.name) = '')";
+        }
+        else {
+            const escapedFunctionName = functionName.replace(/'/g, "''");
+            functionFilter = `AND ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') = '${escapedFunctionName}'`;
+        }
+        const query = `
+      SELECT
+        k.code,
+        k.kriName as name,
+        kv.createdAt as createdAt
+      FROM KriValues kv
+      INNER JOIN Kris k ON kv.kriId = k.id
+        AND k.isDeleted = 0 
+        AND k.deletedAt IS NULL
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
+        AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id
+        AND fkf.isDeleted = 0
+        AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id
+        AND frel.isDeleted = 0
+        AND frel.deletedAt IS NULL
+      WHERE kv.deletedAt IS NULL
+        ${functionFilter}
+        ${dateFilter}
+      ORDER BY kv.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(kv.id) as total
+      FROM KriValues kv
+      INNER JOIN Kris k ON kv.kriId = k.id
+        AND k.isDeleted = 0 
+        AND k.deletedAt IS NULL
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
+        AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id
+        AND fkf.isDeleted = 0
+        AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id
+        AND frel.isDeleted = 0
+        AND frel.deletedAt IS NULL
+      WHERE kv.deletedAt IS NULL
+        ${functionFilter}
+        ${dateFilter}
+    `;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const data = await this.databaseService.query(query);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getKrisByFrequency(frequency, page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
+        if (frequency === 'Unknown') {
+            where.push("(k.frequency IS NULL OR k.frequency = '')");
+        }
+        else {
+            where.push(`k.frequency = '${frequency}'`);
+        }
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.code,
+        k.kriName as name,
+        k.createdAt as createdAt
+      FROM Kris k
+      ${whereSql}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getRisksByKriName(kriName, page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        let decodedKriName = kriName;
+        try {
+            decodedKriName = decodeURIComponent(kriName);
+            try {
+                decodedKriName = decodeURIComponent(decodedKriName);
+            }
+            catch (e) {
+            }
+        }
+        catch (e) {
+            decodedKriName = kriName;
+        }
+        console.log('[getRisksByKriName] Received kriName:', kriName);
+        console.log('[getRisksByKriName] Decoded kriName:', decodedKriName);
+        const escapedForExact = decodedKriName.replace(/'/g, "''");
+        const escapedForLike = decodedKriName
+            .replace(/'/g, "''")
+            .replace(/%/g, '[%]')
+            .replace(/_/g, '[_]')
+            .replace(/\[/g, '[[]');
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM Risks r
+      INNER JOIN KriRisks kr
+        ON r.id = kr.risk_id
+        AND kr.deletedAt IS NULL
+      INNER JOIN Kris k
+        ON kr.kri_id = k.id
+        AND k.isDeleted = 0
+        AND k.deletedAt IS NULL
+      WHERE
+        r.isDeleted = 0
+        AND r.deletedAt IS NULL
+        AND k.kriName IS NOT NULL
+        ${decodedKriName === 'Unknown' ? '' : `AND (
+          RTRIM(LTRIM(k.kriName)) = N'${escapedForExact}'
+          OR UPPER(RTRIM(LTRIM(k.kriName))) = UPPER(N'${escapedForExact}')
+          OR RTRIM(LTRIM(k.kriName)) LIKE N'%${escapedForLike}%'
+          OR k.kriName = N'${escapedForExact}'
+        )`}
+        ${startDate ? `AND k.createdAt >= '${startDate}'` : ''}
+        ${endDate ? `AND k.createdAt <= '${endDate}'` : ''}
+    `;
+        console.log('[getRisksByKriName] Count query:', countQuery);
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        console.log('[getRisksByKriName] Total count:', total);
+        const dataQuery = `
+      SELECT 
+        r.code,
+        r.name,
+        r.createdAt as createdAt
+      FROM Risks r
+      INNER JOIN KriRisks kr
+        ON r.id = kr.risk_id
+        AND kr.deletedAt IS NULL
+      INNER JOIN Kris k
+        ON kr.kri_id = k.id
+        AND k.isDeleted = 0
+        AND k.deletedAt IS NULL
+      WHERE
+        r.isDeleted = 0
+        AND r.deletedAt IS NULL
+        AND k.kriName IS NOT NULL
+        ${decodedKriName === 'Unknown' ? '' : `AND (
+          RTRIM(LTRIM(k.kriName)) = N'${escapedForExact}'
+          OR UPPER(RTRIM(LTRIM(k.kriName))) = UPPER(N'${escapedForExact}')
+          OR RTRIM(LTRIM(k.kriName)) LIKE N'%${escapedForLike}%'
+          OR k.kriName = N'${escapedForExact}'
+        )`}
+        ${startDate ? `AND k.createdAt >= '${startDate}'` : ''}
+        ${endDate ? `AND k.createdAt <= '${endDate}'` : ''}
+      ORDER BY r.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        console.log('[getRisksByKriName] Data query:', dataQuery);
+        const data = await this.databaseService.query(dataQuery);
+        console.log('[getRisksByKriName] Data returned:', data?.length || 0, 'rows');
+        if (total === 0 && decodedKriName !== 'Unknown') {
+            console.log('[getRisksByKriName] No match found, checking database for similar names...');
+            const debugQuery = `
+        SELECT TOP 10 DISTINCT k.kriName, 
+               LEN(k.kriName) as nameLength,
+               DATALENGTH(k.kriName) as nameDataLength
+        FROM Kris k
+        WHERE k.isDeleted = 0
+          AND k.deletedAt IS NULL
+          AND k.kriName IS NOT NULL
+          AND (
+            k.kriName LIKE N'%CBE%' 
+            OR k.kriName LIKE N'%reporting%'
+            OR k.kriName LIKE N'%fine%'
+          )
+        ORDER BY k.kriName
+      `;
+            try {
+                const debugResults = await this.databaseService.query(debugQuery);
+                console.log('[getRisksByKriName] Similar KRI names in database:', debugResults);
+            }
+            catch (e) {
+                console.error('[getRisksByKriName] Debug query failed:', e);
+            }
+        }
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getKrisByMonthYear(monthYear, page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
+        let monthFilter = '';
+        if (monthYear && monthYear !== 'Unknown') {
+            const monthYearPattern = /(\w+)\s+(\d{4})/i;
+            const match = monthYear.match(monthYearPattern);
+            if (match) {
+                const monthName = match[1];
+                const year = match[2];
+                const monthMap = {
+                    'jan': '01', 'january': '01',
+                    'feb': '02', 'february': '02',
+                    'mar': '03', 'march': '03',
+                    'apr': '04', 'april': '04',
+                    'may': '05',
+                    'jun': '06', 'june': '06',
+                    'jul': '07', 'july': '07',
+                    'aug': '08', 'august': '08',
+                    'sep': '09', 'september': '09',
+                    'oct': '10', 'october': '10',
+                    'nov': '11', 'november': '11',
+                    'dec': '12', 'december': '12'
+                };
+                const monthNum = monthMap[monthName.toLowerCase()];
+                if (monthNum && year) {
+                    const yearNum = parseInt(year, 10);
+                    const monthNumInt = parseInt(monthNum, 10);
+                    if (!isNaN(yearNum) && !isNaN(monthNumInt) && monthNumInt >= 1 && monthNumInt <= 12) {
+                        monthFilter = `AND YEAR(k.createdAt) = ${yearNum} AND MONTH(k.createdAt) = ${monthNumInt}`;
+                    }
+                }
+            }
+        }
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql} ${monthFilter}`;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.code,
+        k.kriName as name,
+        k.createdAt as createdAt
+      FROM Kris k
+      ${whereSql}
+      ${monthFilter}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getKriAssessmentsByMonthAndLevel(monthYear, assessmentLevel, page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        let dateFilter = '';
+        if (startDate)
+            dateFilter += `AND kv.createdAt >= '${startDate}'`;
+        if (endDate)
+            dateFilter += `AND kv.createdAt <= '${endDate}'`;
+        let monthFilter = '';
+        if (monthYear && monthYear !== 'Unknown') {
+            let yearNum = null;
+            let monthNumInt = null;
+            const dateMatch = monthYear.match(/^(\d{4})-(\d{1,2})/);
+            if (dateMatch) {
+                yearNum = parseInt(dateMatch[1], 10);
+                monthNumInt = parseInt(dateMatch[2], 10);
+            }
+            else {
+                const monthYearPattern = /(\w+)\s+(\d{4})/i;
+                const match = monthYear.match(monthYearPattern);
+                if (match) {
+                    const monthName = match[1];
+                    const year = match[2];
+                    const monthMap = {
+                        'jan': '01', 'january': '01',
+                        'feb': '02', 'february': '02',
+                        'mar': '03', 'march': '03',
+                        'apr': '04', 'april': '04',
+                        'may': '05',
+                        'jun': '06', 'june': '06',
+                        'jul': '07', 'july': '07',
+                        'aug': '08', 'august': '08',
+                        'sep': '09', 'september': '09',
+                        'oct': '10', 'october': '10',
+                        'nov': '11', 'november': '11',
+                        'dec': '12', 'december': '12'
+                    };
+                    const monthNum = monthMap[monthName.toLowerCase()];
+                    if (monthNum && year) {
+                        yearNum = parseInt(year, 10);
+                        monthNumInt = parseInt(monthNum, 10);
+                    }
+                }
+            }
+            if (yearNum !== null && monthNumInt !== null && !isNaN(yearNum) && !isNaN(monthNumInt) && monthNumInt >= 1 && monthNumInt <= 12) {
+                monthFilter = `AND YEAR(kv.createdAt) = ${yearNum} AND MONTH(kv.createdAt) = ${monthNumInt}`;
+            }
+        }
+        let assessmentFilter = '';
+        if (assessmentLevel && assessmentLevel !== 'Unknown') {
+            const escapedLevel = assessmentLevel.replace(/'/g, "''");
+            assessmentFilter = `AND kv.assessment = '${escapedLevel}'`;
+        }
+        else if (assessmentLevel === 'Unknown') {
+            assessmentFilter = "AND (kv.assessment IS NULL OR kv.assessment = '')";
+        }
+        const query = `
+      SELECT
+        k.code,
+        k.kriName as name,
+        kv.createdAt as createdAt
+      FROM Kris AS k
+      INNER JOIN KriValues AS kv
+        ON kv.kriId = k.id
+        AND kv.deletedAt IS NULL
+      WHERE
+        k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        ${assessmentFilter}
+        ${monthFilter}
+        ${dateFilter}
+      ORDER BY kv.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const countQuery = `
+      SELECT COUNT(kv.id) as total
+      FROM Kris AS k
+      INNER JOIN KriValues AS kv
+        ON kv.kriId = k.id
+        AND kv.deletedAt IS NULL
+      WHERE
+        k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        ${assessmentFilter}
+        ${monthFilter}
+        ${dateFilter}
+    `;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const data = await this.databaseService.query(query);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+    async getKrisByOverdueStatus(overdueStatus, page = 1, limit = 10, startDate, endDate) {
+        const offset = (page - 1) * limit;
+        const where = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
+        if (startDate)
+            where.push(`k.createdAt >= '${startDate}'`);
+        if (endDate)
+            where.push(`k.createdAt <= '${endDate}'`);
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+        let statusFilter = '';
+        if (overdueStatus === 'Overdue') {
+            statusFilter = `AND EXISTS (
+        SELECT 1
+        FROM Actionplans ap
+        WHERE ap.kri_id = k.id
+          AND ap.deletedAt IS NULL
+          AND ap.implementation_date < GETDATE()
+          AND (ap.done = 0 OR ap.done IS NULL)
+      )`;
+        }
+        else if (overdueStatus === 'Not Overdue') {
+            statusFilter = `AND NOT EXISTS (
+        SELECT 1
+        FROM Actionplans ap
+        WHERE ap.kri_id = k.id
+          AND ap.deletedAt IS NULL
+          AND ap.implementation_date < GETDATE()
+          AND (ap.done = 0 OR ap.done IS NULL)
+      )`;
+        }
+        else {
+            return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+        }
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM Kris k
+      ${whereSql}
+      ${statusFilter}
+    `;
+        const totalRes = await this.databaseService.query(countQuery);
+        const total = totalRes?.[0]?.total || 0;
+        const dataQuery = `
+      SELECT 
+        k.code,
+        k.kriName as name,
+        k.createdAt as createdAt
+      FROM Kris k
+      ${whereSql}
+      ${statusFilter}
+      ORDER BY k.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+    `;
+        const data = await this.databaseService.query(dataQuery);
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNext: offset + limit < total,
+                hasPrev: page > 1
+            }
         };
     }
 };
