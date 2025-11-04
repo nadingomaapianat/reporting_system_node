@@ -76,6 +76,42 @@ export declare class GrcIncidentsService {
             financial_impact_name: any;
             function_name: any;
         }[];
+        operationalLossValue: {
+            year: any;
+            month: any;
+            totalLossValue: any;
+            incidentCount: any;
+        }[];
+        atmTheftCount: any;
+        avgRecognitionTime: any;
+        internalFraudCount: any;
+        internalFraudLoss: any;
+        externalFraudCount: any;
+        externalFraudLoss: any;
+        physicalAssetDamageCount: any;
+        physicalAssetLoss: any;
+        peopleErrorCount: any;
+        peopleErrorLoss: any;
+        monthlyTrendByType: {
+            period: any;
+            internalFrauds: any;
+            externalFrauds: any;
+            physicalAssetDamages: any;
+            humanErrors: any;
+            atmIssues: any;
+            systemErrors: any;
+        }[];
+        lossByRiskCategory: {
+            riskCategory: any;
+            incidentCount: any;
+            totalLoss: any;
+            averageLoss: any;
+        }[];
+        comprehensiveOperationalLoss: {
+            metric: any;
+            count: any;
+            totalValue: any;
+        }[];
     }>;
     exportIncidents(format: string, timeframe?: string): Promise<{
         message: string;
@@ -142,6 +178,8 @@ export declare class GrcIncidentsService {
             code: any;
             name: any;
             createdAt: any;
+            netLoss: any;
+            recoveryAmount: any;
         }[];
         pagination: {
             page: number;
@@ -157,6 +195,8 @@ export declare class GrcIncidentsService {
             code: any;
             name: any;
             createdAt: any;
+            netLoss: any;
+            recoveryAmount: any;
         }[];
         pagination: {
             page: number;
@@ -172,6 +212,124 @@ export declare class GrcIncidentsService {
             code: any;
             name: any;
             createdAt: any;
+            netLoss: any;
+            recoveryAmount: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsByStatus(status: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsByMonthYear(monthYear: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsBySubCategory(subCategory: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+            netLoss: any;
+            recoveryAmount: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsWithRecognitionTime(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            occurrence_date: any;
+            reported_date: any;
+            recognition_time: any;
+            recognition_months: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsByPeriod(period: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+            netLoss: any;
+            recoveryAmount: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsByPeriodAndType(period: string, incidentType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+            netLoss: any;
+            recoveryAmount: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsByComprehensiveMetric(metric: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+            netLoss: any;
+            recoveryAmount: any;
         }[];
         pagination: {
             page: number;

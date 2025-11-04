@@ -109,4 +109,152 @@ export class GrcIncidentsController {
     }
     return this.grcIncidentsService.getIncidentsByFinancialImpact(financialImpact, page, limit, startDate, endDate);
   }
+
+  @Get('by-status')
+  async getIncidentsByStatus(
+    @Query('status') status: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!status) {
+      throw new Error('status parameter is required');
+    }
+    return this.grcIncidentsService.getIncidentsByStatus(status, page, limit, startDate, endDate);
+  }
+
+  @Get('by-month-year')
+  async getIncidentsByMonthYear(
+    @Query('monthYear') monthYear: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!monthYear) {
+      throw new Error('monthYear parameter is required')
+    }
+    return this.grcIncidentsService.getIncidentsByMonthYear(monthYear, page, limit, startDate, endDate)
+  }
+
+  @Get('by-sub-category')
+  async getIncidentsBySubCategory(
+    @Query('subCategory') subCategory: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!subCategory) {
+      throw new Error('subCategory parameter is required');
+    }
+    return this.grcIncidentsService.getIncidentsBySubCategory(subCategory, page, limit, startDate, endDate);
+  }
+
+  @Get('by-period')
+  async getIncidentsByPeriod(
+    @Query('period') period: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!period) {
+      throw new Error('period parameter is required. Expected format: MM/YYYY');
+    }
+    return this.grcIncidentsService.getIncidentsByPeriod(period, page, limit, startDate, endDate);
+  }
+
+  @Get('by-internal-fraud')
+  async getIncidentsByInternalFraud(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getIncidentsByEventType('Internal Fraud', page, limit, startDate, endDate);
+  }
+
+  @Get('by-external-fraud')
+  async getIncidentsByExternalFraud(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getIncidentsByEventType('External Fraud', page, limit, startDate, endDate);
+  }
+
+  @Get('by-physical-asset-damage')
+  async getIncidentsByPhysicalAssetDamage(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getIncidentsByEventType('Damage to Physical Assets', page, limit, startDate, endDate);
+  }
+
+  @Get('by-atm-issue')
+  async getIncidentsByATMIssue(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getIncidentsBySubCategory('ATM issue', page, limit, startDate, endDate);
+  }
+
+  @Get('by-people-error')
+  async getIncidentsByPeopleError(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getIncidentsBySubCategory('Human Mistake', page, limit, startDate, endDate);
+  }
+
+  @Get('recognition-time')
+  async getIncidentsWithRecognitionTime(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.grcIncidentsService.getIncidentsWithRecognitionTime(page, limit, startDate, endDate);
+  }
+
+  @Get('by-period-and-type')
+  async getIncidentsByPeriodAndType(
+    @Query('period') period: string,
+    @Query('incidentType') incidentType: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!period) {
+      throw new Error('period parameter is required. Expected format: YYYY-MM or MM/YYYY');
+    }
+    if (!incidentType) {
+      throw new Error('incidentType parameter is required');
+    }
+    return this.grcIncidentsService.getIncidentsByPeriodAndType(period, incidentType, page, limit, startDate, endDate);
+  }
+
+  @Get('by-comprehensive-metric')
+  async getIncidentsByComprehensiveMetric(
+    @Query('metric') metric: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    if (!metric) {
+      throw new Error('metric parameter is required');
+    }
+    return this.grcIncidentsService.getIncidentsByComprehensiveMetric(metric, page, limit, startDate, endDate);
+  }
 }
