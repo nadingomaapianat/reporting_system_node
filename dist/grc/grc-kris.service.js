@@ -61,9 +61,9 @@ let GrcKrisService = class GrcKrisService {
           SELECT 
             CASE 
               WHEN ISNULL(preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
-              WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' THEN 'pendingChecker'
-              WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'approved' THEN 'pendingReviewer'
-              WHEN ISNULL(reviewerStatus, '') = 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
+              WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
+              WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
+              WHEN ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
               WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 'approved'
               ELSE 'Other'
             END AS status
@@ -527,9 +527,9 @@ let GrcKrisService = class GrcKrisService {
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
           CASE 
             WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(k.reviewerStatus, '') = 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
             WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Unknown'
           END AS status
@@ -560,9 +560,9 @@ let GrcKrisService = class GrcKrisService {
           k.kriName          AS kriName,
           CASE 
             WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(k.reviewerStatus, '') = 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
             WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Unknown'
           END AS combined_status,
@@ -742,7 +742,7 @@ let GrcKrisService = class GrcKrisService {
         k.kriName as title,
         CASE 
           WHEN k.acceptanceStatus = 'approved' THEN 'approved'
-          WHEN k.reviewerStatus = 'approved' THEN 'approved'
+          WHEN k.reviewerStatus = 'sent' THEN 'sent'
           WHEN k.checkerStatus = 'approved' THEN 'approved'
           ELSE ISNULL(k.preparerStatus, k.acceptanceStatus)
         END as status,
@@ -806,7 +806,8 @@ let GrcKrisService = class GrcKrisService {
             "k.isDeleted = 0",
             "k.deletedAt IS NULL",
             "ISNULL(k.preparerStatus, '') = 'sent'",
-            "ISNULL(k.checkerStatus, '') <> 'approved'"
+            "ISNULL(k.checkerStatus, '') <> 'approved'",
+            "ISNULL(k.acceptanceStatus, '') <> 'approved'"
         ];
         if (startDate)
             where.push(`k.createdAt >= '${startDate}'`);
@@ -846,7 +847,8 @@ let GrcKrisService = class GrcKrisService {
             "k.isDeleted = 0",
             "k.deletedAt IS NULL",
             "ISNULL(k.checkerStatus, '') = 'approved'",
-            "ISNULL(k.reviewerStatus, '') <> 'approved'"
+            "ISNULL(k.reviewerStatus, '') <> 'sent'",
+            "ISNULL(k.acceptanceStatus, '') <> 'approved'"
         ];
         if (startDate)
             where.push(`k.createdAt >= '${startDate}'`);
@@ -885,7 +887,7 @@ let GrcKrisService = class GrcKrisService {
         const where = [
             "k.isDeleted = 0",
             "k.deletedAt IS NULL",
-            "ISNULL(k.reviewerStatus, '') = 'approved'",
+            "ISNULL(k.reviewerStatus, '') = 'sent'",
             "ISNULL(k.acceptanceStatus, '') <> 'approved'"
         ];
         if (startDate)
@@ -937,13 +939,15 @@ let GrcKrisService = class GrcKrisService {
             case 'Pending Checker':
                 where.push("ISNULL(k.preparerStatus, '') = 'sent'");
                 where.push("ISNULL(k.checkerStatus, '') <> 'approved'");
+                where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
                 break;
             case 'Pending Reviewer':
                 where.push("ISNULL(k.checkerStatus, '') = 'approved'");
-                where.push("ISNULL(k.reviewerStatus, '') <> 'approved'");
+                where.push("ISNULL(k.reviewerStatus, '') <> 'sent'");
+                where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
                 break;
             case 'Pending Acceptance':
-                where.push("ISNULL(k.reviewerStatus, '') = 'approved'");
+                where.push("ISNULL(k.reviewerStatus, '') = 'sent'");
                 where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
                 break;
             case 'Approved':
@@ -1112,7 +1116,6 @@ let GrcKrisService = class GrcKrisService {
         }
         if (submissionStatus === 'submitted') {
             where.push("ISNULL(k.preparerStatus, '') = 'sent'");
-            where.push("ISNULL(k.acceptanceStatus, '') = 'approved'");
         }
         if (startDate)
             where.push(`k.createdAt >= '${startDate}'`);

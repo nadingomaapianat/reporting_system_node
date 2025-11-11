@@ -52,9 +52,9 @@ let GrcIncidentsService = class GrcIncidentsService {
             const incidentsStatusCountsQuery = `
         SELECT 
           SUM(CASE WHEN ISNULL(preparerStatus, '') <> 'sent' THEN 1 ELSE 0 END) AS pendingPreparer,
-          SUM(CASE WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingChecker,
-          SUM(CASE WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingReviewer,
-          SUM(CASE WHEN ISNULL(reviewerStatus, '') = 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingAcceptance,
+          SUM(CASE WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingChecker,
+          SUM(CASE WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingReviewer,
+          SUM(CASE WHEN ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingAcceptance,
           SUM(CASE WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 1 ELSE 0 END) AS approved
         FROM Incidents
         WHERE isDeleted = 0 AND deletedAt IS NULL ${dateFilter}
@@ -66,35 +66,50 @@ let GrcIncidentsService = class GrcIncidentsService {
             i.id,
             CASE 
               WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-              WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
-              WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
-              WHEN ISNULL(i.reviewerStatus, '') = 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+              WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+              WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+              WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
               WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
               ELSE 'Other'
             END AS status
           FROM Incidents i
           WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter}
+        ),
+        StatusCounts AS (
+          SELECT 
+            status as status_name,
+            COUNT(*) as count
+          FROM IncidentStatus
+          GROUP BY status
+        ),
+        AllStatuses AS (
+          SELECT 'Pending Preparer' AS status_name
+          UNION ALL SELECT 'Pending Checker'
+          UNION ALL SELECT 'Pending Reviewer'
+          UNION ALL SELECT 'Pending Acceptance'
+          UNION ALL SELECT 'Approved'
+          UNION ALL SELECT 'Other'
         )
         SELECT 
-          status as status_name,
-          COUNT(*) as count
-        FROM IncidentStatus
-        GROUP BY status
-        ORDER BY count DESC
+          a.status_name,
+          ISNULL(s.count, 0) as count
+        FROM AllStatuses a
+        LEFT JOIN StatusCounts s ON a.status_name = s.status_name
+        ORDER BY s.count DESC, a.status_name
       `;
             const incidentsByStatusDistribution = await this.databaseService.query(incidentsByStatusDistributionQuery);
             const incidentsByCategoryQuery = `
         SELECT 
-          ISNULL(ic.name, 'Unknown') as category_name,
+          ISNULL(c.name, 'Unknown') as category_name,
           COUNT(i.id) as count
         FROM Incidents i
-        LEFT JOIN IncidentCategories ic ON i.category_id = ic.id
-          
-          AND ic.deletedAt IS NULL
+        LEFT JOIN Categories c ON i.category_id = c.id
+          AND c.isDeleted = 0
+          AND c.deletedAt IS NULL
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
-        GROUP BY ISNULL(ic.name, 'Unknown')
+        GROUP BY ISNULL(c.name, 'Unknown')
         ORDER BY COUNT(i.id) DESC
       `;
             const incidentsByCategory = await this.databaseService.query(incidentsByCategoryQuery);
@@ -169,9 +184,9 @@ let GrcIncidentsService = class GrcIncidentsService {
           i.title,
           CASE 
             WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
             WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Other'
           END as status,
@@ -194,9 +209,9 @@ let GrcIncidentsService = class GrcIncidentsService {
           (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount, 
           CASE 
             WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
             WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Other'
           END AS status 
@@ -742,7 +757,7 @@ let GrcIncidentsService = class GrcIncidentsService {
         i.title,
         CASE 
           WHEN i.acceptanceStatus = 'approved' THEN 'approved'
-          WHEN i.reviewerStatus = 'approved' THEN 'approved'
+          WHEN i.reviewerStatus = 'sent' THEN 'sent'
           WHEN i.checkerStatus = 'approved' THEN 'approved'
           ELSE ISNULL(i.preparerStatus, i.acceptanceStatus)
         END as status,
@@ -806,7 +821,8 @@ let GrcIncidentsService = class GrcIncidentsService {
             "i.isDeleted = 0",
             "i.deletedAt IS NULL",
             "ISNULL(i.preparerStatus, '') = 'sent'",
-            "ISNULL(i.checkerStatus, '') <> 'approved'"
+            "ISNULL(i.checkerStatus, '') <> 'approved'",
+            "ISNULL(i.acceptanceStatus, '') <> 'approved'"
         ];
         if (startDate)
             where.push(`i.createdAt >= '${startDate}'`);
@@ -846,7 +862,8 @@ let GrcIncidentsService = class GrcIncidentsService {
             "i.isDeleted = 0",
             "i.deletedAt IS NULL",
             "ISNULL(i.checkerStatus, '') = 'approved'",
-            "ISNULL(i.reviewerStatus, '') <> 'approved'"
+            "ISNULL(i.reviewerStatus, '') <> 'sent'",
+            "ISNULL(i.acceptanceStatus, '') <> 'approved'"
         ];
         if (startDate)
             where.push(`i.createdAt >= '${startDate}'`);
@@ -885,7 +902,7 @@ let GrcIncidentsService = class GrcIncidentsService {
         const where = [
             "i.isDeleted = 0",
             "i.deletedAt IS NULL",
-            "ISNULL(i.reviewerStatus, '') = 'approved'",
+            "ISNULL(i.reviewerStatus, '') = 'sent'",
             "ISNULL(i.acceptanceStatus, '') <> 'approved'"
         ];
         if (startDate)
@@ -937,21 +954,12 @@ let GrcIncidentsService = class GrcIncidentsService {
             }
             console.log('[getIncidentsByCategory] Received category:', category);
             console.log('[getIncidentsByCategory] Decoded category:', decodedCategory);
-            const whereParts = [
-                'i.isDeleted = 0',
-                'i.deletedAt IS NULL',
-                'i.net_loss IS NOT NULL'
-            ];
-            if (!startDate && !endDate) {
-                whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())`);
-            }
+            const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
             const escapedForExact = decodedCategory.replace(/'/g, "''");
-            whereParts.push(`c.name = N'${escapedForExact}'`);
-            if (startDate)
-                whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= '${startDate}'`);
-            if (endDate)
-                whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) <= '${endDate}'`);
-            const whereSql = `WHERE ${whereParts.join(' AND ')}`;
+            const whereSql = `WHERE i.isDeleted = 0 
+          AND i.deletedAt IS NULL
+          AND ISNULL(c.name, 'Unknown') = N'${escapedForExact}'
+          ${dateFilter}`;
             const query = `
         SELECT 
           i.code,
@@ -960,7 +968,8 @@ let GrcIncidentsService = class GrcIncidentsService {
           i.net_loss,
           i.recovery_amount
         FROM Incidents i
-        INNER JOIN Categories c ON i.category_id = c.id
+        LEFT JOIN Categories c ON i.category_id = c.id
+          AND c.isDeleted = 0
           AND c.deletedAt IS NULL
         ${whereSql}
         ORDER BY i.createdAt DESC
@@ -970,7 +979,8 @@ let GrcIncidentsService = class GrcIncidentsService {
             const countQuery = `
         SELECT COUNT(*) AS total
         FROM Incidents i
-        INNER JOIN Categories c ON i.category_id = c.id
+        LEFT JOIN Categories c ON i.category_id = c.id
+          AND c.isDeleted = 0
           AND c.deletedAt IS NULL
         ${whereSql}
       `;
@@ -1148,13 +1158,13 @@ let GrcIncidentsService = class GrcIncidentsService {
                 statusCondition = "ISNULL(i.preparerStatus, '') <> 'sent'";
             }
             else if (decodedStatus === 'Pending Checker') {
-                statusCondition = "ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved'";
+                statusCondition = "ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
             }
             else if (decodedStatus === 'Pending Reviewer') {
-                statusCondition = "ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'approved'";
+                statusCondition = "ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
             }
             else if (decodedStatus === 'Pending Acceptance') {
-                statusCondition = "ISNULL(i.reviewerStatus, '') = 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
+                statusCondition = "ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
             }
             else if (decodedStatus === 'Approved') {
                 statusCondition = "ISNULL(i.acceptanceStatus, '') = 'approved'";
@@ -1164,9 +1174,9 @@ let GrcIncidentsService = class GrcIncidentsService {
                 statusCondition = `(
           CASE 
             WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
             WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Other'
           END

@@ -215,19 +215,46 @@ export abstract class BaseDashboardService {
       let countQuery = metric.query.replace('{dateFilter}', dateFilter);
       
       if (cardType === 'total') {
-        dataQuery = `SELECT id, name, code FROM dbo.[Controls] WHERE 1=1 ${dateFilter} ORDER BY createdAt DESC`;
+        dataQuery = `SELECT id, name, code FROM ${fq('Controls')} WHERE isDeleted = 0 AND deletedAt IS NULL ${dateFilter} ORDER BY createdAt DESC`;
+        // Use the same count query as the metric
+        countQuery = metric.query.replace('{dateFilter}', dateFilter);
       } else if (cardType === 'unmapped') {
         dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
-      } else if (cardType.startsWith('pending')) {
-        const statusField = cardType.replace('pending', '').toLowerCase() + 'Status';
-        dataQuery = `SELECT id, name, code FROM ${fq('Controls')} WHERE ${statusField} != 'approved' AND isDeleted = 0 ${dateFilter} ORDER BY createdAt DESC`;
-      } else if (cardType.startsWith('testsPending')) {
-        // Map to control tests joins for details
+        // Use the same count query as the metric
+        countQuery = metric.query.replace('{dateFilter}', dateFilter);
+      } else if (cardType.startsWith('pending') && !cardType.startsWith('testsPending')) {
+        // Handle Controls pending status cards - use standardized staged workflow pattern
         let whereClause = '';
-        if (cardType === 'testsPendingPreparer') whereClause = "t.preparerStatus <> 'sent'";
-        else if (cardType === 'testsPendingChecker') whereClause = "t.checkerStatus <> 'approved'";
-        else if (cardType === 'testsPendingReviewer') whereClause = "t.reviewerStatus <> 'sent'";
-        else if (cardType === 'testsPendingAcceptance') whereClause = "t.acceptanceStatus <> 'approved'";
+        if (cardType === 'pendingPreparer') {
+          whereClause = "(ISNULL(preparerStatus, '') <> 'sent')";
+        } else if (cardType === 'pendingChecker') {
+          whereClause = "(ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved')";
+        } else if (cardType === 'pendingReviewer') {
+          whereClause = "(ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved')";
+        } else if (cardType === 'pendingAcceptance') {
+          whereClause = "(ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved')";
+        } else {
+          // Fallback for other pending types
+          const statusField = cardType.replace('pending', '').toLowerCase() + 'Status';
+          whereClause = `${statusField} != 'approved'`;
+        }
+        
+        dataQuery = `SELECT id, name, code FROM ${fq('Controls')} WHERE ${whereClause} AND deletedAt IS NULL AND isDeleted = 0 ${dateFilter} ORDER BY createdAt DESC`;
+        
+        // Use the same count query as the metric - match metric query exactly
+        countQuery = metric.query.replace('{dateFilter}', dateFilter);
+      } else if (cardType.startsWith('testsPending')) {
+        // Map to control tests joins for details - use standardized staged workflow pattern
+        let whereClause = '';
+        if (cardType === 'testsPendingPreparer') {
+          whereClause = "(ISNULL(t.preparerStatus, '') <> 'sent')";
+        } else if (cardType === 'testsPendingChecker') {
+          whereClause = "(ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
+        } else if (cardType === 'testsPendingReviewer') {
+          whereClause = "(ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
+        } else if (cardType === 'testsPendingAcceptance') {
+          whereClause = "(ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
+        }
         
         const statusField =
           cardType === 'testsPendingPreparer' ? 'preparerStatus' :
@@ -238,14 +265,11 @@ export abstract class BaseDashboardService {
         dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND t.function_id IS NOT NULL
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter}
           ORDER BY c.createdAt DESC`;
 
-        // Use the same count query as the metric (count test records, not control records)
-        countQuery = `SELECT COUNT(DISTINCT t.id) AS total
-          FROM ${fq('ControlDesignTests')} AS t
-          INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND t.function_id IS NOT NULL`;
+        // Use the same count query as the metric (count test records, not control records) - match metric query exactly
+        countQuery = metric.query.replace('{dateFilter}', dateFilter);
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
@@ -258,6 +282,8 @@ export abstract class BaseDashboardService {
                AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
           AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')}
           ORDER BY c.createdAt DESC`;
+        // Use the same count query as the metric
+        countQuery = metric.query.replace('{dateFilter}', dateFilter);
       } else if (cardType === 'unmappedNonIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
@@ -271,6 +297,8 @@ export abstract class BaseDashboardService {
                OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
           AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')}
           ORDER BY c.createdAt DESC`;
+        // Use the same count query as the metric
+        countQuery = metric.query.replace('{dateFilter}', dateFilter);
       } else {
         // Fallback to generic query
         dataQuery = `SELECT id, name, code FROM dbo.[Controls] WHERE 1=1 ${dateFilter} ORDER BY createdAt DESC`;

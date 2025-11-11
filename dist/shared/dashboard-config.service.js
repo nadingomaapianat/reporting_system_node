@@ -30,7 +30,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
             INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
-            WHERE (t.preparerStatus <> 'sent' OR t.preparerStatus IS NULL) AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
+            WHERE (ISNULL(t.preparerStatus, '') <> 'sent') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
                     color: 'orange',
                     icon: 'clock'
                 },
@@ -40,7 +40,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
             INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
-            WHERE (t.checkerStatus <> 'approved' OR t.checkerStatus IS NULL) AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
+            WHERE (ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
                     color: 'purple',
                     icon: 'check-circle'
                 },
@@ -50,7 +50,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
             INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
-            WHERE (t.reviewerStatus <> 'approved' OR t.reviewerStatus IS NULL) AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
+            WHERE (ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
                     color: 'indigo',
                     icon: 'document-check'
                 },
@@ -60,35 +60,35 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                     query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
             INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
-            WHERE (t.acceptanceStatus <> 'approved' OR t.acceptanceStatus IS NULL) AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
+            WHERE (ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
                     color: 'red',
                     icon: 'exclamation-triangle'
                 },
                 {
                     id: 'pendingPreparer',
                     name: 'Pending Preparer',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (preparerStatus != 'sent' OR preparerStatus IS NULL) AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (ISNULL(preparerStatus, '') <> 'sent') AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'orange',
                     icon: 'clock'
                 },
                 {
                     id: 'pendingChecker',
                     name: 'Pending Checker',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (checkerStatus != 'approved' OR checkerStatus IS NULL) AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved') AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'purple',
                     icon: 'check-circle'
                 },
                 {
                     id: 'pendingReviewer',
                     name: 'Pending Reviewer',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (reviewerStatus != 'approved' OR reviewerStatus IS NULL) AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved') AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'indigo',
                     icon: 'document-check'
                 },
                 {
                     id: 'pendingAcceptance',
                     name: 'Pending Acceptance',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (acceptanceStatus != 'approved' OR acceptanceStatus IS NULL) AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved') AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
                     color: 'red',
                     icon: 'exclamation-triangle'
                 },
@@ -404,7 +404,15 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             t.checkerStatus AS [Checker Status],
             t.reviewerStatus AS [Reviewer Status],
             t.acceptanceStatus AS [Acceptance Status],
-            f.name AS [Business Unit]
+            f.name AS [Business Unit],
+            CASE 
+              WHEN ISNULL(t.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+              WHEN ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+              WHEN ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+              WHEN ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+              WHEN ISNULL(t.acceptanceStatus, '') = 'approved' THEN 'Approved'
+              ELSE 'Other'
+            END AS [Current Status]
           FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
           INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON t.control_id = c.id
           INNER JOIN ${(0, db_config_1.fq)('Functions')} AS f ON t.function_id = f.id
@@ -415,6 +423,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                         { key: 'Code', label: 'Code', type: 'text' },
                         { key: 'Control Name', label: 'Control Name', type: 'text' },
                         { key: 'Business Unit', label: 'Business Unit', type: 'text' },
+                        { key: 'Current Status', label: 'Current Status', type: 'status' },
                         { key: 'Preparer Status', label: 'Preparer Status', type: 'status' },
                         { key: 'Checker Status', label: 'Checker Status', type: 'status' },
                         { key: 'Reviewer Status', label: 'Reviewer Status', type: 'status' },
