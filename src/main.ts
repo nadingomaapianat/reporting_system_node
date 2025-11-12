@@ -16,9 +16,14 @@ class GlobalExceptionFilter implements ExceptionFilter {
       ? exception.getStatus()
       : HttpStatus.INTERNAL_SERVER_ERROR;
     
-    const message = exception instanceof HttpException
+    const responseMessage = exception instanceof HttpException
       ? exception.getResponse()
       : { message: exception.message || 'Internal server error' };
+    
+    // Ensure message is always an object for spreading
+    const message = typeof responseMessage === 'string'
+      ? { message: responseMessage }
+      : responseMessage;
     
     console.error(`[${request.method}] ${request.url} - Error:`, exception);
     
