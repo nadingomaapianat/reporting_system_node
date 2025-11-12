@@ -10,7 +10,12 @@ export class GrcDashboardController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string
   ) {
-    return this.grcDashboardService.getControlsDashboard(startDate, endDate);
+    try {
+      return await this.grcDashboardService.getControlsDashboard(startDate, endDate);
+    } catch (error: any) {
+      console.error('Error in getControlsDashboard:', error);
+      throw error;
+    }
   }
 
   @Get('total')

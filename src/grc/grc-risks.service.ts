@@ -651,11 +651,19 @@ export class GrcRisksService extends BaseDashboardService {
       this.databaseService.query(countQuery)
     ]);
     
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+    
     return {
       data,
-      total: countResult[0]?.total || 0,
-      page,
-      limit
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
     };
   }
 
@@ -689,11 +697,19 @@ export class GrcRisksService extends BaseDashboardService {
       this.databaseService.query(countQuery)
     ]);
     
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+    
     return {
       data,
-      total: countResult[0]?.total || 0,
-      page,
-      limit
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
     };
   }
 
@@ -727,11 +743,19 @@ export class GrcRisksService extends BaseDashboardService {
       this.databaseService.query(countQuery)
     ]);
     
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+    
     return {
       data,
-      total: countResult[0]?.total || 0,
-      page,
-      limit
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
     };
   }
 
@@ -765,11 +789,19 @@ export class GrcRisksService extends BaseDashboardService {
       this.databaseService.query(countQuery)
     ]);
     
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+    
     return {
       data,
-      total: countResult[0]?.total || 0,
-      page,
-      limit
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
     };
   }
 
@@ -800,11 +832,19 @@ export class GrcRisksService extends BaseDashboardService {
       this.databaseService.query(countQuery)
     ]);
     
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limit);
+    
     return {
       data,
-      total: countResult[0]?.total || 0,
-      page,
-      limit
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
     };
   }
 
