@@ -1,66 +1,30 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as sql from 'mssql';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: sql.ConnectionPool;
 
-  constructor(private configService: ConfigService) {}
-
   async onModuleInit() {
-    //for bank
-    const dbHost = this.configService.get<string>('DB_HOST');
-    const dbPort = parseInt(this.configService.get<string>('DB_PORT'), 10);
-    const dbName = this.configService.get<string>('DB_NAME');
-    
-    // إعدادات Windows Authentication
-    const dbDomain = this.configService.get<string>('DB_Domain');
-    const dbUsername = this.configService.get<string>('DB_USERNAME');
-    const dbPassword = this.configService.get<string>('DB_PASSWORD');
-
-    // NTLM Authentication - equivalent to authentication.type: 'ntlm'
-    const user = dbDomain && dbUsername 
-      ? `${dbDomain}\\${dbUsername}` 
-      : dbUsername;
-
     const config: sql.config = {
-      user: user,
-      password: dbPassword,
-      server: dbHost,
-      port: dbPort,
-      database: dbName,
+      user: 'SA',
+      password: 'Nothing_159',
+      server: '206.189.57.0',
+      port: 1433,
+      database: 'NEWDCC-V4-UAT',
       options: {
-        requestTimeout: parseInt(
-          this.configService.get<string>('DB_REQUEST_TIMEOUT') || '60000',
-          10
-        ),
-        connectTimeout: parseInt(
-          this.configService.get<string>('DB_CONNECT_TIMEOUT') || '60000',
-          10
-        ),
         encrypt: true,
         trustServerCertificate: true,
         enableArithAbort: true,
         packetSize: 32768,
-        // إعدادات Windows Authentication
-        // NTLM: domain\username format in user field = authentication.type: 'ntlm'
+        connectTimeout: 60000,
+        requestTimeout: 60000
       },
-      // إعدادات تجمع الاتصالات
       pool: {
-        max: parseInt(
-          this.configService.get<string>('DB_POOL_MAX') || '20',
-          10
-        ),
-        min: parseInt(
-          this.configService.get<string>('DB_POOL_MIN') || '5',
-          10
-        ),
-        idleTimeoutMillis: parseInt(
-          this.configService.get<string>('DB_POOL_IDLE') || '30000',
-          10
-        ),
-      },
+        max: 20,
+        min: 5,
+        idleTimeoutMillis: 30000
+      }
     };
 
     try {

@@ -15,7 +15,6 @@ import { DatabaseService } from './database/database.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
     }),
     ScheduleModule.forRoot(),
     BullModule.forRoot({
