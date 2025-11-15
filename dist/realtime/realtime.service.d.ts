@@ -1,12 +1,21 @@
+import { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Socket } from 'socket.io';
-export declare class RealtimeService {
+export declare class RealtimeService implements OnModuleInit, OnModuleDestroy {
+    private configService;
     private readonly logger;
     private clients;
     private metricSubscriptions;
     private dashboardRooms;
     private historicalData;
     private alertThresholds;
-    constructor();
+    private redisClient;
+    private redisAvailable;
+    constructor(configService: ConfigService);
+    onModuleInit(): Promise<void>;
+    onModuleDestroy(): Promise<void>;
+    private connectRedis;
+    private disconnectRedis;
     addClient(client: Socket): void;
     removeClient(client: Socket): void;
     joinDashboard(client: Socket, dashboardId: string): void;
@@ -42,4 +51,9 @@ export declare class RealtimeService {
     getRealtimeData(): Promise<any>;
     getHistoricalData(metric: string, hours?: number): Promise<any[]>;
     getDashboardAnalytics(dashboardId: string): Promise<any>;
+    getRedisHealth(): Promise<{
+        available: boolean;
+        error?: string;
+    }>;
+    isRedisAvailable(): boolean;
 }

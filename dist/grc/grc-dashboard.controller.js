@@ -20,7 +20,13 @@ let GrcDashboardController = class GrcDashboardController {
         this.grcDashboardService = grcDashboardService;
     }
     async getControlsDashboard(startDate, endDate) {
-        return this.grcDashboardService.getControlsDashboard(startDate, endDate);
+        try {
+            return await this.grcDashboardService.getControlsDashboard(startDate, endDate);
+        }
+        catch (error) {
+            console.error('Error in getControlsDashboard:', error);
+            throw error;
+        }
     }
     async getTotalControls(page = 1, limit = 10, startDate, endDate) {
         return this.grcDashboardService.getTotalControls(page, limit, startDate, endDate);

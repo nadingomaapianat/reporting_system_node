@@ -12,17 +12,82 @@ var RealtimeService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RealtimeService = void 0;
 const common_1 = require("@nestjs/common");
+const config_1 = require("@nestjs/config");
 const schedule_1 = require("@nestjs/schedule");
+const redis_1 = require("redis");
 let RealtimeService = RealtimeService_1 = class RealtimeService {
-    constructor() {
+    constructor(configService) {
+        this.configService = configService;
         this.logger = new common_1.Logger(RealtimeService_1.name);
         this.clients = new Map();
         this.metricSubscriptions = new Map();
         this.dashboardRooms = new Map();
         this.historicalData = new Map();
         this.alertThresholds = new Map();
+        this.redisClient = null;
+        this.redisAvailable = false;
         this.initializeThresholds();
         this.initializeHistoricalData();
+    }
+    async onModuleInit() {
+        await this.connectRedis();
+    }
+    async onModuleDestroy() {
+        await this.disconnectRedis();
+    }
+    async connectRedis() {
+        try {
+            const redisHost = this.configService.get('REDIS_HOST') || 'localhost';
+            const redisPort = parseInt(this.configService.get('REDIS_PORT') || '6379', 10);
+            this.redisClient = (0, redis_1.createClient)({
+                socket: {
+                    host: redisHost,
+                    port: redisPort,
+                    reconnectStrategy: (retries) => {
+                        if (retries > 10) {
+                            this.logger.warn('Redis reconnection attempts exceeded, falling back to local cache');
+                            return false;
+                        }
+                        return Math.min(retries * 100, 3000);
+                    },
+                },
+            });
+            this.redisClient.on('error', (err) => {
+                this.logger.warn(`Redis connection error: ${err.message}`);
+                this.redisAvailable = false;
+            });
+            this.redisClient.on('connect', () => {
+                this.logger.log('Redis client connecting...');
+            });
+            this.redisClient.on('ready', () => {
+                this.logger.log(`Redis connected successfully to ${redisHost}:${redisPort}`);
+                this.redisAvailable = true;
+            });
+            this.redisClient.on('reconnecting', () => {
+                this.logger.debug('Redis reconnecting...');
+                this.redisAvailable = false;
+            });
+            await this.redisClient.connect();
+        }
+        catch (error) {
+            this.logger.warn(`Failed to connect to Redis: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            this.logger.warn('Falling back to local in-memory caching');
+            this.redisAvailable = false;
+            this.redisClient = null;
+        }
+    }
+    async disconnectRedis() {
+        if (this.redisClient) {
+            try {
+                await this.redisClient.quit();
+                this.logger.log('Redis connection closed');
+            }
+            catch (error) {
+                this.logger.error(`Error closing Redis connection: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+            this.redisClient = null;
+            this.redisAvailable = false;
+        }
     }
     addClient(client) {
         this.clients.set(client.id, client);
@@ -221,7 +286,25 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
         });
     }
     async cacheRealtimeData(data) {
-        this.logger.debug('Caching real-time data (Redis not available)');
+        if (this.redisAvailable && this.redisClient) {
+            try {
+                const cacheKey = 'realtime:latest';
+                const cacheTTL = 60;
+                await this.redisClient.setEx(cacheKey, cacheTTL, JSON.stringify(data));
+                const metricsKey = 'realtime:metrics';
+                await this.redisClient.lPush(metricsKey, JSON.stringify(data));
+                await this.redisClient.lTrim(metricsKey, 0, 999);
+                await this.redisClient.expire(metricsKey, 3600);
+                this.logger.debug('Real-time data cached in Redis');
+            }
+            catch (error) {
+                this.logger.warn(`Failed to cache data in Redis: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                this.redisAvailable = false;
+            }
+        }
+        else {
+            this.logger.debug('Caching real-time data (Redis not available, using local cache)');
+        }
     }
     async generateIntelligentAlerts() {
         const alerts = [];
@@ -393,6 +476,17 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
         });
     }
     async getRealtimeData() {
+        if (this.redisAvailable && this.redisClient) {
+            try {
+                const cached = await this.redisClient.get('realtime:latest');
+                if (cached) {
+                    return JSON.parse(cached);
+                }
+            }
+            catch (error) {
+                this.logger.warn(`Failed to retrieve from Redis cache: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+        }
         const metrics = this.getCurrentMetrics();
         return {
             timestamp: new Date().toISOString(),
@@ -421,6 +515,27 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
             lastUpdate: new Date().toISOString(),
         };
     }
+    async getRedisHealth() {
+        if (!this.redisClient) {
+            return { available: false, error: 'Redis client not initialized' };
+        }
+        if (!this.redisAvailable) {
+            return { available: false, error: 'Redis connection not available' };
+        }
+        try {
+            await this.redisClient.ping();
+            return { available: true };
+        }
+        catch (error) {
+            return {
+                available: false,
+                error: error instanceof Error ? error.message : 'Unknown error during Redis health check',
+            };
+        }
+    }
+    isRedisAvailable() {
+        return this.redisAvailable && this.redisClient !== null;
+    }
 };
 exports.RealtimeService = RealtimeService;
 __decorate([
@@ -437,6 +552,6 @@ __decorate([
 ], RealtimeService.prototype, "generateChartData", null);
 exports.RealtimeService = RealtimeService = RealtimeService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __metadata("design:paramtypes", [config_1.ConfigService])
 ], RealtimeService);
 //# sourceMappingURL=realtime.service.js.map

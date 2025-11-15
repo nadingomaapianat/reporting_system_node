@@ -19,14 +19,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const dbUsername = this.configService.get<string>('DB_USERNAME');
     const dbPassword = this.configService.get<string>('DB_PASSWORD');
 
-    // NTLM Authentication - equivalent to authentication.type: 'ntlm'
-    const user = dbDomain && dbUsername 
-      ? `${dbDomain}\\${dbUsername}` 
-      : dbUsername;
-
-    const config: sql.config = {
-      user: user,
-      password: dbPassword,
+    // إعدادات NTLM Authentication - same as adib-backend
+    const config: any = {
       server: dbHost,
       port: dbPort,
       database: dbName,
@@ -44,7 +38,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         enableArithAbort: true,
         packetSize: 32768,
         // إعدادات Windows Authentication
-        // NTLM: domain\username format in user field = authentication.type: 'ntlm'
+        trustedConnection: true,
+        integratedSecurity: true
+      },
+      // إعدادات NTLM Authentication - same as adib-backend
+      authentication: {
+        type: 'ntlm',
+        options: {
+          domain: dbDomain,
+          userName: dbUsername,
+          password: dbPassword
+        }
       },
       // إعدادات تجمع الاتصالات
       pool: {
@@ -65,9 +69,20 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     try {
       this.pool = await sql.connect(config);
-      console.log('Database connected successfully!');
+      const authInfo = dbDomain && dbUsername 
+        ? `${dbDomain}\\${dbUsername}` 
+        : dbUsername || 'NTLM';
+      console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName} using NTLM authentication (${authInfo})!`);
     } catch (err) {
       console.error('Database connection failed:', err);
+      const authInfo = dbDomain && dbUsername 
+        ? `${dbDomain}\\${dbUsername}` 
+        : dbUsername || 'NTLM';
+      console.error(`Connection details: server=${dbHost}:${dbPort}, database=${dbName}, auth=${authInfo}`);
+      if (err instanceof Error) {
+        console.error(`Error message: ${err.message}`);
+        console.error(`Error code: ${(err as any).code || 'N/A'}`);
+      }
       console.log('Continuing with mock data...');
     }
   }
@@ -110,6 +125,28 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   isConnected(): boolean {
-    return !!this.pool;
+    return !!this.pool && this.pool.connected;
+  }
+
+  async healthCheck(): Promise<{ connected: boolean; error?: string }> {
+    if (!this.pool) {
+      return { connected: false, error: 'Connection pool not initialized' };
+    }
+
+    if (!this.pool.connected) {
+      return { connected: false, error: 'Connection pool not connected' };
+    }
+
+    try {
+      // Simple query to verify connection is alive
+      const request = this.pool.request();
+      await request.query('SELECT 1 as health');
+      return { connected: true };
+    } catch (error) {
+      return {
+        connected: false,
+        error: error instanceof Error ? error.message : 'Unknown error during health check',
+      };
+    }
   }
 }
