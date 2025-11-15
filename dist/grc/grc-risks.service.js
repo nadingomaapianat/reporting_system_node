@@ -599,11 +599,18 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
             this.databaseService.query(query, [offset, limit]),
             this.databaseService.query(countQuery)
         ]);
+        const total = countResult[0]?.total || 0;
+        const totalPages = Math.ceil(total / limit);
         return {
             data,
-            total: countResult[0]?.total || 0,
-            page,
-            limit
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1
+            }
         };
     }
     async getMediumRisks(page, limit, startDate, endDate) {
@@ -632,11 +639,18 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
             this.databaseService.query(query, [offset, limit]),
             this.databaseService.query(countQuery)
         ]);
+        const total = countResult[0]?.total || 0;
+        const totalPages = Math.ceil(total / limit);
         return {
             data,
-            total: countResult[0]?.total || 0,
-            page,
-            limit
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1
+            }
         };
     }
     async getLowRisks(page, limit, startDate, endDate) {
@@ -665,11 +679,18 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
             this.databaseService.query(query, [offset, limit]),
             this.databaseService.query(countQuery)
         ]);
+        const total = countResult[0]?.total || 0;
+        const totalPages = Math.ceil(total / limit);
         return {
             data,
-            total: countResult[0]?.total || 0,
-            page,
-            limit
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1
+            }
         };
     }
     async getRiskReduction(page, limit, startDate, endDate) {
@@ -698,11 +719,18 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
             this.databaseService.query(query, [offset, limit]),
             this.databaseService.query(countQuery)
         ]);
+        const total = countResult[0]?.total || 0;
+        const totalPages = Math.ceil(total / limit);
         return {
             data,
-            total: countResult[0]?.total || 0,
-            page,
-            limit
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1
+            }
         };
     }
     async getNewRisks(page, limit, startDate, endDate) {
@@ -728,11 +756,18 @@ let GrcRisksService = class GrcRisksService extends base_dashboard_service_1.Bas
             this.databaseService.query(query, [offset, limit]),
             this.databaseService.query(countQuery)
         ]);
+        const total = countResult[0]?.total || 0;
+        const totalPages = Math.ceil(total / limit);
         return {
             data,
-            total: countResult[0]?.total || 0,
-            page,
-            limit
+            pagination: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNext: page < totalPages,
+                hasPrev: page > 1
+            }
         };
     }
     async exportRisks(format, startDate, endDate) {

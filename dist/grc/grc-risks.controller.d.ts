@@ -60,33 +60,58 @@ export declare class GrcRisksController {
     }>;
     getHighRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
-        total: any;
-        page: number;
-        limit: number;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
     }>;
     getMediumRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
-        total: any;
-        page: number;
-        limit: number;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
     }>;
     getLowRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
-        total: any;
-        page: number;
-        limit: number;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
     }>;
     getRiskReduction(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
-        total: any;
-        page: number;
-        limit: number;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
     }>;
     getNewRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
-        total: any;
-        page: number;
-        limit: number;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
     }>;
     getRisksByCategory(category: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
