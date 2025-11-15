@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, HttpException, HttpStatus, ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import * as cors from 'cors';
 import helmet from 'helmet';
 
 @Catch()
@@ -42,11 +41,37 @@ async function bootstrap() {
   // Security middleware
   app.use(helmet());
   
-  // CORS configuration
-  app.use(cors({
-    origin: ['https://reporting-system-frontend.pianat.ai', 'http://localhost:3001', 'https://reporting-system-backend.pianat.ai','https://reporting-system-frontend.pianat.ai','https://reporting-system-backend.pianat.ai'],
-    credentials: true,
-  }));
+  // CORS configuration - Reading from environment variables
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+    : [
+        'https://reporting-system-frontend.pianat.ai',
+        'http://localhost:3001',
+        'https://reporting-system-backend.pianat.ai',
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:4200',
+      ];
+  
+  const corsMethods = process.env.CORS_METHODS
+    ? process.env.CORS_METHODS.split(',').map(method => method.trim())
+    : ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
+  
+  const corsAllowedHeaders = process.env.CORS_ALLOWED_HEADERS
+    ? process.env.CORS_ALLOWED_HEADERS.split(',').map(header => header.trim())
+    : ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'];
+  
+  const corsExposedHeaders = process.env.CORS_EXPOSED_HEADERS
+    ? process.env.CORS_EXPOSED_HEADERS.split(',').map(header => header.trim())
+    : ['Content-Range', 'X-Content-Range'];
+  
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: process.env.CORS_CREDENTIALS === 'true' || process.env.CORS_CREDENTIALS === undefined,
+    methods: corsMethods,
+    allowedHeaders: corsAllowedHeaders,
+    exposedHeaders: corsExposedHeaders,
+  });
   
   // Global validation pipe
   app.useGlobalPipes(new ValidationPipe({
