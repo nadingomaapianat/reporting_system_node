@@ -1,99 +1,69 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, HttpException, HttpStatus, ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
+import { HttpExceptionFilter } from './common/filters/http-exception-filter';
+import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import helmet from 'helmet';
-
-@Catch()
-class GlobalExceptionFilter implements ExceptionFilter {
-  catch(exception: any, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse();
-    const request = ctx.getRequest();
-    
-    const status = exception instanceof HttpException
-      ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
-    
-    const responseMessage = exception instanceof HttpException
-      ? exception.getResponse()
-      : { message: exception.message || 'Internal server error' };
-    
-    // Ensure message is always an object for spreading
-    const message = typeof responseMessage === 'string'
-      ? { message: responseMessage }
-      : responseMessage;
-    
-    console.error(`[${request.method}] ${request.url} - Error:`, exception);
-    
-    response.status(status).json({
-      statusCode: status,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      ...message
-    });
-  }
-}
+import * as bodyParser from 'body-parser';
+import * as express from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  // Security middleware
-  app.use(helmet());
-  
-  // CORS configuration - Reading from environment variables
-  const corsOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
-    : [
-        'https://reporting-system-frontend.pianat.ai',
-        'http://localhost:3001',
-        'https://reporting-system-backend.pianat.ai',
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'http://localhost:4200',
-      ];
-  
-  const corsMethods = process.env.CORS_METHODS
-    ? process.env.CORS_METHODS.split(',').map(method => method.trim())
-    : ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
-  
-  const corsAllowedHeaders = process.env.CORS_ALLOWED_HEADERS
-    ? process.env.CORS_ALLOWED_HEADERS.split(',').map(header => header.trim())
-    : ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'];
-  
-  const corsExposedHeaders = process.env.CORS_EXPOSED_HEADERS
-    ? process.env.CORS_EXPOSED_HEADERS.split(',').map(header => header.trim())
-    : ['Content-Range', 'X-Content-Range'];
-  
-  app.enableCors({
-    origin: corsOrigins,
-    credentials: process.env.CORS_CREDENTIALS === 'true' || process.env.CORS_CREDENTIALS === undefined,
-    methods: corsMethods,
-    allowedHeaders: corsAllowedHeaders,
-    exposedHeaders: corsExposedHeaders,
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Add CSP header
+  app.use((req, res, next) => {
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
+    );
+    next();
   });
-  
-  // Global validation pipe
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
-  
-  // Global exception filter to handle errors gracefully
-  app.useGlobalFilters(new GlobalExceptionFilter());
-  
+
+  app.use((req, res, next) => {
+    // إزالة الرأس X-Powered-By
+    res.removeHeader('X-Powered-By');
+    next();
+  });
+
+  // Configure body parser with increased limits
+  app.use(bodyParser.json({ limit: '50mb' }));
+  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+  // Configure express to handle large payloads
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Error handling middleware
+  app.use((err, req, res, next) => {
+    if (err.status === 413 || err.type === 'entity.too.large') {
+      return res.status(413).json({
+        statusCode: 413,
+        message: 'File size exceeds the maximum limit of 50MB',
+        error: 'Payload Too Large'
+      });
+    }
+    
+    res.status(500).json({
+      statusCode: 500,
+      message: 'Server Error',
+    });
+  });
+
+  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalPipes(new ValidationPipe());
+
+  app.enableCors({ 
+    origin: [process.env.CHART_URL, process.env.WEB_SOCKET, process.env.FRONTEND_URL, process.env.FRONTEND_URL2], // Replace with your frontend URLs
+    credentials: true,  
+  });
+
   // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));
-  
+
   const port = process.env.PORT || 3002;
-  await app.listen(port, '0.0.0.0');
-  
-  console.log(`🚀 Real-time API server running on port ${port}`);
-  console.log(`📊 WebSocket server ready for real-time updates`);
+  await app.listen(port, '0.0.0.0', () => {
+    console.log(`Server is running on http://0.0.0.0:${port}`);
+  });
 }
 
-bootstrap().catch((error) => {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-});
+bootstrap();

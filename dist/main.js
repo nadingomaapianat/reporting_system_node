@@ -1,64 +1,50 @@
 "use strict";
-var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
-    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
-    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
-    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
-    return c > 3 && r && Object.defineProperty(target, key, r), r;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const core_1 = require("@nestjs/core");
 const app_module_1 = require("./app.module");
+const http_exception_filter_1 = require("./common/filters/http-exception-filter");
 const common_1 = require("@nestjs/common");
 const platform_socket_io_1 = require("@nestjs/platform-socket.io");
-const cors = require("cors");
-const helmet_1 = require("helmet");
-let GlobalExceptionFilter = class GlobalExceptionFilter {
-    catch(exception, host) {
-        const ctx = host.switchToHttp();
-        const response = ctx.getResponse();
-        const request = ctx.getRequest();
-        const status = exception instanceof common_1.HttpException
-            ? exception.getStatus()
-            : common_1.HttpStatus.INTERNAL_SERVER_ERROR;
-        const responseMessage = exception instanceof common_1.HttpException
-            ? exception.getResponse()
-            : { message: exception.message || 'Internal server error' };
-        const message = typeof responseMessage === 'string'
-            ? { message: responseMessage }
-            : responseMessage;
-        console.error(`[${request.method}] ${request.url} - Error:`, exception);
-        response.status(status).json({
-            statusCode: status,
-            timestamp: new Date().toISOString(),
-            path: request.url,
-            ...message
-        });
-    }
-};
-GlobalExceptionFilter = __decorate([
-    (0, common_1.Catch)()
-], GlobalExceptionFilter);
+const bodyParser = require("body-parser");
+const express = require("express");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
-    app.use((0, helmet_1.default)());
-    app.use(cors({
-        origin: ['https://reporting-system-frontend.pianat.ai', 'http://localhost:3001', 'https://reporting-system-backend.pianat.ai', 'https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai'],
+    app.use((req, res, next) => {
+        res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';");
+        next();
+    });
+    app.use((req, res, next) => {
+        res.removeHeader('X-Powered-By');
+        next();
+    });
+    app.use(bodyParser.json({ limit: '50mb' }));
+    app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+    app.use(express.json({ limit: '50mb' }));
+    app.use(express.urlencoded({ limit: '50mb', extended: true }));
+    app.use((err, req, res, next) => {
+        if (err.status === 413 || err.type === 'entity.too.large') {
+            return res.status(413).json({
+                statusCode: 413,
+                message: 'File size exceeds the maximum limit of 50MB',
+                error: 'Payload Too Large'
+            });
+        }
+        res.status(500).json({
+            statusCode: 500,
+            message: 'Server Error',
+        });
+    });
+    app.useGlobalFilters(new http_exception_filter_1.HttpExceptionFilter());
+    app.useGlobalPipes(new common_1.ValidationPipe());
+    app.enableCors({
+        origin: [process.env.CHART_URL, process.env.WEB_SOCKET, process.env.FRONTEND_URL, process.env.FRONTEND_URL2],
         credentials: true,
-    }));
-    app.useGlobalPipes(new common_1.ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-    }));
-    app.useGlobalFilters(new GlobalExceptionFilter());
+    });
     app.useWebSocketAdapter(new platform_socket_io_1.IoAdapter(app));
     const port = process.env.PORT || 3002;
-    await app.listen(port, '0.0.0.0');
-    console.log(`🚀 Real-time API server running on port ${port}`);
-    console.log(`📊 WebSocket server ready for real-time updates`);
+    await app.listen(port, '0.0.0.0', () => {
+        console.log(`Server is running on http://0.0.0.0:${port}`);
+    });
 }
-bootstrap().catch((error) => {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-});
+bootstrap();
 //# sourceMappingURL=main.js.map

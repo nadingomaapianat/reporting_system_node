@@ -12,8 +12,15 @@ import { RealtimeService } from './realtime.service';
 
 @WebSocketGateway({
   cors: {
-    origin: ['https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai'],
+    origin: [
+      'https://reporting-system-frontend.pianat.ai',
+      'http://localhost:3000',
+      'http://localhost:8000',
+      'http://10.240.53.65:8000',
+      'http://10.240.53.65:3000', // Frontend production URL
+    ],
     credentials: true,
+    methods: ['GET', 'POST'],
   },
 })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {

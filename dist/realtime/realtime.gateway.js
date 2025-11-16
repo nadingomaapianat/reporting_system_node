@@ -139,8 +139,15 @@ __decorate([
 exports.RealtimeGateway = RealtimeGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
-            origin: ['https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai'],
+            origin: [
+                'https://reporting-system-frontend.pianat.ai',
+                'http://localhost:3000',
+                'http://localhost:8000',
+                'http://10.240.53.65:8000',
+                'http://10.240.53.65:3000',
+            ],
             credentials: true,
+            methods: ['GET', 'POST'],
         },
     }),
     __metadata("design:paramtypes", [realtime_service_1.RealtimeService])
