@@ -302,9 +302,6 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
                 this.redisAvailable = false;
             }
         }
-        else {
-            this.logger.debug('Caching real-time data (Redis not available, using local cache)');
-        }
     }
     async generateIntelligentAlerts() {
         const alerts = [];

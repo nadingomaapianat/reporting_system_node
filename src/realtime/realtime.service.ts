@@ -361,9 +361,9 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
         this.logger.warn(`Failed to cache data in Redis: ${error instanceof Error ? error.message : 'Unknown error'}`);
         this.redisAvailable = false;
       }
-    } else {
-      this.logger.debug('Caching real-time data (Redis not available, using local cache)');
     }
+    // Removed debug log - Redis fallback is working silently
+    // If Redis is needed, it will log warnings on connection errors
   }
 
   private async generateIntelligentAlerts() {

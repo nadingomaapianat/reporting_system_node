@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception-filter';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -49,7 +48,7 @@ async function bootstrap() {
     });
   });
 
-  app.useGlobalFilters(new HttpExceptionFilter());
+ 
   app.useGlobalPipes(new ValidationPipe());
 
   app.enableCors({ 
