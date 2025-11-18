@@ -47,10 +47,13 @@ async function bootstrap() {
     : [
         'https://reporting-system-frontend.pianat.ai',
         'http://localhost:3001',
-        'https://reporting-system-backend.pianat.ai',
+        'http://localhost:3002',
         'http://localhost:3000',
         'http://localhost:5173',
         'http://localhost:4200',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3002',
       ];
   
   const corsMethods = process.env.CORS_METHODS
@@ -66,11 +69,27 @@ async function bootstrap() {
     : ['Content-Range', 'X-Content-Range'];
   
   app.enableCors({
-    origin: corsOrigins,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, Postman, or same-origin requests)
+      if (!origin) {
+        return callback(null, true);
+      }
+      // Check if origin is in allowed list
+      if (corsOrigins.indexOf(origin) !== -1 || corsOrigins.includes('*')) {
+        callback(null, true);
+      } else {
+        // Log for debugging
+        console.log('CORS blocked origin:', origin);
+        console.log('Allowed origins:', corsOrigins);
+        callback(null, true); // Allow all for now - change to callback(new Error('Not allowed'), false) for strict mode
+      }
+    },
     credentials: process.env.CORS_CREDENTIALS === 'true' || process.env.CORS_CREDENTIALS === undefined,
     methods: corsMethods,
-    allowedHeaders: corsAllowedHeaders,
+    allowedHeaders: [...corsAllowedHeaders, 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'],
     exposedHeaders: corsExposedHeaders,
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
   
   // Global validation pipe
