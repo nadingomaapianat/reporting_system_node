@@ -7,15 +7,61 @@ import * as bodyParser from 'body-parser';
 import * as express from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
-
-  // Add CSP header
-  app.use((req, res, next) => {
-    res.setHeader(
-      'Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
-    );
-    next();
+  const app = await NestFactory.create(AppModule);
+  
+  // Security middleware
+  app.use(helmet());
+  
+  // CORS configuration - Reading from environment variables
+  const corsOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+    : [
+        'https://reporting-system-frontend.pianat.ai',
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:4200',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3002',
+        
+      ];
+  
+  const corsMethods = process.env.CORS_METHODS
+    ? process.env.CORS_METHODS.split(',').map(method => method.trim())
+    : ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
+  
+  const corsAllowedHeaders = process.env.CORS_ALLOWED_HEADERS
+    ? process.env.CORS_ALLOWED_HEADERS.split(',').map(header => header.trim())
+    : ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'];
+  
+  const corsExposedHeaders = process.env.CORS_EXPOSED_HEADERS
+    ? process.env.CORS_EXPOSED_HEADERS.split(',').map(header => header.trim())
+    : ['Content-Range', 'X-Content-Range'];
+  
+  app.enableCors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps, curl, Postman, or same-origin requests)
+      if (!origin) {
+        return callback(null, true);
+      }
+      // Check if origin is in allowed list
+      if (corsOrigins.indexOf(origin) !== -1 || corsOrigins.includes('*')) {
+        callback(null, true);
+      } else {
+        // Log for debugging
+        console.log('CORS blocked origin:', origin);
+        console.log('Allowed origins:', corsOrigins);
+        callback(null, true); // Allow all for now - change to callback(new Error('Not allowed'), false) for strict mode
+      }
+    },
+    credentials: process.env.CORS_CREDENTIALS === 'true' || process.env.CORS_CREDENTIALS === undefined,
+    methods: corsMethods,
+    allowedHeaders: [...corsAllowedHeaders, 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'],
+    exposedHeaders: corsExposedHeaders,
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   });
 
   app.use((req, res, next) => {
