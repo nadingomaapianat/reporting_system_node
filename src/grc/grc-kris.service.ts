@@ -742,7 +742,10 @@ export class GrcKrisService {
   }
 
   async getTotalKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["k.isDeleted = 0"];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
@@ -765,24 +768,27 @@ export class GrcKrisService {
       FROM Kris k
       ${whereSql}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
   async getPendingPreparerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL", "ISNULL(k.preparerStatus, '') <> 'sent'"];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
@@ -801,25 +807,28 @@ export class GrcKrisService {
       FROM Kris k
       ${whereSql}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getPendingCheckerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = [
       "k.isDeleted = 0",
       "k.deletedAt IS NULL",
@@ -844,25 +853,28 @@ export class GrcKrisService {
       FROM Kris k
       ${whereSql}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getPendingReviewerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = [
       "k.isDeleted = 0",
       "k.deletedAt IS NULL",
@@ -887,25 +899,28 @@ export class GrcKrisService {
       FROM Kris k
       ${whereSql}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getPendingAcceptanceKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = [
       "k.isDeleted = 0",
       "k.deletedAt IS NULL",
@@ -929,19 +944,19 @@ export class GrcKrisService {
       FROM Kris k
       ${whereSql}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
@@ -958,7 +973,10 @@ export class GrcKrisService {
 
   // Detail endpoints for info icons
   async getKrisByStatus(status: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
     
     // Map status to SQL conditions
@@ -1004,25 +1022,28 @@ export class GrcKrisService {
       FROM Kris k
       ${whereSql}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getKrisByLevel(level: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     // Build date filter
     let dateFilter = '';
@@ -1082,7 +1103,7 @@ export class GrcKrisService {
       FROM Derived
       WHERE level_bucket = '${level === 'Unknown' ? 'Unknown' : level.replace(/'/g, "''")}'
       ORDER BY createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     
     const countQuery = `
@@ -1136,18 +1157,21 @@ export class GrcKrisService {
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getKrisByFunction(functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
     
     // Handle function filter
@@ -1189,25 +1213,28 @@ export class GrcKrisService {
       LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getKrisWithAssessmentsByFunction(functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     // Build date filter for assessments - MUST match kriAssessmentCountQuery
     let dateFilter = '';
@@ -1255,7 +1282,7 @@ export class GrcKrisService {
         ${functionFilter}
         ${dateFilter}
       ORDER BY kv.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     
     // Count total assessment records (not distinct KRIs) to match dashboard
@@ -1285,18 +1312,21 @@ export class GrcKrisService {
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getKrisByFrequency(frequency: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
     
     // Handle frequency filter
@@ -1322,25 +1352,28 @@ export class GrcKrisService {
       FROM Kris k
       ${whereSql}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getRisksByKriName(kriName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     // Handle KRI name filter
     // Decode URL-encoded parameter (handles Arabic and special characters)
@@ -1433,7 +1466,7 @@ export class GrcKrisService {
         ${startDate ? `AND k.createdAt >= '${startDate}'` : ''}
         ${endDate ? `AND k.createdAt <= '${endDate}'` : ''}
       ORDER BY r.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     
     console.log('[getRisksByKriName] Data query:', dataQuery);
@@ -1471,18 +1504,21 @@ export class GrcKrisService {
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getKrisByMonthYear(monthYear: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
     
     // Parse month/year string (e.g., "Jan 2025" or "January 2025")
@@ -1540,25 +1576,28 @@ export class GrcKrisService {
       ${whereSql}
       ${monthFilter}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getKriAssessmentsByMonthAndLevel(monthYear: string, assessmentLevel: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     // Build date filter for assessments - matching the chart query format
     let dateFilter = '';
@@ -1650,7 +1689,7 @@ export class GrcKrisService {
         ${monthFilter}
         ${dateFilter}
       ORDER BY kv.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     
     const countQuery = `
@@ -1674,18 +1713,21 @@ export class GrcKrisService {
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getKrisByOverdueStatus(overdueStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
     
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
@@ -1733,19 +1775,19 @@ export class GrcKrisService {
       ${whereSql}
       ${statusFilter}
       ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const data = await this.databaseService.query(dataQuery);
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     };
   }

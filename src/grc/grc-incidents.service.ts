@@ -805,7 +805,10 @@ export class GrcIncidentsService {
   }
 
   async getTotalIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["i.isDeleted = 0"]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
@@ -829,25 +832,28 @@ export class GrcIncidentsService {
       FROM Incidents i
       ${whereSql}
       ORDER BY i.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     }
   }
 
   async getPendingPreparerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["i.isDeleted = 0", "i.deletedAt IS NULL", "ISNULL(i.preparerStatus, '') <> 'sent'"]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
@@ -866,25 +872,28 @@ export class GrcIncidentsService {
       FROM Incidents i
       ${whereSql}
       ORDER BY i.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     }
   }
 
   async getPendingCheckerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = [
       "i.isDeleted = 0",
       "i.deletedAt IS NULL",
@@ -909,25 +918,28 @@ export class GrcIncidentsService {
       FROM Incidents i
       ${whereSql}
       ORDER BY i.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     }
   }
 
   async getPendingReviewerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = [
       "i.isDeleted = 0",
       "i.deletedAt IS NULL",
@@ -952,25 +964,28 @@ export class GrcIncidentsService {
       FROM Incidents i
       ${whereSql}
       ORDER BY i.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     }
   }
 
   async getPendingAcceptanceIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
-    const offset = (page - 1) * limit
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = [
       "i.isDeleted = 0",
       "i.deletedAt IS NULL",
@@ -994,19 +1009,19 @@ export class GrcIncidentsService {
       FROM Incidents i
       ${whereSql}
       ORDER BY i.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
 
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
-        hasPrev: page > 1
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
       }
     }
   }
@@ -1019,7 +1034,10 @@ export class GrcIncidentsService {
     endDate?: string
   ) {
     try {
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Decode URL-encoded parameter (handles Arabic and special characters)
       let decodedCategory = category;
@@ -1063,7 +1081,7 @@ export class GrcIncidentsService {
           AND c.deletedAt IS NULL
         ${whereSql}
         ORDER BY i.createdAt DESC
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
 
       const result = await this.databaseService.query(query);
@@ -1090,12 +1108,12 @@ export class GrcIncidentsService {
           recoveryAmount: row.recovery_amount || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1112,7 +1130,10 @@ export class GrcIncidentsService {
     endDate?: string
   ) {
     try {
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Build date filter - match the chart query logic (uses createdAt, not occurrence_date)
       // The chart query uses buildDateFilter(timeframe) which filters by createdAt
@@ -1150,8 +1171,8 @@ export class GrcIncidentsService {
       `;
 
       const queryParams = eventType === 'Unknown' || eventType === 'unknown' 
-        ? [offset, limit] 
-        : [eventType, offset, limit];
+        ? [offset, limitInt] 
+        : [eventType, offset, limitInt];
 
       const result = await this.databaseService.query(query, queryParams);
 
@@ -1177,12 +1198,12 @@ export class GrcIncidentsService {
           recoveryAmount: row.recovery_amount || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1200,7 +1221,10 @@ export class GrcIncidentsService {
   ) {
     try {
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
         SELECT 
@@ -1219,7 +1243,7 @@ export class GrcIncidentsService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [financialImpact, offset, limit]);
+      const result = await this.databaseService.query(query, [financialImpact, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(*) as total
@@ -1241,12 +1265,12 @@ export class GrcIncidentsService {
           recoveryAmount: row.recovery_amount || 0
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1264,7 +1288,10 @@ export class GrcIncidentsService {
   ) {
     try {
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Decode URL-encoded parameter (handles Arabic and special characters)
       let decodedStatus = status;
@@ -1322,7 +1349,7 @@ export class GrcIncidentsService {
           ${dateFilter}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS
-        FETCH NEXT ${limit} ROWS ONLY
+        FETCH NEXT ${limitInt} ROWS ONLY
       `;
 
       const result = await this.databaseService.query(query);
@@ -1346,12 +1373,12 @@ export class GrcIncidentsService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1368,7 +1395,10 @@ export class GrcIncidentsService {
     endDate?: string
   ) {
     try {
-      const offset = (page - 1) * limit
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       // Parse month and year from inputs like 'Mar 2025' or '2025-03-01'
       let year: number | null = null
       let month: number | null = null
@@ -1413,7 +1443,7 @@ export class GrcIncidentsService {
         FROM Incidents i
         ${whereSql}
         ORDER BY i.createdAt DESC
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `
       const countQuery = `
         SELECT COUNT(*) AS total
@@ -1435,12 +1465,12 @@ export class GrcIncidentsService {
           createdAt: r.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       }
     } catch (error) {
@@ -1457,7 +1487,10 @@ export class GrcIncidentsService {
     endDate?: string
   ) {
     try {
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Build WHERE clause
       const whereParts: string[] = [
@@ -1497,7 +1530,7 @@ export class GrcIncidentsService {
         INNER JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id
         ${whereSql}
         ORDER BY i.createdAt DESC
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
       
       const countQuery = `
@@ -1523,12 +1556,12 @@ export class GrcIncidentsService {
           recoveryAmount: r.recovery_amount || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1544,7 +1577,10 @@ export class GrcIncidentsService {
     endDate?: string
   ) {
     try {
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const whereParts: string[] = [
         'i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())',
@@ -1571,7 +1607,7 @@ export class GrcIncidentsService {
         FROM Incidents i
         ${whereSql}
         ORDER BY recognition_months DESC
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
       
       const countQuery = `
@@ -1597,12 +1633,12 @@ export class GrcIncidentsService {
           recognition_months: r.recognition_months || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1632,7 +1668,10 @@ export class GrcIncidentsService {
         throw new Error(`Invalid month: ${month}. Must be between 1 and 12`);
       }
       
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const whereParts: string[] = [
         'i.isDeleted = 0',
@@ -1656,7 +1695,7 @@ export class GrcIncidentsService {
         FROM Incidents i
         ${whereSql}
         ORDER BY i.createdAt DESC
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
       
       const countQuery = `
@@ -1681,12 +1720,12 @@ export class GrcIncidentsService {
           recoveryAmount: r.recovery_amount || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1726,7 +1765,10 @@ export class GrcIncidentsService {
         throw new Error(`Invalid period format: ${period}. Expected YYYY-MM or MM/YYYY`);
       }
       
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Build WHERE clause - match chart query exactly
       const whereParts: string[] = [
@@ -1783,7 +1825,7 @@ export class GrcIncidentsService {
         ${joinClause}
         ${whereSql}
         ORDER BY i.createdAt DESC
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
       
       const countQuery = `
@@ -1809,12 +1851,12 @@ export class GrcIncidentsService {
           recoveryAmount: r.recovery_amount || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1831,7 +1873,10 @@ export class GrcIncidentsService {
     endDate?: string
   ) {
     try {
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Build WHERE clause - match comprehensive query exactly
       const whereParts: string[] = [
@@ -1887,7 +1932,7 @@ export class GrcIncidentsService {
         ${joinClause}
         ${whereSql}
         ORDER BY i.createdAt DESC
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+        OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
       
       const countQuery = `
@@ -1913,12 +1958,12 @@ export class GrcIncidentsService {
           recoveryAmount: r.recovery_amount || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
