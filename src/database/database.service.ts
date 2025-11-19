@@ -9,21 +9,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
-    //for bank
     const dbHost = this.configService.get<string>('DB_HOST');
-    const dbPort = parseInt(this.configService.get<string>('DB_PORT'), 10);
+    const dbPort = parseInt(this.configService.get<string>('DB_PORT') || '1433', 10);
     const dbName = this.configService.get<string>('DB_NAME');
-    
-    // إعدادات Windows Authentication
-    const dbDomain = this.configService.get<string>('DB_Domain');
     const dbUsername = this.configService.get<string>('DB_USERNAME');
     const dbPassword = this.configService.get<string>('DB_PASSWORD');
 
-    // إعدادات NTLM Authentication - same as adib-backend
-    const config: any = {
+    const config: sql.config = {
       server: dbHost,
       port: dbPort,
       database: dbName,
+      user: dbUsername,
+      password: dbPassword,
       options: {
         requestTimeout: parseInt(
           this.configService.get<string>('DB_REQUEST_TIMEOUT') || '60000',
@@ -37,20 +34,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         trustServerCertificate: true,
         enableArithAbort: true,
         packetSize: 32768,
-        // إعدادات Windows Authentication
-        trustedConnection: true,
-        integratedSecurity: true
       },
-      // إعدادات NTLM Authentication - same as adib-backend
-      authentication: {
-        type: 'ntlm',
-        options: {
-          domain: dbDomain,
-          userName: dbUsername,
-          password: dbPassword
-        }
-      },
-      // إعدادات تجمع الاتصالات
       pool: {
         max: parseInt(
           this.configService.get<string>('DB_POOL_MAX') || '20',
@@ -69,21 +53,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     try {
       this.pool = await sql.connect(config);
-      const authInfo = dbDomain && dbUsername 
-        ? `${dbDomain}\\${dbUsername}` 
-        : dbUsername || 'NTLM';
-      console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName} using NTLM authentication (${authInfo})!`);
+      console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName}`);
     } catch (err) {
       console.error('Database connection failed:', err);
-      const authInfo = dbDomain && dbUsername 
-        ? `${dbDomain}\\${dbUsername}` 
-        : dbUsername || 'NTLM';
-      console.error(`Connection details: server=${dbHost}:${dbPort}, database=${dbName}, auth=${authInfo}`);
+      console.error(`Connection details: server=${dbHost}:${dbPort}, database=${dbName}, user=${dbUsername}`);
       if (err instanceof Error) {
         console.error(`Error message: ${err.message}`);
         console.error(`Error code: ${(err as any).code || 'N/A'}`);
       }
-      console.log('Continuing with mock data...');
+      throw err;
     }
   }
 
