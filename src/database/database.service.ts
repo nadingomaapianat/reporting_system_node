@@ -103,7 +103,19 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       const request = this.pool.request();
       if (params && params.length > 0) {
         params.forEach((param, index) => {
-          request.input(`param${index}`, param);
+          // Check if parameter is used in OFFSET or FETCH clauses (which require integers)
+          const paramPlaceholder = `@param${index}`;
+          // Use regex to match OFFSET/FETCH with the parameter (case-insensitive)
+          const offsetPattern = new RegExp(`OFFSET\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`, 'i');
+          const fetchPattern = new RegExp(`FETCH\\s+NEXT\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`, 'i');
+          const isOffsetOrFetch = offsetPattern.test(sqlQuery) || fetchPattern.test(sqlQuery);
+          
+          // If it's a number and used in OFFSET/FETCH, explicitly type it as integer
+          if (isOffsetOrFetch && (typeof param === 'number' || !isNaN(Number(param)))) {
+            request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
+          } else {
+            request.input(`param${index}`, param);
+          }
         });
       }
       const result = await request.query(sqlQuery);

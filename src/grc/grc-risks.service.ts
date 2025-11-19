@@ -468,7 +468,10 @@ export class GrcRisksService extends BaseDashboardService {
       cardType = 'newRisks';
     }
     const dateFilter = this.buildDateFilter(startDate, endDate, 'createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     let dataQuery: string | null = null;
     let countQuery: string | null = null;
@@ -601,29 +604,32 @@ export class GrcRisksService extends BaseDashboardService {
     }
 
     const [data, count] = await Promise.all([
-      this.databaseService.query(dataQuery!, [offset, limit]),
+      this.databaseService.query(dataQuery!, [offset, limitInt]),
       this.databaseService.query(countQuery!)
     ]);
 
     const total = count[0]?.total || count[0]?.count || 0;
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limitInt);
     
     return {
       data,
       pagination: {
-      page,
-        limit,
+      page: pageInt,
+        limit: limitInt,
         total,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getHighRisks(page: number, limit: number, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate);
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const query = `
       SELECT 
@@ -647,29 +653,32 @@ export class GrcRisksService extends BaseDashboardService {
     `;
     
     const [data, countResult] = await Promise.all([
-      this.databaseService.query(query, [offset, limit]),
+      this.databaseService.query(query, [offset, limitInt]),
       this.databaseService.query(countQuery)
     ]);
     
     const total = countResult[0]?.total || 0;
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limitInt);
     
     return {
       data,
       pagination: {
         total,
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getMediumRisks(page: number, limit: number, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate);
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const query = `
       SELECT 
@@ -693,29 +702,32 @@ export class GrcRisksService extends BaseDashboardService {
     `;
     
     const [data, countResult] = await Promise.all([
-      this.databaseService.query(query, [offset, limit]),
+      this.databaseService.query(query, [offset, limitInt]),
       this.databaseService.query(countQuery)
     ]);
     
     const total = countResult[0]?.total || 0;
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limitInt);
     
     return {
       data,
       pagination: {
         total,
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getLowRisks(page: number, limit: number, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate);
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const query = `
       SELECT 
@@ -739,29 +751,32 @@ export class GrcRisksService extends BaseDashboardService {
     `;
     
     const [data, countResult] = await Promise.all([
-      this.databaseService.query(query, [offset, limit]),
+      this.databaseService.query(query, [offset, limitInt]),
       this.databaseService.query(countQuery)
     ]);
     
     const total = countResult[0]?.total || 0;
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limitInt);
     
     return {
       data,
       pagination: {
         total,
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getRiskReduction(page: number, limit: number, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate);
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const query = `
       SELECT 
@@ -785,29 +800,32 @@ export class GrcRisksService extends BaseDashboardService {
     `;
     
     const [data, countResult] = await Promise.all([
-      this.databaseService.query(query, [offset, limit]),
+      this.databaseService.query(query, [offset, limitInt]),
       this.databaseService.query(countQuery)
     ]);
     
     const total = countResult[0]?.total || 0;
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limitInt);
     
     return {
       data,
       pagination: {
         total,
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getNewRisks(page: number, limit: number, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate);
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const query = `
       SELECT 
@@ -828,22 +846,22 @@ export class GrcRisksService extends BaseDashboardService {
     `;
     
     const [data, countResult] = await Promise.all([
-      this.databaseService.query(query, [offset, limit]),
+      this.databaseService.query(query, [offset, limitInt]),
       this.databaseService.query(countQuery)
     ]);
     
     const total = countResult[0]?.total || 0;
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(total / limitInt);
     
     return {
       data,
       pagination: {
         total,
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         totalPages,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
       }
     };
   }
@@ -909,7 +927,10 @@ export class GrcRisksService extends BaseDashboardService {
   // Detail endpoints for charts and tables
   async getRisksByCategory(category: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const isUncategorized = category === 'Uncategorized';
     let categoryFilter = '';
@@ -951,7 +972,7 @@ export class GrcRisksService extends BaseDashboardService {
       WHERE r.isDeleted = 0 ${dateFilter} ${countCategoryFilter}
     `;
     
-    const dataParams = isUncategorized ? [offset, limit] : [offset, limit, category];
+    const dataParams = isUncategorized ? [offset, limitInt] : [offset, limitInt, category];
     const countParams = isUncategorized ? [] : [category];
     
     try {
@@ -963,12 +984,12 @@ export class GrcRisksService extends BaseDashboardService {
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -982,7 +1003,10 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByEventType(eventType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const isUnknown = eventType === 'Unknown';
     let eventTypeFilter = '';
@@ -1022,7 +1046,7 @@ export class GrcRisksService extends BaseDashboardService {
       WHERE r.isDeleted = 0 ${dateFilter} ${countEventTypeFilter}
     `;
     
-    const dataParams = isUnknown ? [offset, limit] : [offset, limit, eventType];
+    const dataParams = isUnknown ? [offset, limitInt] : [offset, limitInt, eventType];
     const countParams = isUnknown ? [] : [eventType];
     
     try {
@@ -1034,12 +1058,12 @@ export class GrcRisksService extends BaseDashboardService {
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1053,7 +1077,10 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByQuarter(quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     // Extract quarter and year from string like "Q1 2025" or "2025-Q2"
     let quarterNum: number;
@@ -1104,19 +1131,19 @@ export class GrcRisksService extends BaseDashboardService {
     
     try {
       const [data, count] = await Promise.all([
-        this.databaseService.query(dataQuery, [offset, limit, quarterNum, year]),
+        this.databaseService.query(dataQuery, [offset, limitInt, quarterNum, year]),
         this.databaseService.query(countQuery, [quarterNum, year])
       ]);
       
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1129,7 +1156,10 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByApprovalStatus(approvalStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     let dataQuery = '';
     let countQuery = '';
@@ -1210,19 +1240,19 @@ export class GrcRisksService extends BaseDashboardService {
     
     try {
       const [data, count] = await Promise.all([
-        this.databaseService.query(dataQuery, [offset, limit]),
+        this.databaseService.query(dataQuery, [offset, limitInt]),
         this.databaseService.query(countQuery)
       ]);
       
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1234,7 +1264,10 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByFinancialImpact(financialImpact: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     let financialFilter = '';
     if (financialImpact === 'Low') {
@@ -1273,26 +1306,29 @@ export class GrcRisksService extends BaseDashboardService {
     `;
     
     const [data, count] = await Promise.all([
-      this.databaseService.query(dataQuery, [offset, limit]),
+      this.databaseService.query(dataQuery, [offset, limitInt]),
       this.databaseService.query(countQuery)
     ]);
     
     return {
       data,
       pagination: {
-        page,
-        limit,
+        page: pageInt,
+        limit: limitInt,
         total: count[0]?.total || 0,
-        totalPages: Math.ceil((count[0]?.total || 0) / limit),
-        hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-        hasPrev: page > 1
+        totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+        hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+        hasPrev: pageInt > 1
       }
     };
   }
 
   async getRisksByFunction(functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const hasFunction = functionName && functionName !== '';
     let functionFilter = '';
@@ -1330,7 +1366,7 @@ export class GrcRisksService extends BaseDashboardService {
       WHERE r.isDeleted = 0 ${dateFilter} ${countFunctionFilter}
     `;
     
-    const params = hasFunction ? [offset, limit, functionName] : [offset, limit];
+    const params = hasFunction ? [offset, limitInt, functionName] : [offset, limitInt];
     const countParams = hasFunction ? [functionName] : [];
     
     try {
@@ -1342,12 +1378,12 @@ export class GrcRisksService extends BaseDashboardService {
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1359,7 +1395,10 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByBusinessProcess(processName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const dataQuery = `
       SELECT 
@@ -1388,19 +1427,19 @@ export class GrcRisksService extends BaseDashboardService {
     
     try {
       const [data, count] = await Promise.all([
-        this.databaseService.query(dataQuery, [offset, limit, processName]),
+        this.databaseService.query(dataQuery, [offset, limitInt, processName]),
         this.databaseService.query(countQuery, [processName])
       ]);
       
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1412,7 +1451,10 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByName(riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const dataQuery = `
       SELECT 
@@ -1447,19 +1489,19 @@ export class GrcRisksService extends BaseDashboardService {
     
     try {
       const [data, count] = await Promise.all([
-        this.databaseService.query(dataQuery, [offset, limit, riskName]),
+        this.databaseService.query(dataQuery, [offset, limitInt, riskName]),
         this.databaseService.query(countQuery, [riskName])
       ]);
       
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1471,7 +1513,10 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByControlName(controlName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const dataQuery = `
       SELECT 
@@ -1506,19 +1551,19 @@ export class GrcRisksService extends BaseDashboardService {
     
     try {
       const [data, count] = await Promise.all([
-        this.databaseService.query(dataQuery, [offset, limit, controlName]),
+        this.databaseService.query(dataQuery, [offset, limitInt, controlName]),
         this.databaseService.query(countQuery, [controlName])
       ]);
       
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1530,7 +1575,10 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksForComparison(riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    const offset = (page - 1) * limit;
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
     
     const dataQuery = `
       SELECT 
@@ -1561,19 +1609,19 @@ export class GrcRisksService extends BaseDashboardService {
     
     try {
       const [data, count] = await Promise.all([
-        this.databaseService.query(dataQuery, [offset, limit, riskName]),
+        this.databaseService.query(dataQuery, [offset, limitInt, riskName]),
         this.databaseService.query(countQuery, [riskName])
       ]);
       
       return {
         data,
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limit),
-          hasNext: page < Math.ceil((count[0]?.total || 0) / limit),
-          hasPrev: page > 1
+          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
+          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {

@@ -305,10 +305,13 @@ export abstract class BaseDashboardService {
       }
       
       // Add pagination (ensure ORDER BY exists for SQL Server OFFSET)
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const hasOrderBy = /\border\s+by\b/i.test(dataQuery);
       const orderClause = hasOrderBy ? '' : ' ORDER BY createdAt DESC';
-      const paginatedQuery = `${dataQuery}${orderClause} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+      const paginatedQuery = `${dataQuery}${orderClause} OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
       
       const [data, countResult] = await Promise.all([
         this.databaseService.query(paginatedQuery),
@@ -316,7 +319,7 @@ export abstract class BaseDashboardService {
       ]);
       
       const total = countResult[0]?.total || countResult[0]?.count || 0;
-      const totalPages = Math.ceil(total / limit);
+      const totalPages = Math.ceil(total / limitInt);
       
       return {
         data: data.map((row, index) => ({
@@ -325,12 +328,12 @@ export abstract class BaseDashboardService {
           ...row
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
           totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
+          hasNext: pageInt < totalPages,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {

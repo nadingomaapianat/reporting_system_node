@@ -71,6 +71,11 @@ export class GrcDashboardService extends BaseDashboardService {
   // Get controls by quarter for detail modal
   async getControlsByQuarter(quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
     try {
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
+
       // Parse quarter string like "Q1 2024"
       const match = quarter.match(/Q(\d+)\s+(\d+)/);
       if (!match) {
@@ -98,8 +103,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param3 ROWS ONLY
       `;
 
-      const offset = (page - 1) * limit;
-      const result = await this.databaseService.query(query, [year, quarterNum, offset, limit]);
+      const result = await this.databaseService.query(query, [year, quarterNum, offset, limitInt]);
 
       // Get total count
       const countQuery = `
@@ -120,12 +124,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -143,7 +147,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
         SELECT 
@@ -161,7 +168,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [department, offset, limit]);
+      const result = await this.databaseService.query(query, [department, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(*) as total
@@ -182,12 +189,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -205,10 +212,13 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const isNotSpecified = type === 'Not Specified';
       const typeCondition = isNotSpecified ? '(c.type IS NULL OR c.type = \'\')' : 'c.type = @param0';
-      const params = isNotSpecified ? [offset, limit] : [type, offset, limit];
+      const params = isNotSpecified ? [offset, limitInt] : [type, offset, limitInt];
       
       const query = `
         SELECT 
@@ -244,12 +254,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -267,10 +277,13 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const isNotSpecified = level === 'Not Specified';
       const levelCondition = isNotSpecified ? '(c.entityLevel IS NULL OR c.entityLevel = \'\')' : 'c.entityLevel = @param0';
-      const params = isNotSpecified ? [offset, limit] : [level, offset, limit];
+      const params = isNotSpecified ? [offset, limitInt] : [level, offset, limitInt];
       
       const query = `
         SELECT 
@@ -306,12 +319,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -329,7 +342,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
         SELECT 
@@ -345,7 +361,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [frequency, offset, limit]);
+      const result = await this.databaseService.query(query, [frequency, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(*) as total
@@ -364,12 +380,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -387,14 +403,17 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Handle "Unknown" case (NULL or empty risk_response)
       const isUnknown = riskResponse === 'Unknown' || riskResponse === 'NULL' || riskResponse === '';
       const riskResponseCondition = isUnknown 
         ? '(c.risk_response IS NULL OR c.risk_response = \'\')'
         : 'c.risk_response = @param0';
-      const params = isUnknown ? [offset, limit] : [riskResponse, offset, limit];
+      const params = isUnknown ? [offset, limitInt] : [riskResponse, offset, limitInt];
       
       const query = `
         SELECT 
@@ -430,12 +449,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -453,7 +472,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const antiFraudValue = antiFraud === 'Anti-Fraud' ? 1 : 0;
       
       const query = `
@@ -470,7 +492,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [antiFraudValue, offset, limit]);
+      const result = await this.databaseService.query(query, [antiFraudValue, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(*) as total
@@ -489,12 +511,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -512,7 +534,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const isIcofr = icofrStatus === 'ICOFR';
       
       const query = `
@@ -535,7 +560,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param1 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [offset, limit]);
+      const result = await this.databaseService.query(query, [offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(*) as total
@@ -560,12 +585,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -583,7 +608,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'point.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
         SELECT 
@@ -600,7 +628,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [principle, offset, limit]);
+      const result = await this.databaseService.query(query, [principle, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(point.id) as total
@@ -620,12 +648,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -643,7 +671,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
         SELECT DISTINCT
@@ -663,7 +694,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [component, offset, limit]);
+      const result = await this.databaseService.query(query, [component, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(DISTINCT c.id) as total
@@ -686,12 +717,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -709,7 +740,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'point.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
         SELECT 
@@ -727,7 +761,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [component, offset, limit]);
+      const result = await this.databaseService.query(query, [component, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(point.id) as total
@@ -748,12 +782,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -772,7 +806,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const isKeyControl = keyControl === 'Key Controls' || keyControl === '1' || keyControl === 'true';
       const keyControlValue = isKeyControl ? 1 : 0;
       
@@ -781,7 +818,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const departmentCondition = isUnassigned 
         ? '(jt.name IS NULL OR jt.name = \'\')'
         : 'jt.name = @param0';
-      const params = isUnassigned ? [keyControlValue, offset, limit] : [department, keyControlValue, offset, limit];
+      const params = isUnassigned ? [keyControlValue, offset, limitInt] : [department, keyControlValue, offset, limitInt];
       
       const query = `
         SELECT 
@@ -821,12 +858,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -845,7 +882,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const isKeyControl = keyControl === 'Key Controls' || keyControl === '1' || keyControl === 'true';
       const keyControlValue = isKeyControl ? 1 : 0;
       
@@ -854,7 +894,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const processCondition = isUnassigned 
         ? '(p.name IS NULL OR p.name = \'\')'
         : 'p.name = @param0';
-      const params = isUnassigned ? [keyControlValue, offset, limit] : [process, keyControlValue, offset, limit];
+      const params = isUnassigned ? [keyControlValue, offset, limitInt] : [process, keyControlValue, offset, limitInt];
       
       const query = `
         SELECT 
@@ -896,12 +936,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -920,7 +960,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const isKeyControl = keyControl === 'Key Controls' || keyControl === '1' || keyControl === 'true';
       const keyControlValue = isKeyControl ? 1 : 0;
       
@@ -941,7 +984,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param3 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [businessUnit, keyControlValue, offset, limit]);
+      const result = await this.databaseService.query(query, [businessUnit, keyControlValue, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(*) as total
@@ -963,12 +1006,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -986,14 +1029,17 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Handle "Unassigned Assertion" case
       const isUnassigned = assertionName === 'Unassigned Assertion';
       const assertionCondition = isUnassigned 
         ? '(a.name IS NULL OR a.name = \'\')'
         : 'a.name = @param0';
-      const params = isUnassigned ? [offset, limit] : [assertionName, offset, limit];
+      const params = isUnassigned ? [offset, limitInt] : [assertionName, offset, limitInt];
       
       const query = `
         SELECT 
@@ -1031,12 +1077,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1055,7 +1101,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Build ICOFR status WHERE condition based on the status value
       let icofrWhereCondition = '';
@@ -1109,7 +1158,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [component, offset, limit]);
+      const result = await this.databaseService.query(query, [component, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(DISTINCT c.id) as total
@@ -1134,12 +1183,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1160,7 +1209,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       
       const quarterMap: Record<number, string> = {
         1: 'quarterOne',
@@ -1201,7 +1253,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param4 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [functionName, quarterValue, year, offset, limit]);
+      const result = await this.databaseService.query(query, [functionName, quarterValue, year, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(DISTINCT c.id) as total
@@ -1228,12 +1280,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
@@ -1251,7 +1303,10 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'a.createdAt');
-      const offset = (page - 1) * limit;
+      // Ensure page and limit are integers
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
       const isOverdue = status === 'Overdue';
       
       const query = `
@@ -1271,7 +1326,7 @@ export class GrcDashboardService extends BaseDashboardService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const result = await this.databaseService.query(query, [status, offset, limit]);
+      const result = await this.databaseService.query(query, [status, offset, limitInt]);
 
       const countQuery = `
         SELECT COUNT(*) as total
@@ -1293,12 +1348,12 @@ export class GrcDashboardService extends BaseDashboardService {
           createdAt: row.created_at || null
         })),
         pagination: {
-          page,
-          limit,
+          page: pageInt,
+          limit: limitInt,
           total,
-          totalPages: Math.ceil(total / limit),
-          hasNext: page * limit < total,
-          hasPrev: page > 1
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
         }
       };
     } catch (error) {
