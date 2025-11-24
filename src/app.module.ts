@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -10,6 +10,9 @@ import { SimpleChartController } from './shared/simple-chart.controller';
 import { AutoDashboardService } from './shared/auto-dashboard.service';
 import { ChartRegistryService } from './shared/chart-registry.service';
 import { DatabaseService } from './database/database.service';
+import { CsrfModule } from './csrf/csrf.module';
+import { CsrfMiddleware } from './middleware/csrf.middleware';
+import * as cookieParser from 'cookie-parser';
 
 @Module({
   imports: [
@@ -28,8 +31,15 @@ import { DatabaseService } from './database/database.service';
     DashboardModule,
     AuthModule,
     GrcModule,
+    CsrfModule,
   ],
   controllers: [SimpleChartController],
   providers: [AutoDashboardService, ChartRegistryService, DatabaseService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(cookieParser(), CsrfMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+  }
+}
