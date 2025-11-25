@@ -12,6 +12,7 @@ import { ChartRegistryService } from './shared/chart-registry.service';
 import { DatabaseService } from './database/database.service';
 import { CsrfModule } from './csrf/csrf.module';
 import { CsrfMiddleware } from './middleware/csrf.middleware';
+import { JwtAuthMiddleware } from './auth/jwt-auth.middleware';
 import * as cookieParser from 'cookie-parser';
 
 @Module({
@@ -34,10 +35,15 @@ import * as cookieParser from 'cookie-parser';
     CsrfModule,
   ],
   controllers: [SimpleChartController],
-  providers: [AutoDashboardService, ChartRegistryService, DatabaseService],
+  providers: [AutoDashboardService, ChartRegistryService, DatabaseService, JwtAuthMiddleware],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    // Apply JWT auth first, then CSRF
+    consumer
+      .apply(JwtAuthMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+    
     consumer
       .apply(cookieParser(), CsrfMiddleware)
       .forRoutes({ path: '*', method: RequestMethod.ALL });

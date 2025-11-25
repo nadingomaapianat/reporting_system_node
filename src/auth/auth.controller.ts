@@ -1,33 +1,66 @@
-import { Controller, Post, Body, Get, UseGuards } from '@nestjs/common';
-import { AuthService } from './auth.service';
+import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import * as jwt from 'jsonwebtoken';
 
 @Controller('api/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
-
-  @Post('login')
-  async login(@Body() loginDto: { email: string; password: string }) {
-    return this.authService.login(loginDto.email, loginDto.password);
-  }
-
-  @Post('register')
-  async register(@Body() registerDto: { email: string; password: string; name: string }) {
-    return this.authService.register(registerDto.email, registerDto.password, registerDto.name);
-  }
 
   @Get('profile')
-  async getProfile() {
-    // In a real app, this would use JWT guard
+  @UseGuards(JwtAuthGuard)
+  async getProfile(@Request() req: any) {
+    // User is attached to request by JwtAuthGuard
+    const user = req.user;
     return {
-      id: '1',
-      email: 'demo@example.com',
-      name: 'Demo User',
-      role: 'admin',
+      id: user?.id || '1',
+      email: user?.email || 'demo@example.com',
+      name: user?.name || 'Demo User',
+      role: user?.role || 'admin',
     };
   }
 
+  @Post('validate-token')
+  async validateToken(@Body() body: { token: string }): Promise<any> {
+    const { token } = body;
+
+    if (!token) {
+      return { success: false, message: 'Token is required' };
+    }
+
+    try {
+      const secretKey = 'GRC_ADIB_2025';
+      const decoded: any = jwt.verify(token, secretKey);
+
+      // Extract user info from token - matching v2_backend format exactly
+      const { group, title, name, id } = decoded;
+
+      return {
+        success: true,
+        data: { group, title, name, id },
+      };
+    } catch (error) {
+      console.error('Error validating token:', error);
+      return { success: false, message: 'Invalid or expired token' };
+    }
+  }
+
   @Post('logout')
-  async logout() {
-    return { message: 'Logged out successfully' };
+  @UseGuards(JwtAuthGuard)
+  async logout(@Request() req: any): Promise<any> {
+    try {
+      // Note: Session management is handled by v2_backend
+      // This endpoint validates the token and returns success
+      // The actual logout (isSessionActive update) should be done via v2_backend
+      
+      return {
+        isSuccess: true,
+        message: 'Logged out successfully',
+      };
+    } catch (error) {
+      console.error('Error during logout:', error);
+      return {
+        isSuccess: false,
+        message: 'An error occurred during logout',
+      };
+    }
   }
 }
