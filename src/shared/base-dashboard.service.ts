@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { fq } from './db-config';
 import { DatabaseService } from '../database/database.service';
 
+const DASHBOARD_DEFAULT_LIMIT =
+  (Number(process.env.DASHBOARD_DEFAULT_LIMIT) && Number(process.env.DASHBOARD_DEFAULT_LIMIT) > 0
+    ? Number(process.env.DASHBOARD_DEFAULT_LIMIT)
+    : 10);
+
 export interface DashboardConfig {
   name: string;
   tableName: string;
@@ -135,8 +140,10 @@ export abstract class BaseDashboardService {
       try {
         const query = table.query.replace('{dateFilter}', dateFilter);
         const result = await this.databaseService.query(query);
+        const tableLimit = this.getDefaultLimit();
+        const limitedResult = result.slice(0, tableLimit);
         
-        results[table.id] = result.map(row => {
+        results[table.id] = limitedResult.map(row => {
           const processedRow: any = {};
           for (const column of table.columns) {
             let value = row[column.key];
@@ -307,7 +314,7 @@ export abstract class BaseDashboardService {
       // Add pagination (ensure ORDER BY exists for SQL Server OFFSET)
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
-      const limitInt = Math.floor(Number(limit)) || 10;
+      const limitInt = this.clampLimit(limit);
       const offset = Math.floor((pageInt - 1) * limitInt);
       const hasOrderBy = /\border\s+by\b/i.test(dataQuery);
       const orderClause = hasOrderBy ? '' : ' ORDER BY createdAt DESC';
@@ -340,5 +347,18 @@ export abstract class BaseDashboardService {
       console.error(`Error fetching card data for ${cardType}:`, error);
       throw error;
     }
+  }
+
+  protected getDefaultLimit(): number {
+    return DASHBOARD_DEFAULT_LIMIT;
+  }
+
+  protected clampLimit(limit?: number): number {
+    const fallback = this.getDefaultLimit();
+    const parsed = Math.floor(Number(limit));
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return fallback;
+    }
+    return Math.min(parsed, fallback);
   }
 }
