@@ -42,9 +42,7 @@ async function bootstrap() {
   app.use(helmet());
   
   // CORS configuration - Reading from environment variables
-  const corsOrigins = process.env.CORS_ORIGINS
-    ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
-    : [
+  const corsOrigins =  [
         'https://reporting-system-frontend.pianat.ai',
         'http://localhost:3001',
         'http://localhost:3002',
@@ -62,7 +60,7 @@ async function bootstrap() {
   
   const corsAllowedHeaders = process.env.CORS_ALLOWED_HEADERS
     ? process.env.CORS_ALLOWED_HEADERS.split(',').map(header => header.trim())
-    : ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'];
+    : ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'x-csrf-token'];
   
   const corsExposedHeaders = process.env.CORS_EXPOSED_HEADERS
     ? process.env.CORS_EXPOSED_HEADERS.split(',').map(header => header.trim())
@@ -70,23 +68,32 @@ async function bootstrap() {
   
   app.enableCors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, curl, Postman, or same-origin requests)
+      // For CSRF token endpoint, require origin (block direct access)
+      // For other endpoints, allow requests with no origin (like mobile apps, curl, Postman, or same-origin requests)
+      // Note: CORS only applies to cross-origin requests, so same-origin requests don't send Origin header
+      
+      // If no origin, check if it's a same-origin request (allowed) or cross-origin without origin (blocked for security)
+      // In practice, cross-origin requests always have an Origin header
       if (!origin) {
+        // Same-origin requests don't have Origin header - this is normal and allowed
+        // But we'll validate in the controller for CSRF token endpoint
         return callback(null, true);
       }
+      
       // Check if origin is in allowed list
       if (corsOrigins.indexOf(origin) !== -1 || corsOrigins.includes('*')) {
         callback(null, true);
       } else {
         // Log for debugging
-        console.log('CORS blocked origin:', origin);
-        console.log('Allowed origins:', corsOrigins);
-        callback(null, true); // Allow all for now - change to callback(new Error('Not allowed'), false) for strict mode
+        console.warn('[CORS] Blocked origin:', origin);
+        console.warn('[CORS] Allowed origins:', corsOrigins);
+        // Block unauthorized origins for security
+        callback(new Error(`Origin ${origin} is not allowed by CORS policy`), false);
       }
     },
     credentials: process.env.CORS_CREDENTIALS === 'true' || process.env.CORS_CREDENTIALS === undefined,
     methods: corsMethods,
-    allowedHeaders: [...corsAllowedHeaders, 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'],
+    allowedHeaders: [...corsAllowedHeaders, 'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'x-csrf-token'],
     exposedHeaders: corsExposedHeaders,
     preflightContinue: false,
     optionsSuccessStatus: 204,
