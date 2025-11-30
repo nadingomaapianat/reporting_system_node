@@ -7,7 +7,7 @@ export class CsrfController {
   // Allowed origins for CSRF token requests (frontend only)
   private readonly allowedOrigins = [
     'https://reporting-system-frontend.pianat.ai',
-    'http://localhost:3000',
+    'https://reporting-system-frontend.pianat.ai',
     'http://localhost:3001',
     'http://localhost:5173',
     'http://localhost:4200',
