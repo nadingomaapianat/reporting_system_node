@@ -6,8 +6,8 @@ import { CsrfService } from './csrf.service';
 export class CsrfController {
   // Allowed origins for CSRF token requests (frontend only)
   private readonly allowedOrigins = [
-    'https://reporting-system-frontend.pianat.ai',
-    'https://reporting-system-frontend.pianat.ai',
+    'https://fawry-reporting.comply.now',
+    'https://fawry-reporting.comply.now',
     'http://localhost:3001',
     'http://localhost:5173',
     'http://localhost:4200',
