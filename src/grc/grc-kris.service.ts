@@ -1,39 +1,72 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
 
 @Injectable()
 export class GrcKrisService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly userFunctionAccess: UserFunctionAccessService,
+  ) {}
 
-  private buildDateFilter(timeframe?: string): string {
+  private buildDateFilter(timeframe?: string, startDate?: string, endDate?: string): string {
+    // If startDate and endDate are provided, use them
+    if (startDate || endDate) {
+      let filter = '';
+      if (startDate) {
+        filter += ` AND k.createdAt >= '${startDate}'`;
+      }
+      if (endDate) {
+        // Add one day to endDate to include the entire end date
+        const endDateObj = new Date(endDate);
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        filter += ` AND k.createdAt < '${endDateObj.toISOString()}'`;
+      }
+      return filter;
+    }
+    
+    // Otherwise use timeframe if provided
     if (!timeframe) return '';
     
     const now = new Date();
-    let startDate: Date;
+    let startDateObj: Date;
     
     switch (timeframe) {
       case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        startDateObj = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case '30d':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        startDateObj = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case '90d':
-        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        startDateObj = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
         break;
       case '1y':
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        startDateObj = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
         break;
       default:
         return '';
     }
     
-    return ` AND createdAt >= '${startDate.toISOString()}'`;
+    return ` AND k.createdAt >= '${startDateObj.toISOString()}'`;
   }
 
-  async getKrisDashboard(timeframe?: string) {
+  async getKrisDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string) {
     try {
-      const dateFilter = ''; // use full dataset per validated SQL
+      console.log('[getKrisDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
+      
+      const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+      console.log('[getKrisDashboard] Date filter:', dateFilter);
+
+      // Get user function access (super_admin_ sees everything)
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      console.log('[getKrisDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
+      
+      const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+      console.log('[getKrisDashboard] Function filter:', functionFilter);
 
       // Total KRIs (count)
       const totalKrisQuery = `
@@ -41,6 +74,8 @@ export class GrcKrisService {
         FROM Kris k
         WHERE k.isDeleted = 0
           AND k.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
       `;
       let totalKris = 0;
       try {
@@ -55,15 +90,17 @@ export class GrcKrisService {
         WITH KrisStatus AS (
           SELECT 
             CASE 
-              WHEN ISNULL(preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
-              WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
-              WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
-              WHEN ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
-              WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 'approved'
+              WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
+              WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
+              WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
+              WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
+              WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'approved'
               ELSE 'Other'
             END AS status
-          FROM Kris
-          WHERE isDeleted = 0 AND deletedAt IS NULL
+          FROM Kris k
+          WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+            ${dateFilter}
+            ${functionFilter}
         )
         SELECT 
           CAST(SUM(CASE WHEN status = 'pendingPreparer' THEN 1 ELSE 0 END) AS INT) AS pendingPreparer,
@@ -100,6 +137,7 @@ export class GrcKrisService {
           FROM Kris k
           WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
             ${dateFilter}
+            ${functionFilter}
         ),
         KL AS (
           SELECT K.id, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
@@ -151,6 +189,8 @@ export class GrcKrisService {
           AND frel.deletedAt IS NULL
         WHERE k.isDeleted = 0 
           AND k.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
         GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
         ORDER BY breached_count DESC
       `;
@@ -175,6 +215,8 @@ export class GrcKrisService {
         LEFT JOIN Functions fkf ON fkf.id = kf.function_id
         LEFT JOIN Functions frel ON frel.id = k.related_function_id
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
         ORDER BY k.createdAt DESC
       `;
       let kriHealth: any[] = [];
@@ -203,6 +245,7 @@ export class GrcKrisService {
           AND frel.deletedAt IS NULL
         WHERE kv.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
         ORDER BY assessment_count DESC
       `;
@@ -229,6 +272,7 @@ export class GrcKrisService {
           AND k.deletedAt IS NULL
           AND kv.assessment IS NOT NULL
           ${dateFilter}
+          ${functionFilter}
         GROUP BY
           FORMAT(kv.createdAt, 'MMM yyyy'),
           CAST(DATEADD(month, DATEPART(month, kv.createdAt) - 1, DATEFROMPARTS(YEAR(kv.createdAt), 1, 1)) AS datetime2),
@@ -253,6 +297,7 @@ export class GrcKrisService {
         WHERE
           k.isDeleted = 0
           AND k.deletedAt IS NULL
+          ${functionFilter}
         GROUP BY
           CAST(DATEFROMPARTS(YEAR(k.createdAt), MONTH(k.createdAt), 1) AS datetime2)
         ORDER BY
@@ -308,6 +353,7 @@ export class GrcKrisService {
           WHERE k.isDeleted = 0
             AND k.deletedAt IS NULL
             ${dateFilter}
+            ${functionFilter}
         )
         SELECT
           KRIStatus AS [KRI Status],
@@ -349,6 +395,7 @@ export class GrcKrisService {
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         ORDER BY 
           [Function], [KRI Name]
       `;
@@ -391,6 +438,7 @@ export class GrcKrisService {
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
         ORDER BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
       `;
@@ -412,6 +460,7 @@ export class GrcKrisService {
         WHERE k.isDeleted = 0 
           AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         GROUP BY FORMAT(k.createdAt, 'MMM yyyy'), YEAR(k.createdAt), DATENAME(month, k.createdAt), MONTH(k.createdAt) 
         ORDER BY YEAR(k.createdAt), MONTH(k.createdAt)
       `;
@@ -433,6 +482,7 @@ export class GrcKrisService {
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         GROUP BY 
           ISNULL(k.frequency, 'Unknown')
         ORDER BY 
@@ -459,6 +509,7 @@ export class GrcKrisService {
           AND k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         WHERE 
           r.isDeleted = 0
           AND r.deletedAt IS NULL
@@ -494,6 +545,7 @@ export class GrcKrisService {
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         ORDER BY 
           k.kriName, r.name
       `;
@@ -514,6 +566,7 @@ export class GrcKrisService {
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
           AND NOT EXISTS (
             SELECT 1
             FROM KriRisks AS kr
@@ -557,6 +610,7 @@ export class GrcKrisService {
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         ORDER BY k.kriName
       `;
       let kriStatusRows: any[] = [];
@@ -741,7 +795,14 @@ export class GrcKrisService {
     }
   }
 
-  async getTotalKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getTotalKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -749,7 +810,7 @@ export class GrcKrisService {
     const where: string[] = ["k.isDeleted = 0"];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
     const totalRes = await this.databaseService.query(countQuery);
@@ -784,7 +845,14 @@ export class GrcKrisService {
       }
     };
   }
-  async getPendingPreparerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getPendingPreparerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -792,7 +860,7 @@ export class GrcKrisService {
     const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL", "ISNULL(k.preparerStatus, '') <> 'sent'"];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
     const totalRes = await this.databaseService.query(countQuery);
@@ -824,7 +892,14 @@ export class GrcKrisService {
     };
   }
 
-  async getPendingCheckerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getPendingCheckerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -838,7 +913,7 @@ export class GrcKrisService {
     ];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
     const totalRes = await this.databaseService.query(countQuery);
@@ -870,7 +945,14 @@ export class GrcKrisService {
     };
   }
 
-  async getPendingReviewerKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getPendingReviewerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -884,7 +966,7 @@ export class GrcKrisService {
     ];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
     const totalRes = await this.databaseService.query(countQuery);
@@ -916,7 +998,14 @@ export class GrcKrisService {
     };
   }
 
-  async getPendingAcceptanceKris(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getPendingAcceptanceKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -929,7 +1018,7 @@ export class GrcKrisService {
     ];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
     const totalRes = await this.databaseService.query(countQuery);
@@ -961,7 +1050,7 @@ export class GrcKrisService {
     };
   }
 
-  async exportKris(format: string, timeframe?: string) {
+  async exportKris(user: any, format: string, timeframe?: string) {
     // This would integrate with the Python export service
     // For now, return a placeholder response
     return {
@@ -972,7 +1061,14 @@ export class GrcKrisService {
   }
 
   // Detail endpoints for info icons
-  async getKrisByStatus(status: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getKrisByStatus(user: any, status: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1008,7 +1104,7 @@ export class GrcKrisService {
     
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
     const totalRes = await this.databaseService.query(countQuery);
@@ -1039,7 +1135,14 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByLevel(level: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getKrisByLevel(user: any, level: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1072,6 +1175,7 @@ export class GrcKrisService {
         FROM Kris k
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
       ),
       KL AS (
         SELECT K.id, K.code, K.kriName, K.createdAt, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
@@ -1123,6 +1227,7 @@ export class GrcKrisService {
         FROM Kris k
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
       ),
       KL AS (
         SELECT K.id, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
@@ -1167,7 +1272,14 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByFunction(functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string) {
+  async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1189,7 +1301,7 @@ export class GrcKrisService {
     
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `
       SELECT COUNT(DISTINCT k.id) as total 
@@ -1230,7 +1342,14 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisWithAssessmentsByFunction(functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getKrisWithAssessmentsByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const kriFunctionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1270,6 +1389,7 @@ export class GrcKrisService {
       INNER JOIN Kris k ON kv.kriId = k.id
         AND k.isDeleted = 0 
         AND k.deletedAt IS NULL
+        ${kriFunctionFilter}
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
         AND kf.deletedAt IS NULL
       LEFT JOIN Functions fkf ON fkf.id = kf.function_id
@@ -1292,6 +1412,7 @@ export class GrcKrisService {
       INNER JOIN Kris k ON kv.kriId = k.id
         AND k.isDeleted = 0 
         AND k.deletedAt IS NULL
+        ${kriFunctionFilter}
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
         AND kf.deletedAt IS NULL
       LEFT JOIN Functions fkf ON fkf.id = kf.function_id
@@ -1322,7 +1443,14 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByFrequency(frequency: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getKrisByFrequency(user: any, frequency: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1338,7 +1466,7 @@ export class GrcKrisService {
     
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
     const totalRes = await this.databaseService.query(countQuery);
@@ -1369,7 +1497,7 @@ export class GrcKrisService {
     };
   }
 
-  async getRisksByKriName(kriName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getRisksByKriName(user: any, kriName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1391,6 +1519,13 @@ export class GrcKrisService {
       decodedKriName = kriName;
     }
     
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Log for debugging
     console.log('[getRisksByKriName] Received kriName:', kriName);
     console.log('[getRisksByKriName] Decoded kriName:', decodedKriName);
@@ -1419,6 +1554,7 @@ export class GrcKrisService {
         ON kr.kri_id = k.id
         AND k.isDeleted = 0
         AND k.deletedAt IS NULL
+        ${functionFilter}
       WHERE
         r.isDeleted = 0
         AND r.deletedAt IS NULL
@@ -1453,6 +1589,7 @@ export class GrcKrisService {
         ON kr.kri_id = k.id
         AND k.isDeleted = 0
         AND k.deletedAt IS NULL
+        ${functionFilter}
       WHERE
         r.isDeleted = 0
         AND r.deletedAt IS NULL
@@ -1514,7 +1651,14 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByMonthYear(monthYear: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getKrisByMonthYear(user: any, monthYear: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1593,7 +1737,14 @@ export class GrcKrisService {
     };
   }
 
-  async getKriAssessmentsByMonthAndLevel(monthYear: string, assessmentLevel: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getKriAssessmentsByMonthAndLevel(user: any, monthYear: string, assessmentLevel: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1685,6 +1836,7 @@ export class GrcKrisService {
       WHERE
         k.isDeleted = 0
         AND k.deletedAt IS NULL
+        ${functionFilter}
         ${assessmentFilter}
         ${monthFilter}
         ${dateFilter}
@@ -1701,6 +1853,7 @@ export class GrcKrisService {
       WHERE
         k.isDeleted = 0
         AND k.deletedAt IS NULL
+        ${functionFilter}
         ${assessmentFilter}
         ${monthFilter}
         ${dateFilter}
@@ -1723,7 +1876,14 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByOverdueStatus(overdueStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getKrisByOverdueStatus(user: any, overdueStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1732,7 +1892,7 @@ export class GrcKrisService {
     
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     let statusFilter = '';
     if (overdueStatus === 'Overdue') {

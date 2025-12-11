@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, Req } from '@nestjs/common';
 import { ChartRegistryService, SimpleChartConfig } from './chart-registry.service';
 import { AutoDashboardService } from './auto-dashboard.service';
 
@@ -9,20 +9,24 @@ export class SimpleChartController {
   // Get all dashboard data (all charts)
   @Get('dashboard')
   async getDashboard(
+    @Req() req: any,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.autoDashboardService.getDashboardData(startDate, endDate);
+    return this.autoDashboardService.getDashboardData(req.user, startDate, endDate, functionId);
   }
 
   // Get specific chart data
   @Get(':chartId')
   async getChart(
+    @Req() req: any,
     @Param('chartId') chartId: string,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.autoDashboardService.getChartData(chartId, startDate, endDate);
+    return this.autoDashboardService.getChartData(req.user, chartId, startDate, endDate, functionId);
   }
 
   // Add new chart (for admin/development)

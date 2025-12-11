@@ -1,45 +1,79 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
 
 @Injectable()
 export class GrcIncidentsService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly userFunctionAccess: UserFunctionAccessService,
+  ) {}
 
-  private buildDateFilter(timeframe?: string): string {
+  private buildDateFilter(timeframe?: string, startDate?: string, endDate?: string): string {
+    // If startDate and endDate are provided, use them
+    if (startDate || endDate) {
+      let filter = '';
+      if (startDate) {
+        filter += ` AND i.createdAt >= '${startDate}'`;
+      }
+      if (endDate) {
+        // Add one day to endDate to include the entire end date
+        const endDateObj = new Date(endDate);
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        filter += ` AND i.createdAt < '${endDateObj.toISOString()}'`;
+      }
+      return filter;
+    }
+    
+    // Otherwise use timeframe if provided
     if (!timeframe) return '';
     
     const now = new Date();
-    let startDate: Date;
+    let startDateObj: Date;
     
     switch (timeframe) {
       case '7d':
-        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        startDateObj = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case '30d':
-        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        startDateObj = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case '90d':
-        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        startDateObj = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
         break;
       case '1y':
-        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        startDateObj = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
         break;
       default:
         return '';
     }
     
-    return ` AND createdAt >= '${startDate.toISOString()}'`;
+    return ` AND i.createdAt >= '${startDateObj.toISOString()}'`;
   }
 
-  async getIncidentsDashboard(timeframe?: string) {
+  async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string) {
     try {
-      const dateFilter = this.buildDateFilter(timeframe);
+      console.log('[getIncidentsDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
+      
+      const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+      console.log('[getIncidentsDashboard] Date filter:', dateFilter);
+
+      // Get user function access (super_admin_ sees everything)
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      console.log('[getIncidentsDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
+      
+      // Build function filter - use selected functionId if provided, otherwise use user's functions
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, functionId);
+      console.log('[getIncidentsDashboard] Function filter:', functionFilter);
 
       // Get total incidents
       const totalIncidentsQuery = `
         SELECT COUNT(*) as total
-        FROM Incidents
-        WHERE isDeleted = 0 ${dateFilter}
+        FROM Incidents i
+        WHERE i.isDeleted = 0 ${dateFilter} ${functionFilter}
       `;
       const totalIncidentsResult = await this.databaseService.query(totalIncidentsQuery);
       const totalIncidents = totalIncidentsResult[0]?.total || 0;
@@ -52,8 +86,8 @@ export class GrcIncidentsService {
           SUM(CASE WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingReviewer,
           SUM(CASE WHEN ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingAcceptance,
           SUM(CASE WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 1 ELSE 0 END) AS approved
-        FROM Incidents
-        WHERE isDeleted = 0 AND deletedAt IS NULL ${dateFilter}
+        FROM Incidents i
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
       `;
       const [statusCountsRow] = await this.databaseService.query(incidentsStatusCountsQuery);
 
@@ -71,7 +105,7 @@ export class GrcIncidentsService {
               ELSE 'Other'
             END AS status
           FROM Incidents i
-          WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter}
+          WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
         ),
         StatusCounts AS (
           SELECT 
@@ -109,6 +143,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         GROUP BY ISNULL(c.name, 'Unknown')
         ORDER BY COUNT(i.id) DESC
       `;
@@ -126,6 +161,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
           AND i.net_loss IS NOT NULL
           AND i.net_loss > 0
         GROUP BY fi.name
@@ -147,6 +183,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
           AND (i.net_loss IS NOT NULL OR i.recovery_amount IS NOT NULL)
         ORDER BY i.net_loss DESC
       `;
@@ -161,6 +198,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
           AND i.createdAt IS NOT NULL
         GROUP BY FORMAT(i.createdAt, 'MMM yyyy')
         ORDER BY MIN(i.createdAt)
@@ -175,7 +213,7 @@ export class GrcIncidentsService {
         FROM 
           Incidents i
         WHERE 
-          i.isDeleted = 0 ${dateFilter}
+          i.isDeleted = 0 ${dateFilter} ${functionFilter}
         GROUP BY 
           i.status 
         ORDER BY 
@@ -207,6 +245,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         ORDER BY i.createdAt DESC
       `;
       const statusOverview = await this.databaseService.query(listQuery);
@@ -237,6 +276,7 @@ export class GrcIncidentsService {
           i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
       `;
       const incidentsFinancialDetails = await this.databaseService.query(incidentsFinancialDetailsQuery);
 
@@ -253,6 +293,7 @@ export class GrcIncidentsService {
           i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         GROUP BY 
           ISNULL(ie.name, 'Unknown')
         ORDER BY 
@@ -273,6 +314,7 @@ export class GrcIncidentsService {
           i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
+          ${functionFilter}
         GROUP BY 
           ISNULL(fi.name, 'Unknown')
         ORDER BY 
@@ -284,10 +326,10 @@ export class GrcIncidentsService {
       const incidentsTimeSeriesQuery = `
         WITH month_series AS ( 
           SELECT  
-            DATEFROMPARTS(YEAR(MIN(createdAt)), MONTH(MIN(createdAt)), 1) AS start_month, 
-            DATEFROMPARTS(YEAR(MAX(createdAt)), MONTH(MAX(createdAt)), 1) AS end_month 
-          FROM Incidents 
-          WHERE isDeleted = 0 AND deletedAt IS NULL ${dateFilter}
+            DATEFROMPARTS(YEAR(MIN(i.createdAt)), MONTH(MIN(i.createdAt)), 1) AS start_month, 
+            DATEFROMPARTS(YEAR(MAX(i.createdAt)), MONTH(MAX(i.createdAt)), 1) AS end_month 
+          FROM Incidents i
+          WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
         ), 
         months AS ( 
           SELECT start_month AS month_date 
@@ -306,6 +348,7 @@ export class GrcIncidentsService {
           AND MONTH(i.createdAt) = MONTH(m.month_date)
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
         GROUP BY  
           m.month_date 
         ORDER BY  
@@ -328,6 +371,7 @@ export class GrcIncidentsService {
         FROM Incidents i
         WHERE  
           i.isDeleted = 0 ${dateFilter}
+          ${functionFilter}
           AND i.deletedAt IS NULL
         GROUP BY 
           CAST(
@@ -349,6 +393,7 @@ export class GrcIncidentsService {
           i.timeFrame AS time_frame 
         FROM Incidents i
         WHERE i.isDeleted = 0 ${dateFilter}
+          ${functionFilter}
           AND i.deletedAt IS NULL
         ORDER BY i.timeFrame DESC
       `;
@@ -369,6 +414,7 @@ export class GrcIncidentsService {
           AND f.deletedAt IS NULL
         WHERE 
           i.isDeleted = 0 ${dateFilter}
+          ${functionFilter}
           AND i.deletedAt IS NULL
       `;
       const incidentsWithFinancialAndFunction = await this.databaseService.query(incidentsWithFinancialAndFunctionQuery);
@@ -388,6 +434,7 @@ export class GrcIncidentsService {
         WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND i.net_loss IS NOT NULL
         GROUP BY YEAR(i.occurrence_date), MONTH(i.occurrence_date)
         ORDER BY [Year], [Month]
@@ -403,6 +450,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
+          ${functionFilter}
           AND sc.name = N'ATM issue'
       `;
       const atmTheftResult = await this.databaseService.query(atmTheftCountQuery);
@@ -416,6 +464,7 @@ export class GrcIncidentsService {
         WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND i.occurrence_date IS NOT NULL
           AND i.reported_date IS NOT NULL
           AND i.reported_date >= i.occurrence_date
@@ -432,6 +481,7 @@ export class GrcIncidentsService {
         WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0 
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND ie.name = N'Internal Fraud'
       `;
       const internalFraudResult = await this.databaseService.query(internalFraudCountQuery);
@@ -448,6 +498,7 @@ export class GrcIncidentsService {
         WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0 
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND ie.name = N'Internal Fraud'
           AND i.net_loss IS NOT NULL
       `;
@@ -463,6 +514,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
+          ${functionFilter}
           AND ie.name = N'External Fraud'
       `;
       const externalFraudResult = await this.databaseService.query(externalFraudCountQuery);
@@ -479,6 +531,7 @@ export class GrcIncidentsService {
         WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0 
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND ie.name = N'External Fraud'
           AND i.net_loss IS NOT NULL
       `;
@@ -494,6 +547,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
+          ${functionFilter}
           AND ie.name = N'Damage to Physical Assets'
       `;
       const physicalAssetDamageResult = await this.databaseService.query(physicalAssetDamageCountQuery);
@@ -510,6 +564,7 @@ export class GrcIncidentsService {
         WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0 
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND ie.name = N'Damage to Physical Assets'
           AND i.net_loss IS NOT NULL
       `;
@@ -525,6 +580,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
+          ${functionFilter}
           AND sc.name = N'Human Mistake'
       `;
       const peopleErrorResult = await this.databaseService.query(peopleErrorCountQuery);
@@ -541,6 +597,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
+          ${functionFilter}
           AND sc.name = N'Human Mistake'
           AND i.net_loss IS NOT NULL
       `;
@@ -565,6 +622,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
+          ${functionFilter}
         GROUP BY FORMAT(COALESCE(i.occurrence_date, i.createdAt), 'yyyy-MM')
         ORDER BY Period
       `;
@@ -583,6 +641,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
+          ${functionFilter}
           AND i.net_loss IS NOT NULL
         GROUP BY c.name
         ORDER BY TotalLoss DESC
@@ -599,6 +658,7 @@ export class GrcIncidentsService {
         WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
 
         UNION ALL
 
@@ -612,6 +672,7 @@ export class GrcIncidentsService {
         WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND sc.name = N'ATM issue'
 
         UNION ALL
@@ -626,6 +687,7 @@ export class GrcIncidentsService {
         WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND ie.name = N'Internal Fraud'
 
         UNION ALL
@@ -640,6 +702,7 @@ export class GrcIncidentsService {
         WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND ie.name = N'External Fraud'
 
         UNION ALL
@@ -654,6 +717,7 @@ export class GrcIncidentsService {
         WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND sc.name = N'Human Mistake'
 
         UNION ALL
@@ -668,6 +732,7 @@ export class GrcIncidentsService {
         WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${functionFilter}
           AND sc.name IN (N'System Error', N'Prime System Issue', N'Transaction system error (TRX BUG)')
       `;
       const comprehensiveOperationalLoss = await this.databaseService.query(comprehensiveOperationalLossQuery);
@@ -794,7 +859,7 @@ export class GrcIncidentsService {
     }
   }
 
-  async exportIncidents(format: string, timeframe?: string) {
+  async exportIncidents(user: any, format: string, timeframe?: string) {
     // This would integrate with the Python export service
     // For now, return a placeholder response
     return {
@@ -804,7 +869,19 @@ export class GrcIncidentsService {
     };
   }
 
-  async getTotalIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      functionId,
+    );
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -812,7 +889,7 @@ export class GrcIncidentsService {
     const where: string[] = ["i.isDeleted = 0"]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
     const totalRes = await this.databaseService.query(countQuery)
@@ -849,7 +926,19 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingPreparerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      functionId,
+    );
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -857,7 +946,7 @@ export class GrcIncidentsService {
     const where: string[] = ["i.isDeleted = 0", "i.deletedAt IS NULL", "ISNULL(i.preparerStatus, '') <> 'sent'"]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
     const totalRes = await this.databaseService.query(countQuery)
@@ -889,7 +978,19 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingCheckerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      functionId,
+    );
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -903,7 +1004,7 @@ export class GrcIncidentsService {
     ]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
     const totalRes = await this.databaseService.query(countQuery)
@@ -935,7 +1036,19 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingReviewerIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      functionId,
+    );
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -949,7 +1062,7 @@ export class GrcIncidentsService {
     ]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
     const totalRes = await this.databaseService.query(countQuery)
@@ -981,7 +1094,19 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingAcceptanceIncidents(page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      functionId,
+    );
+
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -994,7 +1119,7 @@ export class GrcIncidentsService {
     ]
     if (startDate) where.push(`i.createdAt >= '${startDate}'`)
     if (endDate) where.push(`i.createdAt <= '${endDate}'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
     const totalRes = await this.databaseService.query(countQuery)
@@ -1027,11 +1152,13 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsByCategory(
+    user: any,
     category: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1058,6 +1185,17 @@ export class GrcIncidentsService {
       
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
       
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+      
       // Escape special characters for SQL
       const escapedForExact = decodedCategory.replace(/'/g, "''");
       
@@ -1065,7 +1203,8 @@ export class GrcIncidentsService {
       const whereSql = `WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           AND ISNULL(c.name, 'Unknown') = N'${escapedForExact}'
-          ${dateFilter}`;
+          ${dateFilter}
+          ${functionFilter}`;
       
       // Use LEFT JOIN with Categories table (matching chart query exactly)
       const query = `
@@ -1123,11 +1262,13 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsByEventType(
+    user: any,
     eventType: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1135,6 +1276,17 @@ export class GrcIncidentsService {
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
       
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       // Build date filter - match the chart query logic (uses createdAt, not occurrence_date)
       // The chart query uses buildDateFilter(timeframe) which filters by createdAt
       let dateFilter = '';
@@ -1165,6 +1317,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           ${eventTypeFilter}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY i.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
@@ -1183,6 +1336,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           ${eventTypeFilter}
           ${dateFilter}
+          ${functionFilter}
       `;
       
       const countParams = eventType === 'Unknown' || eventType === 'unknown' ? [] : [eventType];
@@ -1213,13 +1367,26 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsByFinancialImpact(
+    user: any,
     financialImpact: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
@@ -1238,6 +1405,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           AND ISNULL(fi.name, 'Unknown') = @param0
           ${dateFilter}
+          ${functionFilter}
         ORDER BY i.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
@@ -1252,6 +1420,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           AND ISNULL(fi.name, 'Unknown') = @param0
           ${dateFilter}
+          ${functionFilter}
       `;
       const countResult = await this.databaseService.query(countQuery, [financialImpact]);
       const total = countResult[0]?.total || 0;
@@ -1280,13 +1449,26 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsByStatus(
+    user: any,
     status: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
@@ -1347,6 +1529,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           AND ${statusCondition}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS
         FETCH NEXT ${limitInt} ROWS ONLY
@@ -1360,6 +1543,7 @@ export class GrcIncidentsService {
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           AND ${statusCondition}
           ${dateFilter}
+          ${functionFilter}
       `;
       const countResult = await this.databaseService.query(countQuery);
       const total = countResult[0]?.total || 0;
@@ -1388,11 +1572,13 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsByMonthYear(
+    user: any,
     monthYear: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1425,6 +1611,17 @@ export class GrcIncidentsService {
         throw new Error(`Invalid monthYear: ${monthYear}`)
       }
 
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       const whereParts: string[] = [
         'i.isDeleted = 0',
         'i.deletedAt IS NULL',
@@ -1433,7 +1630,7 @@ export class GrcIncidentsService {
       ]
       if (startDate) whereParts.push(`i.createdAt >= '${startDate}'`)
       if (endDate) whereParts.push(`i.createdAt <= '${endDate}'`)
-      const whereSql = `WHERE ${whereParts.join(' AND ')}`
+      const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`
 
       const dataQuery = `
         SELECT 
@@ -1480,11 +1677,13 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsBySubCategory(
+    user: any,
     subCategory: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1492,6 +1691,17 @@ export class GrcIncidentsService {
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
       
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       // Build WHERE clause
       const whereParts: string[] = [
         'i.isDeleted = 0',
@@ -1513,7 +1723,7 @@ export class GrcIncidentsService {
       // Add 12-month filter for operational loss metrics
       const operationalLossFilter = ` AND COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())`;
       
-      const whereSql = `WHERE ${whereParts.join(' AND ')}${operationalLossFilter}`;
+      const whereSql = `WHERE ${whereParts.join(' AND ')}${operationalLossFilter} ${functionFilter}`;
       
       const dataQuery = `
         SELECT 
@@ -1571,10 +1781,12 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsWithRecognitionTime(
+    user: any,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1582,6 +1794,17 @@ export class GrcIncidentsService {
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
       
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       const whereParts: string[] = [
         'i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())',
         'i.isDeleted = 0',
@@ -1594,7 +1817,7 @@ export class GrcIncidentsService {
       if (startDate) whereParts.push(`i.occurrence_date >= '${startDate}'`);
       if (endDate) whereParts.push(`i.occurrence_date <= '${endDate}'`);
       
-      const whereSql = `WHERE ${whereParts.join(' AND ')}`;
+      const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`;
       
       const dataQuery = `
         SELECT 
@@ -1648,11 +1871,13 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsByPeriod(
+    user: any,
     period: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
       // Parse period format: "MM/YYYY" or "M/YYYY"
@@ -1673,6 +1898,17 @@ export class GrcIncidentsService {
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
       
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       const whereParts: string[] = [
         'i.isDeleted = 0',
         'i.deletedAt IS NULL',
@@ -1683,7 +1919,7 @@ export class GrcIncidentsService {
       if (startDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= '${startDate}'`);
       if (endDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) <= '${endDate}'`);
       
-      const whereSql = `WHERE ${whereParts.join(' AND ')}`;
+      const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`;
       
       const dataQuery = `
         SELECT 
@@ -1735,12 +1971,14 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsByPeriodAndType(
+    user: any,
     period: string,
     incidentType: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
       // Parse period format: "YYYY-MM" (from chart) or "MM/YYYY"
@@ -1770,6 +2008,17 @@ export class GrcIncidentsService {
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
       
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       // Build WHERE clause - match chart query exactly
       const whereParts: string[] = [
         'i.isDeleted = 0',
@@ -1804,7 +2053,7 @@ export class GrcIncidentsService {
       if (startDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= '${startDate}'`);
       if (endDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) <= '${endDate}'`);
       
-      const whereSql = `WHERE ${whereParts.join(' AND ')} AND ${typeFilter}`;
+      const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter} AND ${typeFilter}`;
       
       // Use LEFT JOINs on BOTH tables (matching chart query exactly)
       const joinClause = `
@@ -1866,11 +2115,13 @@ export class GrcIncidentsService {
   }
 
   async getIncidentsByComprehensiveMetric(
+    user: any,
     metric: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string
+    endDate?: string,
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1878,6 +2129,17 @@ export class GrcIncidentsService {
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
       
+      // Get user function access
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+        user.id,
+        user.groupName,
+      );
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'i',
+        'function_id',
+        access,
+      );
+
       // Build WHERE clause - match comprehensive query exactly
       const whereParts: string[] = [
         'i.isDeleted = 0',
@@ -1919,7 +2181,7 @@ export class GrcIncidentsService {
         throw new Error(`Unknown metric type: ${metric}`);
       }
       
-      const whereSql = `WHERE ${whereParts.join(' AND ')} ${metricFilter}`;
+      const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter} ${metricFilter}`;
       
       const dataQuery = `
         SELECT 
