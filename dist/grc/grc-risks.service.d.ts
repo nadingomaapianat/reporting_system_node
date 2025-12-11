@@ -1,10 +1,11 @@
 import { DatabaseService } from '../database/database.service';
 import { BaseDashboardService, DashboardConfig } from '../shared/base-dashboard.service';
+import { UserFunctionAccessService } from '../shared/user-function-access.service';
 export declare class GrcRisksService extends BaseDashboardService {
     protected readonly databaseService: DatabaseService;
-    constructor(databaseService: DatabaseService);
+    constructor(databaseService: DatabaseService, userFunctionAccess: UserFunctionAccessService);
     getConfig(): DashboardConfig;
-    getRisksDashboard(startDate?: string, endDate?: string): Promise<{
+    getRisksDashboard(user: any, startDate?: string, endDate?: string, functionId?: string): Promise<{
         totalRisks: any;
         allRisks: any[];
         risksByCategory: import("mssql").IRecordSet<any>;
@@ -27,29 +28,49 @@ export declare class GrcRisksService extends BaseDashboardService {
         controlsAndRiskCount: any[];
         risksDetails: any[];
     }>;
-    getTotalRisks(page: number, limit: number, startDate?: string, endDate?: string): Promise<{
+    getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
             limit: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    } | {
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
             total: any;
             totalPages: number;
             hasNext: boolean;
             hasPrev: boolean;
         };
     }>;
-    getCardData(cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getFilteredCardData(user: any, cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
             limit: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    } | {
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
             total: any;
             totalPages: number;
             hasNext: boolean;
             hasPrev: boolean;
         };
     }>;
-    getHighRisks(page: number, limit: number, startDate?: string, endDate?: string): Promise<{
+    getHighRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             total: any;
@@ -60,7 +81,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getMediumRisks(page: number, limit: number, startDate?: string, endDate?: string): Promise<{
+    getMediumRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             total: any;
@@ -71,7 +92,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getLowRisks(page: number, limit: number, startDate?: string, endDate?: string): Promise<{
+    getLowRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             total: any;
@@ -82,7 +103,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRiskReduction(page: number, limit: number, startDate?: string, endDate?: string): Promise<{
+    getRiskReduction(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             total: any;
@@ -93,7 +114,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getNewRisks(page: number, limit: number, startDate?: string, endDate?: string): Promise<{
+    getNewRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             total: any;
@@ -104,9 +125,9 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    exportRisks(format: 'pdf' | 'excel', startDate?: string, endDate?: string): Promise<any>;
+    exportRisks(user: any, format: 'pdf' | 'excel', startDate?: string, endDate?: string, functionId?: string): Promise<any>;
     private calculateRiskLevels;
-    getRisksByCategory(category: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByCategory(user: any, category: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -117,7 +138,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksByEventType(eventType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByEventType(user: any, eventType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -128,7 +149,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksByQuarter(quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByQuarter(user: any, quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -139,7 +160,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksByApprovalStatus(approvalStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByApprovalStatus(user: any, approvalStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -150,7 +171,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksByFinancialImpact(financialImpact: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByFinancialImpact(user: any, financialImpact: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -161,7 +182,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksByFunction(functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByFunction(user: any, functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -172,7 +193,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksByBusinessProcess(processName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByBusinessProcess(user: any, processName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -183,7 +204,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksByName(riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByName(user: any, riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -194,7 +215,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksByControlName(controlName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByControlName(user: any, controlName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -205,7 +226,7 @@ export declare class GrcRisksService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getRisksForComparison(riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksForComparison(user: any, riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;

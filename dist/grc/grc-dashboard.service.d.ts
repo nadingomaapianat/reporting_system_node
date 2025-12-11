@@ -1,10 +1,11 @@
 import { BaseDashboardService, DashboardConfig } from '../shared/base-dashboard.service';
 import { DatabaseService } from '../database/database.service';
+import { UserFunctionAccessService } from '../shared/user-function-access.service';
 export declare class GrcDashboardService extends BaseDashboardService {
-    constructor(databaseService: DatabaseService);
+    constructor(databaseService: DatabaseService, userFunctionAccess: UserFunctionAccessService);
     getConfig(): DashboardConfig;
-    getControlsDashboard(startDate?: string, endDate?: string): Promise<any>;
-    getTotalControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsDashboard(user: any, startDate?: string, endDate?: string, functionId?: string): Promise<any>;
+    getFilteredCardData(user: any, cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -15,7 +16,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getUnmappedControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTotalControls(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -26,7 +27,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getPendingPreparerControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getUnmappedControls(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -37,7 +38,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getPendingCheckerControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingPreparerControls(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -48,7 +49,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getPendingReviewerControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingCheckerControls(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -59,7 +60,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getPendingAcceptanceControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingReviewerControls(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -70,7 +71,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getTestsPendingPreparer(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingAcceptanceControls(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -81,7 +82,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getTestsPendingChecker(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTestsPendingPreparer(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -92,7 +93,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getTestsPendingReviewer(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTestsPendingChecker(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -103,7 +104,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getTestsPendingAcceptance(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTestsPendingReviewer(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -114,7 +115,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getUnmappedIcofrControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTestsPendingAcceptance(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -125,7 +126,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getUnmappedNonIcofrControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getUnmappedIcofrControls(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -136,7 +137,18 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByQuarter(quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getUnmappedNonIcofrControls(user: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: any[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getControlsByQuarter(user: any, quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -151,7 +163,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByDepartment(department: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByDepartment(user: any, department: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -166,7 +178,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByType(type: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByType(user: any, type: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -181,7 +193,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByLevel(level: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByLevel(user: any, level: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -196,7 +208,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByFrequency(frequency: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByFrequency(user: any, frequency: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -211,7 +223,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByRiskResponse(riskResponse: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByRiskResponse(user: any, riskResponse: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -226,7 +238,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByAntiFraud(antiFraud: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByAntiFraud(user: any, antiFraud: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -241,7 +253,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByIcofrStatus(icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByIcofrStatus(user: any, icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -271,7 +283,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByComponent(component: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByComponent(user: any, component: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -301,7 +313,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByDepartmentAndKeyControl(department: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByDepartmentAndKeyControl(user: any, department: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -316,7 +328,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByProcessAndKeyControl(process: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByProcessAndKeyControl(user: any, process: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -331,7 +343,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByBusinessUnitAndKeyControl(businessUnit: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByBusinessUnitAndKeyControl(user: any, businessUnit: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -346,7 +358,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByAssertion(assertionName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByAssertion(user: any, assertionName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -361,7 +373,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByComponentAndIcofrStatus(component: string, icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByComponentAndIcofrStatus(user: any, component: string, icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -376,7 +388,7 @@ export declare class GrcDashboardService extends BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
-    getControlsByFunctionQuarterYear(functionName: string, quarter: number, year: number, columnType?: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByFunctionQuarterYear(user: any, functionName: string, quarter: number, year: number, columnType?: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;

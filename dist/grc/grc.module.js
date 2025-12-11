@@ -17,13 +17,14 @@ const grc_incidents_service_1 = require("./grc-incidents.service");
 const grc_kris_controller_1 = require("./grc-kris.controller");
 const grc_kris_service_1 = require("./grc-kris.service");
 const database_service_1 = require("../database/database.service");
+const user_function_access_service_1 = require("../shared/user-function-access.service");
 let GrcModule = class GrcModule {
 };
 exports.GrcModule = GrcModule;
 exports.GrcModule = GrcModule = __decorate([
     (0, common_1.Module)({
         controllers: [grc_dashboard_controller_1.GrcDashboardController, grc_risks_controller_1.GrcRisksController, grc_incidents_controller_1.GrcIncidentsController, grc_kris_controller_1.GrcKrisController],
-        providers: [grc_dashboard_service_1.GrcDashboardService, grc_risks_service_1.GrcRisksService, grc_incidents_service_1.GrcIncidentsService, grc_kris_service_1.GrcKrisService, database_service_1.DatabaseService],
+        providers: [grc_dashboard_service_1.GrcDashboardService, grc_risks_service_1.GrcRisksService, grc_incidents_service_1.GrcIncidentsService, grc_kris_service_1.GrcKrisService, database_service_1.DatabaseService, user_function_access_service_1.UserFunctionAccessService],
         exports: [grc_dashboard_service_1.GrcDashboardService, grc_risks_service_1.GrcRisksService, grc_incidents_service_1.GrcIncidentsService, grc_kris_service_1.GrcKrisService],
     })
 ], GrcModule);

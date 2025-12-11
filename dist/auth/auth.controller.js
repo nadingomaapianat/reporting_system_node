@@ -14,58 +14,78 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
-const auth_service_1 = require("./auth.service");
+const jwt_auth_guard_1 = require("./jwt-auth.guard");
+const jwt = require("jsonwebtoken");
 let AuthController = class AuthController {
-    constructor(authService) {
-        this.authService = authService;
-    }
-    async login(loginDto) {
-        return this.authService.login(loginDto.email, loginDto.password);
-    }
-    async register(registerDto) {
-        return this.authService.register(registerDto.email, registerDto.password, registerDto.name);
-    }
-    async getProfile() {
+    async getProfile(req) {
+        const user = req.user;
         return {
-            id: '1',
-            email: 'demo@example.com',
-            name: 'Demo User',
-            role: 'admin',
+            id: user?.id || '1',
+            email: user?.email || 'demo@example.com',
+            name: user?.name || 'Demo User',
+            role: user?.role || 'admin',
         };
     }
-    async logout() {
-        return { message: 'Logged out successfully' };
+    async validateToken(body) {
+        const { token } = body;
+        if (!token) {
+            return { success: false, message: 'Token is required' };
+        }
+        try {
+            const secretKey = 'GRC_ADIB_2025';
+            const decoded = jwt.verify(token, secretKey);
+            const { group, title, name, id } = decoded;
+            return {
+                success: true,
+                data: { group, title, name, id },
+            };
+        }
+        catch (error) {
+            console.error('Error validating token:', error);
+            return { success: false, message: 'Invalid or expired token' };
+        }
+    }
+    async logout(req) {
+        try {
+            return {
+                isSuccess: true,
+                message: 'Logged out successfully',
+            };
+        }
+        catch (error) {
+            console.error('Error during logout:', error);
+            return {
+                isSuccess: false,
+                message: 'An error occurred during logout',
+            };
+        }
     }
 };
 exports.AuthController = AuthController;
 __decorate([
-    (0, common_1.Post)('login'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "login", null);
-__decorate([
-    (0, common_1.Post)('register'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], AuthController.prototype, "register", null);
-__decorate([
     (0, common_1.Get)('profile'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "getProfile", null);
 __decorate([
-    (0, common_1.Post)('logout'),
+    (0, common_1.Post)('validate-token'),
+    __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "validateToken", null);
+__decorate([
+    (0, common_1.Post)('logout'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "logout", null);
 exports.AuthController = AuthController = __decorate([
-    (0, common_1.Controller)('api/auth'),
-    __metadata("design:paramtypes", [auth_service_1.AuthService])
+    (0, common_1.Controller)('api/auth')
 ], AuthController);
 //# sourceMappingURL=auth.controller.js.map

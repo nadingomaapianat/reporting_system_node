@@ -2,7 +2,7 @@ import { GrcKrisService } from './grc-kris.service';
 export declare class GrcKrisController {
     private readonly grcKrisService;
     constructor(grcKrisService: GrcKrisService);
-    getKrisDashboard(timeframe?: string): Promise<{
+    getKrisDashboard(req: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string): Promise<{
         totalKris: number;
         pendingPreparer: number;
         pendingChecker: number;
@@ -130,12 +130,12 @@ export declare class GrcKrisController {
         kriStatus?: undefined;
         activeKrisDetails?: undefined;
     }>;
-    exportKris(format: string, timeframe?: string): Promise<{
+    exportKris(req: any, format: string, timeframe?: string): Promise<{
         message: string;
         timeframe: string;
         status: string;
     }>;
-    getTotalKris(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTotalKris(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -146,7 +146,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getPendingPreparerKris(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingPreparerKris(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -157,7 +157,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getPendingCheckerKris(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingCheckerKris(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -168,7 +168,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getPendingReviewerKris(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingReviewerKris(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -179,7 +179,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getPendingAcceptanceKris(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingAcceptanceKris(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -190,7 +190,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getKrisByStatus(status: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getKrisByStatus(req: any, status: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -211,7 +211,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getKrisByLevel(level: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getKrisByLevel(req: any, level: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -232,7 +232,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getKrisByFunction(functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string, submissionStatus?: string): Promise<{
+    getKrisByFunction(req: any, functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string, submissionStatus?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -253,7 +253,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getKrisWithAssessmentsByFunction(functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getKrisWithAssessmentsByFunction(req: any, functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -274,7 +274,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getKrisByFrequency(frequency: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getKrisByFrequency(req: any, frequency: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -295,7 +295,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByKriName(kriName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByKriName(req: any, kriName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -316,7 +316,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getKrisByMonthYear(monthYear: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getKrisByMonthYear(req: any, monthYear: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -337,7 +337,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getKriAssessmentsByMonthAndLevel(monthYear: string, assessmentLevel: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getKriAssessmentsByMonthAndLevel(req: any, monthYear: string, assessmentLevel: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -358,7 +358,7 @@ export declare class GrcKrisController {
             hasPrev: boolean;
         };
     }>;
-    getKrisByOverdueStatus(overdueStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getKrisByOverdueStatus(req: any, overdueStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;

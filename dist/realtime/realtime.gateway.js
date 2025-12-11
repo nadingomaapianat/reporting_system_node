@@ -139,7 +139,7 @@ __decorate([
 exports.RealtimeGateway = RealtimeGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
-            origin: ['https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai'],
+            origin: ['https://fawry-reporting.comply.now', 'https://backendnode-fawry-reporting.comply.now'],
             credentials: true,
         },
     }),

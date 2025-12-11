@@ -20,11 +20,11 @@ let SimpleChartController = class SimpleChartController {
     constructor(autoDashboardService) {
         this.autoDashboardService = autoDashboardService;
     }
-    async getDashboard(startDate, endDate) {
-        return this.autoDashboardService.getDashboardData(startDate, endDate);
+    async getDashboard(req, startDate, endDate, functionId) {
+        return this.autoDashboardService.getDashboardData(req.user, startDate, endDate, functionId);
     }
-    async getChart(chartId, startDate, endDate) {
-        return this.autoDashboardService.getChartData(chartId, startDate, endDate);
+    async getChart(req, chartId, startDate, endDate, functionId) {
+        return this.autoDashboardService.getChartData(req.user, chartId, startDate, endDate, functionId);
     }
     async addChart(chartConfig) {
         chart_registry_service_1.ChartRegistryService.addChart(chartConfig);
@@ -48,19 +48,23 @@ let SimpleChartController = class SimpleChartController {
 exports.SimpleChartController = SimpleChartController;
 __decorate([
     (0, common_1.Get)('dashboard'),
-    __param(0, (0, common_1.Query)('startDate')),
-    __param(1, (0, common_1.Query)('endDate')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('startDate')),
+    __param(2, (0, common_1.Query)('endDate')),
+    __param(3, (0, common_1.Query)('functionId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], SimpleChartController.prototype, "getDashboard", null);
 __decorate([
     (0, common_1.Get)(':chartId'),
-    __param(0, (0, common_1.Param)('chartId')),
-    __param(1, (0, common_1.Query)('startDate')),
-    __param(2, (0, common_1.Query)('endDate')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('chartId')),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('functionId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], SimpleChartController.prototype, "getChart", null);
 __decorate([

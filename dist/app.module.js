@@ -19,7 +19,21 @@ const simple_chart_controller_1 = require("./shared/simple-chart.controller");
 const auto_dashboard_service_1 = require("./shared/auto-dashboard.service");
 const chart_registry_service_1 = require("./shared/chart-registry.service");
 const database_service_1 = require("./database/database.service");
+const user_function_access_service_1 = require("./shared/user-function-access.service");
+const user_functions_controller_1 = require("./shared/user-functions.controller");
+const csrf_module_1 = require("./csrf/csrf.module");
+const csrf_middleware_1 = require("./middleware/csrf.middleware");
+const jwt_auth_middleware_1 = require("./auth/jwt-auth.middleware");
+const cookieParser = require("cookie-parser");
 let AppModule = class AppModule {
+    configure(consumer) {
+        consumer
+            .apply(jwt_auth_middleware_1.JwtAuthMiddleware)
+            .forRoutes({ path: '*', method: common_1.RequestMethod.ALL });
+        consumer
+            .apply(cookieParser(), csrf_middleware_1.CsrfMiddleware)
+            .forRoutes({ path: '*', method: common_1.RequestMethod.ALL });
+    }
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
@@ -40,9 +54,16 @@ exports.AppModule = AppModule = __decorate([
             dashboard_module_1.DashboardModule,
             auth_module_1.AuthModule,
             grc_module_1.GrcModule,
+            csrf_module_1.CsrfModule,
         ],
-        controllers: [simple_chart_controller_1.SimpleChartController],
-        providers: [auto_dashboard_service_1.AutoDashboardService, chart_registry_service_1.ChartRegistryService, database_service_1.DatabaseService],
+        controllers: [simple_chart_controller_1.SimpleChartController, user_functions_controller_1.UserFunctionsController],
+        providers: [
+            auto_dashboard_service_1.AutoDashboardService,
+            chart_registry_service_1.ChartRegistryService,
+            database_service_1.DatabaseService,
+            jwt_auth_middleware_1.JwtAuthMiddleware,
+            user_function_access_service_1.UserFunctionAccessService,
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

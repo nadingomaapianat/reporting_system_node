@@ -3,8 +3,8 @@ import { AutoDashboardService } from './auto-dashboard.service';
 export declare class SimpleChartController {
     private readonly autoDashboardService;
     constructor(autoDashboardService: AutoDashboardService);
-    getDashboard(startDate?: string, endDate?: string): Promise<any>;
-    getChart(chartId: string, startDate?: string, endDate?: string): Promise<{
+    getDashboard(req: any, startDate?: string, endDate?: string, functionId?: string): Promise<any>;
+    getChart(req: any, chartId: string, startDate?: string, endDate?: string, functionId?: string): Promise<{
         name: any;
         value: any;
         label: any;

@@ -9,49 +9,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const common_1 = require("@nestjs/common");
 let AuthService = class AuthService {
-    async login(email, password) {
-        if (!email || !password) {
-            throw new Error('Email and password are required');
-        }
-        const user = {
-            id: '1',
-            email,
-            name: email.split('@')[0],
-            role: 'admin',
-        };
-        const token = 'demo-jwt-token-' + Date.now();
-        return {
-            user,
-            token,
-            expiresIn: '24h',
-        };
-    }
-    async register(email, password, name) {
-        if (!email || !password || !name) {
-            throw new Error('Email, password, and name are required');
-        }
-        const user = {
-            id: Date.now().toString(),
-            email,
-            name,
-            role: 'user',
-        };
-        const token = 'demo-jwt-token-' + Date.now();
-        return {
-            user,
-            token,
-            expiresIn: '24h',
-            message: 'User registered successfully',
-        };
-    }
-    async validateUser(email, password) {
-        return {
-            id: '1',
-            email,
-            name: email.split('@')[0],
-            role: 'admin',
-        };
-    }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([

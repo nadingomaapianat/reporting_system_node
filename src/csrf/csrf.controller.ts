@@ -116,13 +116,28 @@ export class CsrfController {
 
     if (!csrfToken) {
       csrfToken = this.csrfService.generateToken();
-      res.cookie('csrfToken', csrfToken, {
+      
+      // Determine if this is a cross-origin request
+      const isCrossOrigin = originUrl && originUrl !== `https://${req.get('host')}` && originUrl !== `http://${req.get('host')}`;
+      const isHttps = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
+      
+      // For cross-origin requests, use sameSite: 'none' and secure: true
+      // For same-origin, use sameSite: 'strict' for better security
+      const cookieOptions: any = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
         path: '/',
-      });
-      console.log(`[CSRF] Generated new CSRF token (length: ${csrfToken.length})`);
+        secure: isHttps || process.env.NODE_ENV === 'production', // Always secure in production or if HTTPS
+        sameSite: isCrossOrigin ? 'none' : 'strict', // 'none' for cross-origin, 'strict' for same-origin
+      };
+      
+      // Set domain for shared cookies if needed (e.g., .comply.now)
+      const cookieDomain = process.env.COOKIE_DOMAIN;
+      if (cookieDomain && !cookieDomain.includes('localhost')) {
+        cookieOptions.domain = cookieDomain;
+      }
+      
+      res.cookie('csrfToken', csrfToken, cookieOptions);
+      console.log(`[CSRF] Generated new CSRF token (length: ${csrfToken.length}), sameSite: ${cookieOptions.sameSite}, secure: ${cookieOptions.secure}, domain: ${cookieOptions.domain || 'not set'}`);
     } else {
       console.log(`[CSRF] Using existing CSRF token from cookie (length: ${csrfToken.length})`);
     }
