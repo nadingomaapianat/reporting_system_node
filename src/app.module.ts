@@ -10,6 +10,8 @@ import { SimpleChartController } from './shared/simple-chart.controller';
 import { AutoDashboardService } from './shared/auto-dashboard.service';
 import { ChartRegistryService } from './shared/chart-registry.service';
 import { DatabaseService } from './database/database.service';
+import { UserFunctionAccessService } from './shared/user-function-access.service';
+import { UserFunctionsController } from './shared/user-functions.controller';
 import { CsrfModule } from './csrf/csrf.module';
 import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { JwtAuthMiddleware } from './auth/jwt-auth.middleware';
@@ -34,8 +36,14 @@ import * as cookieParser from 'cookie-parser';
     GrcModule,
     CsrfModule,
   ],
-  controllers: [SimpleChartController],
-  providers: [AutoDashboardService, ChartRegistryService, DatabaseService, JwtAuthMiddleware],
+  controllers: [SimpleChartController, UserFunctionsController],
+  providers: [
+    AutoDashboardService,
+    ChartRegistryService,
+    DatabaseService,
+    JwtAuthMiddleware,
+    UserFunctionAccessService,
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

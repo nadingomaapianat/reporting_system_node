@@ -8,10 +8,11 @@ import { GrcIncidentsService } from './grc-incidents.service';
 import { GrcKrisController } from './grc-kris.controller';
 import { GrcKrisService } from './grc-kris.service';
 import { DatabaseService } from '../database/database.service';
+import { UserFunctionAccessService } from '../shared/user-function-access.service';
 
 @Module({
   controllers: [GrcDashboardController, GrcRisksController, GrcIncidentsController, GrcKrisController],
-  providers: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, DatabaseService],
+  providers: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, DatabaseService, UserFunctionAccessService],
   exports: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService],
 })
 export class GrcModule {}

@@ -46,11 +46,11 @@ async function bootstrap() {
         'https://fawry-reporting.comply.now',
         'http://localhost:3001',
         'https://backendnode-fawry-reporting.comply.now',
-        'https://fawry-reporting.comply.now',
+        'http://localhost:3000',
+        'https://reporting-system-backend.pianat.ai',
+        'https://reporting-system-frontend.pianat.ai',
         'http://localhost:5173',
         'http://localhost:4200',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:3001',
         'http://127.0.0.1:3002',
       ];
   
