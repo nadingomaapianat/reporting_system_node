@@ -69,7 +69,7 @@ export class CsrfController {
         console.warn(`[CSRF] Blocked CSRF token request: Missing Origin/Referer header (not server-side)`);
         console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent}`);
         console.warn(`[CSRF] All headers:`, Object.keys(req.headers));
-        throw new UnauthorizedException('Origin header required for browser requests');
+        return res.status(401).json({ message: 'Origin header required for browser requests' });
       }
       
       if (isServerSideRequest) {
@@ -81,7 +81,7 @@ export class CsrfController {
         if (!originUrl) {
           console.warn(`[CSRF] Blocked CSRF token request: Missing Origin/Referer header`);
           console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent || 'MISSING'}`);
-          throw new UnauthorizedException('Origin header required for browser requests');
+          return res.status(401).json({ message: 'Origin header required for browser requests' });
         }
         
         const isAllowed = this.allowedOrigins.some(allowed => {
@@ -107,7 +107,7 @@ export class CsrfController {
           console.warn(`[CSRF] Blocked CSRF token request from unauthorized origin: ${originUrl}`);
           console.warn(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
           console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent || 'MISSING'}`);
-          throw new UnauthorizedException('Origin not allowed');
+          return res.status(401).json({ message: 'Origin not allowed' });
         }
         
         console.log(`[CSRF] ✓ Allowed CSRF token request from origin: ${originUrl}`);
@@ -142,7 +142,7 @@ export class CsrfController {
           
           res.cookie('csrfToken', csrfToken, cookieOptions);
           console.log(`[CSRF] Generated new CSRF token (length: ${csrfToken.length}), sameSite: ${cookieOptions.sameSite}, secure: ${cookieOptions.secure}, domain: ${cookieOptions.domain || 'not set'}`);
-        } catch (cookieError) {
+        } catch (cookieError: any) {
           console.error('[CSRF] Error setting cookie:', cookieError);
           // Continue anyway - token is still returned in response body
         }
@@ -152,15 +152,14 @@ export class CsrfController {
 
       console.log(`[CSRF] ✓ Returning CSRF token to ${isServerSideRequest ? 'server-side' : 'browser'} request`);
       return res.status(200).json({ csrfToken });
-    } catch (error) {
-      console.error('[CSRF] Error in getToken:', error);
-      if (error instanceof UnauthorizedException) {
-        throw error; // Re-throw auth errors
-      }
-      // For other errors, return 500 with error message
+    } catch (error: any) {
+      console.error('[CSRF] Unexpected error in getToken:', error);
+      console.error('[CSRF] Error stack:', error.stack);
+      // For unexpected errors, return 500 with error message
       return res.status(500).json({ 
         message: 'Failed to generate CSRF token',
-        error: error.message 
+        error: error?.message || 'Unknown error',
+        stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined
       });
     }
   }
