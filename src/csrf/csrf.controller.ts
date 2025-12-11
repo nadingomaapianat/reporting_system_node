@@ -6,8 +6,8 @@ import { CsrfService } from './csrf.service';
 export class CsrfController {
   // Allowed origins for CSRF token requests (frontend only)
   private readonly allowedOrigins = [
-    'https://fawry-reporting.comply.now',
-    'https://fawry.comply.now',
+    
+    'https://madinetmasr.comply.now',
     'https://reporting-system-frontend.pianat.ai',
     'http://localhost:3001',
     'http://localhost:3000',
@@ -44,7 +44,7 @@ export class CsrfController {
       
       // For production, also allow any origin that matches the backend's domain pattern
       // This handles cases where frontend and backend are on different subdomains
-      const backendHost = process.env.BACKEND_HOST || 'backendnode-fawry-reporting.comply.now';
+      const backendHost = process.env.BACKEND_HOST || 'backendnode-madinetmasr-reporting.comply.now';
       const backendDomain = backendHost.includes('.') 
         ? '.' + backendHost.split('.').slice(-2).join('.') // e.g., .comply.now
         : null;

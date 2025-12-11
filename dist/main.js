@@ -41,11 +41,10 @@ async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.use((0, helmet_1.default)());
     const corsOrigins = [
-        'https://fawry-reporting.comply.now',
         'http://localhost:3001',
-        'https://backendnode-fawry-reporting.comply.now',
+        'https://backendnode-madinetmasr-reporting.comply.now',
         'http://localhost:3000',
-        'https://fawry.comply.now',
+        'https://madinetmasr.comply.now',
         'https://reporting-system-backend.pianat.ai',
         'https://reporting-system-frontend.pianat.ai',
         'http://localhost:5173',

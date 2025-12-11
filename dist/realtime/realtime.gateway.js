@@ -139,7 +139,7 @@ __decorate([
 exports.RealtimeGateway = RealtimeGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
-            origin: ['https://fawry-reporting.comply.now', 'https://backendnode-fawry-reporting.comply.now'],
+            origin: ['https://madinetmasr.comply.now', 'https://backendnode-madinetmasr-reporting.comply.now'],
             credentials: true,
         },
     }),
