@@ -7,7 +7,6 @@ export class CsrfController {
   // Allowed origins for CSRF token requests (frontend only)
   private readonly allowedOrigins = [
     'https://fawry-reporting.comply.now',
-    'https://fawry-reporting.comply.now',
     'http://localhost:3001',
     'http://localhost:3000',
     'http://localhost:5173',
@@ -15,8 +14,44 @@ export class CsrfController {
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
     // Add environment variable support
-    ...(process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || []),
+    ...(process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()).filter(Boolean) || []),
   ];
+  
+  private isOriginAllowed(originUrl: string): boolean {
+    // Check exact matches first
+    if (this.allowedOrigins.includes(originUrl)) {
+      return true;
+    }
+    
+    // Check wildcard patterns (e.g., *.comply.now matches any subdomain)
+    for (const allowed of this.allowedOrigins) {
+      if (allowed.includes('*')) {
+        const pattern = allowed.replace(/\*/g, '.*');
+        const regex = new RegExp(`^${pattern}$`);
+        if (regex.test(originUrl)) {
+          return true;
+        }
+      }
+    }
+    
+    // For production, also allow any origin that matches the backend's domain pattern
+    // This handles cases where frontend and backend are on different subdomains
+    const backendHost = process.env.BACKEND_HOST || 'backendnode-fawry-reporting.comply.now';
+    const backendDomain = backendHost.includes('.') 
+      ? '.' + backendHost.split('.').slice(-2).join('.') // e.g., .comply.now
+      : null;
+    
+    if (backendDomain && originUrl.includes(backendDomain.replace('.', ''))) {
+      // Allow any subdomain of the same parent domain (e.g., *.comply.now)
+      const originDomain = originUrl.split('://')[1]?.split('/')[0];
+      if (originDomain && originDomain.endsWith(backendDomain)) {
+        console.log(`[CSRF] Allowing origin ${originUrl} based on domain pattern ${backendDomain}`);
+        return true;
+      }
+    }
+    
+    return false;
+  }
 
   constructor(private readonly csrfService: CsrfService) {}
 
@@ -84,30 +119,18 @@ export class CsrfController {
           return res.status(401).json({ message: 'Origin header required for browser requests' });
         }
         
-        const isAllowed = this.allowedOrigins.some(allowed => {
-          // Exact match
-          if (originUrl === allowed) {
-            console.log(`[CSRF] Origin matched exactly: ${originUrl} === ${allowed}`);
-            return true;
-          }
-          // Support wildcard subdomains (e.g., *.pianat.ai)
-          if (allowed.includes('*')) {
-            const pattern = allowed.replace(/\*/g, '.*');
-            const regex = new RegExp(`^${pattern}$`);
-            const matches = regex.test(originUrl);
-            if (matches) {
-              console.log(`[CSRF] Origin matched pattern: ${originUrl} matches ${allowed}`);
-            }
-            return matches;
-          }
-          return false;
-        });
+        const isAllowed = this.isOriginAllowed(originUrl);
 
         if (!isAllowed) {
           console.warn(`[CSRF] Blocked CSRF token request from unauthorized origin: ${originUrl}`);
           console.warn(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
           console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent || 'MISSING'}`);
-          return res.status(401).json({ message: 'Origin not allowed' });
+          console.warn(`[CSRF] Backend host: ${process.env.BACKEND_HOST || 'not set'}`);
+          return res.status(401).json({ 
+            message: 'Origin not allowed',
+            receivedOrigin: originUrl,
+            allowedOrigins: this.allowedOrigins
+          });
         }
         
         console.log(`[CSRF] ✓ Allowed CSRF token request from origin: ${originUrl}`);
