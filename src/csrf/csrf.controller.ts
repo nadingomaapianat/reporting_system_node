@@ -31,119 +31,138 @@ export class CsrfController {
 
   @Get('token')
   getToken(@Req() req: Request, @Res() res: Response) {
-    console.log('[CSRF] GET request received - Method:', req.method);
-    // STRICT: Require Origin header for browser requests
-    // Allow server-side requests (no Origin) - these are from Next.js API routes
-    const origin = req.headers.origin;
-    const referer = req.headers.referer;
-    const userAgent = req.headers['user-agent'] || '';
-    
-    console.log(`[CSRF] Token request received - Origin: ${origin}, Referer: ${referer}`);
-    console.log(`[CSRF] User-Agent: ${userAgent}`);
-    console.log(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
-    
-    // Extract origin from referer if origin header is not present
-    let originUrl: string | null = null;
-    if (origin) {
-      originUrl = origin;
-      console.log(`[CSRF] Using Origin header: ${originUrl}`);
-    } else if (referer) {
-      try {
-        const refererUrl = new URL(referer);
-        originUrl = refererUrl.origin;
-        console.log(`[CSRF] Extracted origin from Referer: ${originUrl}`);
-      } catch {
-        // Invalid referer URL, ignore
-        console.warn(`[CSRF] Invalid Referer URL: ${referer}`);
+    try {
+      console.log('[CSRF] GET request received - Method:', req.method);
+      // STRICT: Require Origin header for browser requests
+      // Allow server-side requests (no Origin) - these are from Next.js API routes
+      const origin = req.headers.origin;
+      const referer = req.headers.referer;
+      const userAgent = req.headers['user-agent'] || '';
+      
+      console.log(`[CSRF] Token request received - Origin: ${origin}, Referer: ${referer}`);
+      console.log(`[CSRF] User-Agent: ${userAgent}`);
+      console.log(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
+      
+      // Extract origin from referer if origin header is not present
+      let originUrl: string | null = null;
+      if (origin) {
+        originUrl = origin;
+        console.log(`[CSRF] Using Origin header: ${originUrl}`);
+      } else if (referer) {
+        try {
+          const refererUrl = new URL(referer);
+          originUrl = refererUrl.origin;
+          console.log(`[CSRF] Extracted origin from Referer: ${originUrl}`);
+        } catch (error) {
+          // Invalid referer URL, ignore
+          console.warn(`[CSRF] Invalid Referer URL: ${referer}`, error);
+        }
       }
-    }
-    
-    // SECURITY: Require origin for browser requests
-    // Allow server-side requests (no Origin) - these are from Next.js API routes
-    // Server-side requests typically have no Origin header and may have Node.js in User-Agent or empty User-Agent
-    // If there's no Origin and no Referer, it's likely a server-side request (browsers always send Origin for cross-origin)
-    const isServerSideRequest = !origin && !referer;
-    
-    if (!originUrl && !isServerSideRequest) {
-      console.warn(`[CSRF] Blocked CSRF token request: Missing Origin/Referer header (not server-side)`);
-      console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent}`);
-      console.warn(`[CSRF] All headers:`, Object.keys(req.headers));
-      throw new UnauthorizedException('Origin header required for browser requests');
-    }
-    
-    if (isServerSideRequest) {
-      console.log(`[CSRF] ✓ Allowing server-side request (no Origin header)`);
-      console.log(`[CSRF] Server-side indicators: User-Agent=${userAgent || 'MISSING'}, IP=${req.ip}`);
-      // Skip origin validation for server-side requests - proceed directly to token generation
-    } else {
-      // Validate origin against allowed list for browser requests only
-      if (!originUrl) {
-        console.warn(`[CSRF] Blocked CSRF token request: Missing Origin/Referer header`);
-        console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent || 'MISSING'}`);
+      
+      // SECURITY: Require origin for browser requests
+      // Allow server-side requests (no Origin) - these are from Next.js API routes
+      // Server-side requests typically have no Origin header and may have Node.js in User-Agent or empty User-Agent
+      // If there's no Origin and no Referer, it's likely a server-side request (browsers always send Origin for cross-origin)
+      const isServerSideRequest = !origin && !referer;
+      
+      if (!originUrl && !isServerSideRequest) {
+        console.warn(`[CSRF] Blocked CSRF token request: Missing Origin/Referer header (not server-side)`);
+        console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent}`);
+        console.warn(`[CSRF] All headers:`, Object.keys(req.headers));
         throw new UnauthorizedException('Origin header required for browser requests');
       }
       
-      const isAllowed = this.allowedOrigins.some(allowed => {
-        // Exact match
-        if (originUrl === allowed) {
-          console.log(`[CSRF] Origin matched exactly: ${originUrl} === ${allowed}`);
-          return true;
+      if (isServerSideRequest) {
+        console.log(`[CSRF] ✓ Allowing server-side request (no Origin header)`);
+        console.log(`[CSRF] Server-side indicators: User-Agent=${userAgent || 'MISSING'}, IP=${req.ip}`);
+        // Skip origin validation for server-side requests - proceed directly to token generation
+      } else {
+        // Validate origin against allowed list for browser requests only
+        if (!originUrl) {
+          console.warn(`[CSRF] Blocked CSRF token request: Missing Origin/Referer header`);
+          console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent || 'MISSING'}`);
+          throw new UnauthorizedException('Origin header required for browser requests');
         }
-        // Support wildcard subdomains (e.g., *.pianat.ai)
-        if (allowed.includes('*')) {
-          const pattern = allowed.replace(/\*/g, '.*');
-          const regex = new RegExp(`^${pattern}$`);
-          const matches = regex.test(originUrl);
-          if (matches) {
-            console.log(`[CSRF] Origin matched pattern: ${originUrl} matches ${allowed}`);
+        
+        const isAllowed = this.allowedOrigins.some(allowed => {
+          // Exact match
+          if (originUrl === allowed) {
+            console.log(`[CSRF] Origin matched exactly: ${originUrl} === ${allowed}`);
+            return true;
           }
-          return matches;
+          // Support wildcard subdomains (e.g., *.pianat.ai)
+          if (allowed.includes('*')) {
+            const pattern = allowed.replace(/\*/g, '.*');
+            const regex = new RegExp(`^${pattern}$`);
+            const matches = regex.test(originUrl);
+            if (matches) {
+              console.log(`[CSRF] Origin matched pattern: ${originUrl} matches ${allowed}`);
+            }
+            return matches;
+          }
+          return false;
+        });
+
+        if (!isAllowed) {
+          console.warn(`[CSRF] Blocked CSRF token request from unauthorized origin: ${originUrl}`);
+          console.warn(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
+          console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent || 'MISSING'}`);
+          throw new UnauthorizedException('Origin not allowed');
         }
-        return false;
+        
+        console.log(`[CSRF] ✓ Allowed CSRF token request from origin: ${originUrl}`);
+      }
+
+      let csrfToken = req.cookies?.csrfToken;
+
+      if (!csrfToken) {
+        csrfToken = this.csrfService.generateToken();
+        
+        try {
+          // Determine if this is a cross-origin request
+          const host = req.get('host') || '';
+          const currentOrigin = host ? `${req.protocol}://${host}` : null;
+          const isCrossOrigin = originUrl && currentOrigin && originUrl !== currentOrigin;
+          const isHttps = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
+          
+          // For cross-origin requests, use sameSite: 'none' and secure: true
+          // For same-origin, use sameSite: 'strict' for better security
+          const cookieOptions: any = {
+            httpOnly: true,
+            path: '/',
+            secure: isHttps || process.env.NODE_ENV === 'production', // Always secure in production or if HTTPS
+            sameSite: isCrossOrigin ? 'none' : 'strict', // 'none' for cross-origin, 'strict' for same-origin
+          };
+          
+          // Set domain for shared cookies if needed (e.g., .comply.now)
+          const cookieDomain = process.env.COOKIE_DOMAIN;
+          if (cookieDomain && !cookieDomain.includes('localhost') && !cookieDomain.includes('127.0.0.1')) {
+            cookieOptions.domain = cookieDomain;
+          }
+          
+          res.cookie('csrfToken', csrfToken, cookieOptions);
+          console.log(`[CSRF] Generated new CSRF token (length: ${csrfToken.length}), sameSite: ${cookieOptions.sameSite}, secure: ${cookieOptions.secure}, domain: ${cookieOptions.domain || 'not set'}`);
+        } catch (cookieError) {
+          console.error('[CSRF] Error setting cookie:', cookieError);
+          // Continue anyway - token is still returned in response body
+        }
+      } else {
+        console.log(`[CSRF] Using existing CSRF token from cookie (length: ${csrfToken.length})`);
+      }
+
+      console.log(`[CSRF] ✓ Returning CSRF token to ${isServerSideRequest ? 'server-side' : 'browser'} request`);
+      return res.status(200).json({ csrfToken });
+    } catch (error) {
+      console.error('[CSRF] Error in getToken:', error);
+      if (error instanceof UnauthorizedException) {
+        throw error; // Re-throw auth errors
+      }
+      // For other errors, return 500 with error message
+      return res.status(500).json({ 
+        message: 'Failed to generate CSRF token',
+        error: error.message 
       });
-
-      if (!isAllowed) {
-        console.warn(`[CSRF] Blocked CSRF token request from unauthorized origin: ${originUrl}`);
-        console.warn(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
-        console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent || 'MISSING'}`);
-        throw new UnauthorizedException('Origin not allowed');
-      }
-      
-      console.log(`[CSRF] ✓ Allowed CSRF token request from origin: ${originUrl}`);
     }
-
-    let csrfToken = req.cookies?.csrfToken;
-
-    if (!csrfToken) {
-      csrfToken = this.csrfService.generateToken();
-      
-      // Determine if this is a cross-origin request
-      const isCrossOrigin = originUrl && originUrl !== `https://${req.get('host')}` && originUrl !== `http://${req.get('host')}`;
-      const isHttps = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
-      
-      // For cross-origin requests, use sameSite: 'none' and secure: true
-      // For same-origin, use sameSite: 'strict' for better security
-      const cookieOptions: any = {
-        httpOnly: true,
-        path: '/',
-        secure: isHttps || process.env.NODE_ENV === 'production', // Always secure in production or if HTTPS
-        sameSite: isCrossOrigin ? 'none' : 'strict', // 'none' for cross-origin, 'strict' for same-origin
-      };
-      
-      // Set domain for shared cookies if needed (e.g., .comply.now)
-      const cookieDomain = process.env.COOKIE_DOMAIN;
-      if (cookieDomain && !cookieDomain.includes('localhost')) {
-        cookieOptions.domain = cookieDomain;
-      }
-      
-      res.cookie('csrfToken', csrfToken, cookieOptions);
-      console.log(`[CSRF] Generated new CSRF token (length: ${csrfToken.length}), sameSite: ${cookieOptions.sameSite}, secure: ${cookieOptions.secure}, domain: ${cookieOptions.domain || 'not set'}`);
-    } else {
-      console.log(`[CSRF] Using existing CSRF token from cookie (length: ${csrfToken.length})`);
-    }
-
-    console.log(`[CSRF] ✓ Returning CSRF token to ${isServerSideRequest ? 'server-side' : 'browser'} request`);
-    return res.status(200).json({ csrfToken });
   }
 }
 
