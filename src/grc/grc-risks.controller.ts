@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param } from '@nestjs/common';
+import { Controller, Get, Query, Param, Req } from '@nestjs/common';
 import { GrcRisksService } from './grc-risks.service';
 
 @Controller('api/grc/risks')
@@ -7,105 +7,125 @@ export class GrcRisksController {
 
   @Get()
   async getRisksDashboard(
+    @Req() req: any,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getRisksDashboard(startDate, endDate);
+    return this.grcRisksService.getRisksDashboard(req.user, startDate, endDate, functionId);
   }
 
   @Get('total')
   async getTotalRisks(
+    @Req() req: any,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getTotalRisks(page, limit, startDate, endDate);
+    return this.grcRisksService.getTotalRisks(req.user, page, limit, startDate, endDate, functionId);
   }
 
   @Get('card')
   async getCard(
+    @Req() req: any,
     @Query('cardType') cardType: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getCardData(cardType, page, limit, startDate, endDate);
+    return this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate);
   }
 
   // Path-param variant for frontend compatibility: /api/grc/risks/card/high
   @Get('card/:cardType')
   async getCardByParam(
+    @Req() req: any,
     @Param('cardType') cardType: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getCardData(cardType, page, limit, startDate, endDate);
+    return this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate);
   }
 
   @Get('high-risk')
   async getHighRisks(
+    @Req() req: any,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getHighRisks(page, limit, startDate, endDate);
+    return this.grcRisksService.getHighRisks(req.user, page, limit, startDate, endDate, functionId);
   }
 
   @Get('medium-risk')
   async getMediumRisks(
+    @Req() req: any,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getMediumRisks(page, limit, startDate, endDate);
+    return this.grcRisksService.getMediumRisks(req.user, page, limit, startDate, endDate, functionId);
   }
 
   @Get('low-risk')
   async getLowRisks(
+    @Req() req: any,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getLowRisks(page, limit, startDate, endDate);
+    return this.grcRisksService.getLowRisks(req.user, page, limit, startDate, endDate, functionId);
   }
 
   @Get('reduction')
   async getRiskReduction(
+    @Req() req: any,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getRiskReduction(page, limit, startDate, endDate);
+    return this.grcRisksService.getRiskReduction(req.user, page, limit, startDate, endDate, functionId);
   }
 
   @Get('new-risks')
   async getNewRisks(
+    @Req() req: any,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getNewRisks(page, limit, startDate, endDate);
+    return this.grcRisksService.getNewRisks(req.user, page, limit, startDate, endDate, functionId);
   }
 
   @Get('by-category')
   async getRisksByCategory(
+    @Req() req: any,
     @Query('category') category: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByCategory(category, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByCategory(req.user, category, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByCategory:', error);
       throw error;
@@ -114,14 +134,16 @@ export class GrcRisksController {
 
   @Get('by-event-type')
   async getRisksByEventType(
+    @Req() req: any,
     @Query('eventType') eventType: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByEventType(eventType, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByEventType(req.user, eventType, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByEventType:', error);
       throw error;
@@ -130,6 +152,7 @@ export class GrcRisksController {
 
   @Get('by-quarter')
   async getRisksByQuarter(
+    @Req() req: any,
     @Query('quarter') quarter: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
@@ -137,7 +160,7 @@ export class GrcRisksController {
     @Query('endDate') endDate?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByQuarter(quarter, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByQuarter(req.user, quarter, page, limit, startDate, endDate);
     } catch (error) {
       console.error('Error in getRisksByQuarter:', error);
       throw error;
@@ -146,14 +169,16 @@ export class GrcRisksController {
 
   @Get('by-approval-status')
   async getRisksByApprovalStatus(
+    @Req() req: any,
     @Query('approvalStatus') approvalStatus: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByApprovalStatus(approvalStatus, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByApprovalStatus(req.user, approvalStatus, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByApprovalStatus:', error);
       throw error;
@@ -162,14 +187,16 @@ export class GrcRisksController {
 
   @Get('by-financial-impact')
   async getRisksByFinancialImpact(
+    @Req() req: any,
     @Query('financialImpact') financialImpact: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByFinancialImpact(financialImpact, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByFinancialImpact:', error);
       throw error;
@@ -178,14 +205,16 @@ export class GrcRisksController {
 
   @Get('by-function')
   async getRisksByFunction(
+    @Req() req: any,
     @Query('functionName') functionName: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByFunction(functionName, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByFunction(req.user, functionName, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByFunction:', error);
       throw error;
@@ -194,14 +223,16 @@ export class GrcRisksController {
 
   @Get('by-business-process')
   async getRisksByBusinessProcess(
+    @Req() req: any,
     @Query('processName') processName: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByBusinessProcess(processName, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByBusinessProcess(req.user, processName, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByBusinessProcess:', error);
       throw error;
@@ -210,6 +241,7 @@ export class GrcRisksController {
 
   @Get('by-name')
   async getRisksByName(
+    @Req() req: any,
     @Query('riskName') riskName: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
@@ -217,7 +249,7 @@ export class GrcRisksController {
     @Query('endDate') endDate?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByName(riskName, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByName(req.user, riskName, page, limit, startDate, endDate);
     } catch (error) {
       console.error('Error in getRisksByName:', error);
       throw error;
@@ -226,14 +258,16 @@ export class GrcRisksController {
 
   @Get('by-control-name')
   async getRisksByControlName(
+    @Req() req: any,
     @Query('controlName') controlName: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByControlName(controlName, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksByControlName(req.user, controlName, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByControlName:', error);
       throw error;
@@ -242,14 +276,16 @@ export class GrcRisksController {
 
   @Get('for-comparison')
   async getRisksForComparison(
+    @Req() req: any,
     @Query('riskName') riskName: string,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksForComparison(riskName, page, limit, startDate, endDate);
+      return await this.grcRisksService.getRisksForComparison(req.user, riskName, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksForComparison:', error);
       throw error;
