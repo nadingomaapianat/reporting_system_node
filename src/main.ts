@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as cors from 'cors';
+import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 async function bootstrap() {
@@ -10,6 +11,7 @@ async function bootstrap() {
   
   // Security middleware
   app.use(helmet());
+  app.use(cookieParser());
   
   // CORS configuration
   app.use(cors({

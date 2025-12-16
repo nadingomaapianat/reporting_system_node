@@ -15,6 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GrcDashboardController = void 0;
 const common_1 = require("@nestjs/common");
 const grc_dashboard_service_1 = require("./grc-dashboard.service");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const permissions_guard_1 = require("../auth/guards/permissions.guard");
+const permissions_decorator_1 = require("../auth/decorators/permissions.decorator");
 let GrcDashboardController = class GrcDashboardController {
     constructor(grcDashboardService) {
         this.grcDashboardService = grcDashboardService;
@@ -187,6 +190,8 @@ let GrcDashboardController = class GrcDashboardController {
 };
 exports.GrcDashboardController = GrcDashboardController;
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)('startDate')),
     __param(1, (0, common_1.Query)('endDate')),
@@ -195,6 +200,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsDashboard", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('total'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -205,6 +212,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getTotalControls", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('unmapped'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -215,6 +224,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getUnmappedControls", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('pending-preparer'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -225,6 +236,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getPendingPreparerControls", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('pending-checker'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -235,6 +248,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getPendingCheckerControls", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('pending-reviewer'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -245,6 +260,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getPendingReviewerControls", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('pending-acceptance'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -255,6 +272,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getPendingAcceptanceControls", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('tests/pending-preparer'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -265,6 +284,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getTestsPendingPreparer", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('tests/pending-checker'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -275,6 +296,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getTestsPendingChecker", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('tests/pending-reviewer'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -285,6 +308,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getTestsPendingReviewer", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('tests/pending-acceptance'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -295,6 +320,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getTestsPendingAcceptance", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('unmapped-icofr'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -305,6 +332,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getUnmappedIcofrControls", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('unmapped-non-icofr'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -315,6 +344,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getUnmappedNonIcofrControls", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-quarter'),
     __param(0, (0, common_1.Query)('quarter')),
     __param(1, (0, common_1.Query)('page')),
@@ -326,6 +357,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByQuarter", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-department'),
     __param(0, (0, common_1.Query)('department')),
     __param(1, (0, common_1.Query)('page')),
@@ -337,6 +370,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByDepartment", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-type'),
     __param(0, (0, common_1.Query)('type')),
     __param(1, (0, common_1.Query)('page')),
@@ -348,6 +383,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByType", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-level'),
     __param(0, (0, common_1.Query)('level')),
     __param(1, (0, common_1.Query)('page')),
@@ -359,6 +396,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByLevel", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-frequency'),
     __param(0, (0, common_1.Query)('frequency')),
     __param(1, (0, common_1.Query)('page')),
@@ -370,6 +409,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByFrequency", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-risk-response'),
     __param(0, (0, common_1.Query)('riskResponse')),
     __param(1, (0, common_1.Query)('page')),
@@ -381,6 +422,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByRiskResponse", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-anti-fraud'),
     __param(0, (0, common_1.Query)('antiFraud')),
     __param(1, (0, common_1.Query)('page')),
@@ -392,6 +435,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByAntiFraud", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-icofr-status'),
     __param(0, (0, common_1.Query)('icofrStatus')),
     __param(1, (0, common_1.Query)('page')),
@@ -403,6 +448,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByIcofrStatus", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('focus-points/by-principle'),
     __param(0, (0, common_1.Query)('principle')),
     __param(1, (0, common_1.Query)('page')),
@@ -414,6 +461,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getFocusPointsByPrinciple", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-component'),
     __param(0, (0, common_1.Query)('component')),
     __param(1, (0, common_1.Query)('page')),
@@ -425,6 +474,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByComponent", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('focus-points/by-component'),
     __param(0, (0, common_1.Query)('component')),
     __param(1, (0, common_1.Query)('page')),
@@ -436,6 +487,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getFocusPointsByComponent", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('action-plans/by-status'),
     __param(0, (0, common_1.Query)('status')),
     __param(1, (0, common_1.Query)('page')),
@@ -447,6 +500,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getActionPlansByStatus", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-department-and-key-control'),
     __param(0, (0, common_1.Query)('department')),
     __param(1, (0, common_1.Query)('keyControl')),
@@ -459,6 +514,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByDepartmentAndKeyControl", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-process-and-key-control'),
     __param(0, (0, common_1.Query)('process')),
     __param(1, (0, common_1.Query)('keyControl')),
@@ -471,6 +528,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByProcessAndKeyControl", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-business-unit-and-key-control'),
     __param(0, (0, common_1.Query)('businessUnit')),
     __param(1, (0, common_1.Query)('keyControl')),
@@ -483,6 +542,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByBusinessUnitAndKeyControl", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-assertion'),
     __param(0, (0, common_1.Query)('assertionName')),
     __param(1, (0, common_1.Query)('page')),
@@ -494,6 +555,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByAssertion", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-component-and-icofr-status'),
     __param(0, (0, common_1.Query)('component')),
     __param(1, (0, common_1.Query)('icofrStatus')),
@@ -506,6 +569,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcDashboardController.prototype, "getControlsByComponentAndIcofrStatus", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Control Catalog', ['show']),
     (0, common_1.Get)('by-function-quarter-year'),
     __param(0, (0, common_1.Query)('functionName')),
     __param(1, (0, common_1.Query)('quarter')),

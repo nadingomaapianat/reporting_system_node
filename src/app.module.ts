@@ -1,10 +1,15 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RealtimeModule } from './realtime/realtime.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuthModule } from './auth/auth.module';
 import { GrcModule } from './grc/grc.module';
+import { CsrfModule } from './csrf/csrf.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { PermissionsGuard } from './auth/guards/permissions.guard';
+import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { BullModule } from '@nestjs/bull';
 import { SimpleChartController } from './shared/simple-chart.controller';
 import { AutoDashboardService } from './shared/auto-dashboard.service';
@@ -27,8 +32,19 @@ import { DatabaseService } from './database/database.service';
     DashboardModule,
     AuthModule,
     GrcModule,
+    CsrfModule,
   ],
   controllers: [SimpleChartController],
-  providers: [AutoDashboardService, ChartRegistryService, DatabaseService],
+  providers: [
+    AutoDashboardService,
+    ChartRegistryService,
+    DatabaseService,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CsrfMiddleware).forRoutes('*');
+  }
+}
