@@ -1,11 +1,12 @@
 import { AuthService } from './auth.service';
+import { Response } from 'express';
 export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
     login(loginDto: {
         email: string;
         password: string;
-    }): Promise<{
+    }, res: Response): Promise<{
         user: {
             id: string;
             email: string;
@@ -36,7 +37,7 @@ export declare class AuthController {
         name: string;
         role: string;
     }>;
-    logout(): Promise<{
+    logout(res: Response): Promise<{
         message: string;
     }>;
 }

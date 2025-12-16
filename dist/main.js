@@ -5,10 +5,12 @@ const app_module_1 = require("./app.module");
 const common_1 = require("@nestjs/common");
 const platform_socket_io_1 = require("@nestjs/platform-socket.io");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const helmet_1 = require("helmet");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.use((0, helmet_1.default)());
+    app.use(cookieParser());
     app.use(cors({
         origin: ['https://reporting-system-frontend.pianat.ai', 'http://localhost:3001', 'https://reporting-system-backend.pianat.ai', 'https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai'],
         credentials: true,
