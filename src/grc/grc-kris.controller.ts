@@ -1,15 +1,22 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { GrcKrisService } from './grc-kris.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/grc/kris')
 export class GrcKrisController {
   constructor(private readonly grcKrisService: GrcKrisService) {}
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get()
   async getKrisDashboard(@Query('timeframe') timeframe?: string) {
     return this.grcKrisService.getKrisDashboard(timeframe);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('export')
   async exportKris(
     @Query('format') format: string,
@@ -18,6 +25,8 @@ export class GrcKrisController {
     return this.grcKrisService.exportKris(format, timeframe);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('total')
   async getTotalKris(
     @Query('page') page: number = 1,
@@ -28,6 +37,8 @@ export class GrcKrisController {
     return this.grcKrisService.getTotalKris(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('pending-preparer')
   async getPendingPreparerKris(
     @Query('page') page: number = 1,
@@ -38,6 +49,8 @@ export class GrcKrisController {
     return this.grcKrisService.getPendingPreparerKris(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('pending-checker')
   async getPendingCheckerKris(
     @Query('page') page: number = 1,
@@ -48,6 +61,8 @@ export class GrcKrisController {
     return this.grcKrisService.getPendingCheckerKris(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('pending-reviewer')
   async getPendingReviewerKris(
     @Query('page') page: number = 1,
@@ -58,6 +73,8 @@ export class GrcKrisController {
     return this.grcKrisService.getPendingReviewerKris(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('pending-acceptance')
   async getPendingAcceptanceKris(
     @Query('page') page: number = 1,
@@ -68,6 +85,8 @@ export class GrcKrisController {
     return this.grcKrisService.getPendingAcceptanceKris(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('by-status')
   async getKrisByStatus(
     @Query('status') status: string,
@@ -84,6 +103,8 @@ export class GrcKrisController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('by-level')
   async getKrisByLevel(
     @Query('level') level: string,
@@ -100,6 +121,8 @@ export class GrcKrisController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('by-function')
   async getKrisByFunction(
     @Query('functionName') functionName: string,
@@ -117,6 +140,8 @@ export class GrcKrisController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('with-assessments-by-function')
   async getKrisWithAssessmentsByFunction(
     @Query('functionName') functionName: string,
@@ -133,6 +158,8 @@ export class GrcKrisController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('by-frequency')
   async getKrisByFrequency(
     @Query('frequency') frequency: string,
@@ -149,6 +176,8 @@ export class GrcKrisController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('risks-by-kri-name')
   async getRisksByKriName(
     @Query('kriName') kriName: string,
@@ -165,6 +194,8 @@ export class GrcKrisController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('by-month-year')
   async getKrisByMonthYear(
     @Query('monthYear') monthYear: string,
@@ -181,6 +212,8 @@ export class GrcKrisController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('assessments-by-month-level')
   async getKriAssessmentsByMonthAndLevel(
     @Query('monthYear') monthYear: string,
@@ -198,6 +231,8 @@ export class GrcKrisController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('KRI Catalog', ['show'])
   @Get('by-overdue-status')
   async getKrisByOverdueStatus(
     @Query('overdueStatus') overdueStatus: string,

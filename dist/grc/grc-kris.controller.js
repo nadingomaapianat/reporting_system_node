@@ -15,6 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GrcKrisController = void 0;
 const common_1 = require("@nestjs/common");
 const grc_kris_service_1 = require("./grc-kris.service");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const permissions_guard_1 = require("../auth/guards/permissions.guard");
+const permissions_decorator_1 = require("../auth/decorators/permissions.decorator");
 let GrcKrisController = class GrcKrisController {
     constructor(grcKrisService) {
         this.grcKrisService = grcKrisService;
@@ -124,6 +127,8 @@ let GrcKrisController = class GrcKrisController {
 };
 exports.GrcKrisController = GrcKrisController;
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)('timeframe')),
     __metadata("design:type", Function),
@@ -131,6 +136,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getKrisDashboard", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('export'),
     __param(0, (0, common_1.Query)('format')),
     __param(1, (0, common_1.Query)('timeframe')),
@@ -139,6 +146,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "exportKris", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('total'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -149,6 +158,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getTotalKris", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('pending-preparer'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -159,6 +170,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getPendingPreparerKris", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('pending-checker'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -169,6 +182,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getPendingCheckerKris", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('pending-reviewer'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -179,6 +194,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getPendingReviewerKris", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('pending-acceptance'),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
@@ -189,6 +206,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getPendingAcceptanceKris", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('by-status'),
     __param(0, (0, common_1.Query)('status')),
     __param(1, (0, common_1.Query)('page')),
@@ -200,6 +219,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getKrisByStatus", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('by-level'),
     __param(0, (0, common_1.Query)('level')),
     __param(1, (0, common_1.Query)('page')),
@@ -211,6 +232,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getKrisByLevel", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('by-function'),
     __param(0, (0, common_1.Query)('functionName')),
     __param(1, (0, common_1.Query)('page')),
@@ -223,6 +246,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getKrisByFunction", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('with-assessments-by-function'),
     __param(0, (0, common_1.Query)('functionName')),
     __param(1, (0, common_1.Query)('page')),
@@ -234,6 +259,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getKrisWithAssessmentsByFunction", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('by-frequency'),
     __param(0, (0, common_1.Query)('frequency')),
     __param(1, (0, common_1.Query)('page')),
@@ -245,6 +272,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getKrisByFrequency", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('risks-by-kri-name'),
     __param(0, (0, common_1.Query)('kriName')),
     __param(1, (0, common_1.Query)('page')),
@@ -256,6 +285,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getRisksByKriName", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('by-month-year'),
     __param(0, (0, common_1.Query)('monthYear')),
     __param(1, (0, common_1.Query)('page')),
@@ -267,6 +298,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getKrisByMonthYear", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('assessments-by-month-level'),
     __param(0, (0, common_1.Query)('monthYear')),
     __param(1, (0, common_1.Query)('assessmentLevel')),
@@ -279,6 +312,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], GrcKrisController.prototype, "getKriAssessmentsByMonthAndLevel", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('KRI Catalog', ['show']),
     (0, common_1.Get)('by-overdue-status'),
     __param(0, (0, common_1.Query)('overdueStatus')),
     __param(1, (0, common_1.Query)('page')),

@@ -1,10 +1,15 @@
-import { Controller, Get, Query, Param } from '@nestjs/common';
+import { Controller, Get, Query, Param, UseGuards } from '@nestjs/common';
 import { GrcRisksService } from './grc-risks.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/grc/risks')
 export class GrcRisksController {
   constructor(private readonly grcRisksService: GrcRisksService) {}
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get()
   async getRisksDashboard(
     @Query('startDate') startDate?: string,
@@ -13,6 +18,8 @@ export class GrcRisksController {
     return this.grcRisksService.getRisksDashboard(startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('total')
   async getTotalRisks(
     @Query('page') page: number = 1,
@@ -23,6 +30,8 @@ export class GrcRisksController {
     return this.grcRisksService.getTotalRisks(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('card')
   async getCard(
     @Query('cardType') cardType: string,
@@ -35,6 +44,8 @@ export class GrcRisksController {
   }
 
   // Path-param variant for frontend compatibility: /api/grc/risks/card/high
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('card/:cardType')
   async getCardByParam(
     @Param('cardType') cardType: string,
@@ -46,6 +57,8 @@ export class GrcRisksController {
     return this.grcRisksService.getCardData(cardType, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('high-risk')
   async getHighRisks(
     @Query('page') page: number = 1,
@@ -56,6 +69,8 @@ export class GrcRisksController {
     return this.grcRisksService.getHighRisks(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('medium-risk')
   async getMediumRisks(
     @Query('page') page: number = 1,
@@ -66,6 +81,8 @@ export class GrcRisksController {
     return this.grcRisksService.getMediumRisks(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('low-risk')
   async getLowRisks(
     @Query('page') page: number = 1,
@@ -76,6 +93,8 @@ export class GrcRisksController {
     return this.grcRisksService.getLowRisks(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('reduction')
   async getRiskReduction(
     @Query('page') page: number = 1,
@@ -86,6 +105,8 @@ export class GrcRisksController {
     return this.grcRisksService.getRiskReduction(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('new-risks')
   async getNewRisks(
     @Query('page') page: number = 1,
@@ -96,6 +117,8 @@ export class GrcRisksController {
     return this.grcRisksService.getNewRisks(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-category')
   async getRisksByCategory(
     @Query('category') category: string,
@@ -112,6 +135,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-event-type')
   async getRisksByEventType(
     @Query('eventType') eventType: string,
@@ -128,6 +153,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-quarter')
   async getRisksByQuarter(
     @Query('quarter') quarter: string,
@@ -144,6 +171,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-approval-status')
   async getRisksByApprovalStatus(
     @Query('approvalStatus') approvalStatus: string,
@@ -160,6 +189,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-financial-impact')
   async getRisksByFinancialImpact(
     @Query('financialImpact') financialImpact: string,
@@ -176,6 +207,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-function')
   async getRisksByFunction(
     @Query('functionName') functionName: string,
@@ -192,6 +225,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-business-process')
   async getRisksByBusinessProcess(
     @Query('processName') processName: string,
@@ -208,6 +243,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-name')
   async getRisksByName(
     @Query('riskName') riskName: string,
@@ -224,6 +261,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('by-control-name')
   async getRisksByControlName(
     @Query('controlName') controlName: string,
@@ -240,6 +279,8 @@ export class GrcRisksController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Risk Catalog', ['show'])
   @Get('for-comparison')
   async getRisksForComparison(
     @Query('riskName') riskName: string,

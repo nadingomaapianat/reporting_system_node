@@ -14,12 +14,20 @@ const realtime_module_1 = require("./realtime/realtime.module");
 const dashboard_module_1 = require("./dashboard/dashboard.module");
 const auth_module_1 = require("./auth/auth.module");
 const grc_module_1 = require("./grc/grc.module");
+const csrf_module_1 = require("./csrf/csrf.module");
+const core_1 = require("@nestjs/core");
+const jwt_auth_guard_1 = require("./auth/jwt-auth.guard");
+const permissions_guard_1 = require("./auth/guards/permissions.guard");
+const csrf_middleware_1 = require("./middleware/csrf.middleware");
 const bull_1 = require("@nestjs/bull");
 const simple_chart_controller_1 = require("./shared/simple-chart.controller");
 const auto_dashboard_service_1 = require("./shared/auto-dashboard.service");
 const chart_registry_service_1 = require("./shared/chart-registry.service");
 const database_service_1 = require("./database/database.service");
 let AppModule = class AppModule {
+    configure(consumer) {
+        consumer.apply(csrf_middleware_1.CsrfMiddleware).forRoutes('*');
+    }
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
@@ -39,9 +47,16 @@ exports.AppModule = AppModule = __decorate([
             dashboard_module_1.DashboardModule,
             auth_module_1.AuthModule,
             grc_module_1.GrcModule,
+            csrf_module_1.CsrfModule,
         ],
         controllers: [simple_chart_controller_1.SimpleChartController],
-        providers: [auto_dashboard_service_1.AutoDashboardService, chart_registry_service_1.ChartRegistryService, database_service_1.DatabaseService],
+        providers: [
+            auto_dashboard_service_1.AutoDashboardService,
+            chart_registry_service_1.ChartRegistryService,
+            database_service_1.DatabaseService,
+            { provide: core_1.APP_GUARD, useClass: jwt_auth_guard_1.JwtAuthGuard },
+            { provide: core_1.APP_GUARD, useClass: permissions_guard_1.PermissionsGuard },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map
