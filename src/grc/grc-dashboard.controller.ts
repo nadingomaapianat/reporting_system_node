@@ -1,10 +1,15 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { GrcDashboardService } from './grc-dashboard.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/grc/controls')
 export class GrcDashboardController {
   constructor(private readonly grcDashboardService: GrcDashboardService) {}
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get()
   async getControlsDashboard(
     @Query('startDate') startDate?: string,
@@ -13,6 +18,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsDashboard(startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('total')
   async getTotalControls(
     @Query('page') page: number = 1,
@@ -23,6 +30,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getTotalControls(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('unmapped')
   async getUnmappedControls(
     @Query('page') page: number = 1,
@@ -33,6 +42,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getUnmappedControls(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('pending-preparer')
   async getPendingPreparerControls(
     @Query('page') page: number = 1,
@@ -43,6 +54,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getPendingPreparerControls(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('pending-checker')
   async getPendingCheckerControls(
     @Query('page') page: number = 1,
@@ -53,6 +66,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getPendingCheckerControls(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('pending-reviewer')
   async getPendingReviewerControls(
     @Query('page') page: number = 1,
@@ -63,6 +78,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getPendingReviewerControls(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('pending-acceptance')
   async getPendingAcceptanceControls(
     @Query('page') page: number = 1,
@@ -74,6 +91,8 @@ export class GrcDashboardController {
   }
 
   // Control Tests pending endpoints
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('tests/pending-preparer')
   async getTestsPendingPreparer(
     @Query('page') page: number = 1,
@@ -84,6 +103,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getTestsPendingPreparer(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('tests/pending-checker')
   async getTestsPendingChecker(
     @Query('page') page: number = 1,
@@ -94,6 +115,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getTestsPendingChecker(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('tests/pending-reviewer')
   async getTestsPendingReviewer(
     @Query('page') page: number = 1,
@@ -104,6 +127,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getTestsPendingReviewer(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('tests/pending-acceptance')
   async getTestsPendingAcceptance(
     @Query('page') page: number = 1,
@@ -114,6 +139,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getTestsPendingAcceptance(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('unmapped-icofr')
   async getUnmappedIcofrControls(
     @Query('page') page: number = 1,
@@ -124,6 +151,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getUnmappedIcofrControls(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('unmapped-non-icofr')
   async getUnmappedNonIcofrControls(
     @Query('page') page: number = 1,
@@ -134,6 +163,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getUnmappedNonIcofrControls(page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-quarter')
   async getControlsByQuarter(
     @Query('quarter') quarter: string,
@@ -148,6 +179,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByQuarter(quarter, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-department')
   async getControlsByDepartment(
     @Query('department') department: string,
@@ -162,6 +195,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByDepartment(department, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-type')
   async getControlsByType(
     @Query('type') type: string,
@@ -176,6 +211,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByType(type, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-level')
   async getControlsByLevel(
     @Query('level') level: string,
@@ -190,6 +227,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByLevel(level, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-frequency')
   async getControlsByFrequency(
     @Query('frequency') frequency: string,
@@ -204,6 +243,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByFrequency(frequency, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-risk-response')
   async getControlsByRiskResponse(
     @Query('riskResponse') riskResponse: string,
@@ -218,6 +259,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByRiskResponse(riskResponse, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-anti-fraud')
   async getControlsByAntiFraud(
     @Query('antiFraud') antiFraud: string,
@@ -232,6 +275,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByAntiFraud(antiFraud, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-icofr-status')
   async getControlsByIcofrStatus(
     @Query('icofrStatus') icofrStatus: string,
@@ -246,6 +291,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByIcofrStatus(icofrStatus, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('focus-points/by-principle')
   async getFocusPointsByPrinciple(
     @Query('principle') principle: string,
@@ -260,6 +307,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getFocusPointsByPrinciple(principle, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-component')
   async getControlsByComponent(
     @Query('component') component: string,
@@ -274,6 +323,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByComponent(component, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('focus-points/by-component')
   async getFocusPointsByComponent(
     @Query('component') component: string,
@@ -288,6 +339,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getFocusPointsByComponent(component, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('action-plans/by-status')
   async getActionPlansByStatus(
     @Query('status') status: string,
@@ -302,6 +355,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getActionPlansByStatus(status, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-department-and-key-control')
   async getControlsByDepartmentAndKeyControl(
     @Query('department') department: string,
@@ -317,6 +372,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByDepartmentAndKeyControl(department, keyControl, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-process-and-key-control')
   async getControlsByProcessAndKeyControl(
     @Query('process') process: string,
@@ -332,6 +389,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByProcessAndKeyControl(process, keyControl, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-business-unit-and-key-control')
   async getControlsByBusinessUnitAndKeyControl(
     @Query('businessUnit') businessUnit: string,
@@ -347,6 +406,8 @@ export class GrcDashboardController {
     return this.grcDashboardService.getControlsByBusinessUnitAndKeyControl(businessUnit, keyControl, page, limit, startDate, endDate);
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-assertion')
   async getControlsByAssertion(
     @Query('assertionName') assertionName: string,
@@ -366,6 +427,8 @@ export class GrcDashboardController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-component-and-icofr-status')
   async getControlsByComponentAndIcofrStatus(
     @Query('component') component: string,
@@ -386,6 +449,8 @@ export class GrcDashboardController {
     }
   }
 
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('Control Catalog', ['show'])
   @Get('by-function-quarter-year')
   async getControlsByFunctionQuarterYear(
     @Query('functionName') functionName: string,

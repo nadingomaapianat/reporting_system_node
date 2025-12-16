@@ -16,6 +16,9 @@ exports.DashboardController = void 0;
 const common_1 = require("@nestjs/common");
 const dashboard_service_1 = require("./dashboard.service");
 const realtime_gateway_1 = require("../realtime/realtime.gateway");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const permissions_guard_1 = require("../auth/guards/permissions.guard");
+const permissions_decorator_1 = require("../auth/decorators/permissions.decorator");
 let DashboardController = class DashboardController {
     constructor(dashboardService, realtimeGateway) {
         this.dashboardService = dashboardService;
@@ -74,24 +77,32 @@ let DashboardController = class DashboardController {
 };
 exports.DashboardController = DashboardController;
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['show']),
     (0, common_1.Get)('status'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "getDashboardStatus", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['show']),
     (0, common_1.Get)('metrics'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "getCurrentMetrics", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['show']),
     (0, common_1.Get)('alerts'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "getActiveAlerts", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['edit']),
     (0, common_1.Post)('alerts/acknowledge'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -99,12 +110,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "acknowledgeAlert", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['show']),
     (0, common_1.Get)('system-health'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "getSystemHealth", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['show']),
     (0, common_1.Get)('notifications'),
     __param(0, (0, common_1.Query)('limit')),
     __metadata("design:type", Function),
@@ -112,6 +127,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "getNotifications", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['edit']),
     (0, common_1.Post)('notifications/mark-read'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -119,6 +136,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "markNotificationAsRead", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['show']),
     (0, common_1.Get)('widgets/:widgetId/data'),
     __param(0, (0, common_1.Param)('widgetId')),
     __metadata("design:type", Function),
@@ -126,6 +145,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "getWidgetData", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['edit']),
     (0, common_1.Post)('widgets/:widgetId/refresh'),
     __param(0, (0, common_1.Param)('widgetId')),
     __metadata("design:type", Function),
@@ -133,6 +154,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "refreshWidget", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['show']),
     (0, common_1.Get)('activity'),
     __param(0, (0, common_1.Query)('user_id')),
     __metadata("design:type", Function),
@@ -140,6 +163,8 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DashboardController.prototype, "getDashboardActivities", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Dashboard', ['edit']),
     (0, common_1.Post)('activity'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
