@@ -130,6 +130,231 @@ export class GrcComplyController {
       functionId
     );
   }
+
+  /**
+   * Detail endpoints for chart drill-downs
+   */
+  @Get('surveys-by-status')
+  async getSurveysByStatus(
+    @Req() req: any,
+    @Query('status') status: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getSurveysByStatus(req.user, status, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('compliance-by-status')
+  async getComplianceByStatus(
+    @Req() req: any,
+    @Query('status') status: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getComplianceByStatus(req.user, status, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('compliance-by-progress')
+  async getComplianceByProgress(
+    @Req() req: any,
+    @Query('progressStatus') progressStatus: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getComplianceByProgress(req.user, progressStatus, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('compliance-by-approval')
+  async getComplianceByApproval(
+    @Req() req: any,
+    @Query('approvalStatus') approvalStatus: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getComplianceByApproval(req.user, approvalStatus, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('avg-score-by-survey')
+  async getAvgScoreBySurvey(
+    @Req() req: any,
+    @Query('surveyName') surveyName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getAvgScoreBySurvey(req.user, surveyName, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('compliance-by-category')
+  async getComplianceByCategory(
+    @Req() req: any,
+    @Query('category') category: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getComplianceByCategory(req.user, category, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('top-failed-controls')
+  async getTopFailedControls(
+    @Req() req: any,
+    @Query('controlName') controlName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getTopFailedControls(req.user, controlName, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('controls-by-category')
+  async getControlsByCategory(
+    @Req() req: any,
+    @Query('category') category: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getControlsByCategory(req.user, category, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('risks-by-category')
+  async getRisksByCategory(
+    @Req() req: any,
+    @Query('category') category: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getRisksByCategory(req.user, category, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('impacted-areas-by-month')
+  async getImpactedAreasByMonth(
+    @Req() req: any,
+    @Query('month') month: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getImpactedAreasByMonth(req.user, month, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('questions-by-type')
+  async getQuestionsByType(
+    @Req() req: any,
+    @Query('questionType') questionType: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getQuestionsByType(req.user, questionType, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('questions-by-reference')
+  async getQuestionsByReference(
+    @Req() req: any,
+    @Query('referenceName') referenceName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getQuestionsByReference(req.user, referenceName, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('controls-by-domain')
+  async getControlsByDomain(
+    @Req() req: any,
+    @Query('domain') domain: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getControlsByDomain(req.user, domain, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('answers-by-function')
+  async getAnswersByFunction(
+    @Req() req: any,
+    @Query('functionName') functionName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getAnswersByFunction(req.user, functionName, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('questions-by-survey-category')
+  async getQuestionsBySurveyAndCategory(
+    @Req() req: any,
+    @Query('surveyName') surveyName: string,
+    @Query('categoryName') categoryName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getQuestionsBySurveyAndCategory(req.user, surveyName, categoryName, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('questions-by-category-only')
+  async getQuestionsByCategory(
+    @Req() req: any,
+    @Query('categoryName') categoryName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getQuestionsByCategory(req.user, categoryName, page, limit, startDate, endDate, functionId);
+  }
+
+  @Get('controls-by-impacted-area')
+  async getControlsByImpactedArea(
+    @Req() req: any,
+    @Query('impactedAreaName') impactedAreaName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcComplyService.getControlsByImpactedArea(req.user, impactedAreaName, page, limit, startDate, endDate, functionId);
+  }
 }
 
 

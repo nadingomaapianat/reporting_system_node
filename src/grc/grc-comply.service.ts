@@ -377,67 +377,28 @@ SELECT DISTINCT
   C.[year],
   C.[approval_status],
   C.[createdAt]
-FROM [NEWDCC-V4-UAT].[dbo].[Compliances] C
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[complianceReferences] CR ON C.id = CR.compliance_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[controlDomains] CD ON CR.reference_id = CD.domain_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[Domains] D ON CD.domain_id = D.id
+FROM ${fq('Compliances')} C
+LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
 WHERE C.[deletedAt] IS NULL ${complianceDateFilter} ${complianceFunctionFilter}
 ORDER BY C.[code]
 `;
 
       case '7':
         const impactedAreaDateFilter = this.buildDateFilter(startDate, endDate, 'sia.createdAt');
-        // Build function filter - filter through controls linked to impacted areas
-        // Since the report is about "control_links", we filter by checking if controls with the function exist
-        // We'll use a subquery to check if there are controls with the selected function
-        // that are related to the impacted areas (the exact relationship depends on schema)
-        let impactedAreaFunctionFilter = '';
-        if (functionId) {
-          if (!userAccess.isSuperAdmin && !userAccess.functionIds.includes(functionId)) {
-            impactedAreaFunctionFilter = ' AND 1 = 0';
-          } else {
-            // Filter by checking if there are controls with the selected function
-            // This assumes controls are somehow related to impacted areas
-            // The exact join depends on your schema - adjust as needed
-            impactedAreaFunctionFilter = ` AND EXISTS (
-              SELECT 1 
-              FROM Controls c
-              JOIN ControlFunctions cf ON cf.control_id = c.id 
-                AND cf.function_id = '${functionId}' 
-                AND cf.deletedAt IS NULL
-              WHERE c.deletedAt IS NULL
-                AND EXISTS (
-                  SELECT 1 FROM ImpactedAreas ia_check
-                  WHERE ia_check.id = ia.id
-                )
-            )`;
-          }
-        } else if (!userAccess.isSuperAdmin) {
-          if (!userAccess.functionIds.length) {
-            impactedAreaFunctionFilter = ' AND 1 = 0';
-          } else {
-            const ids = userAccess.functionIds.map((id) => `'${id}'`).join(', ');
-            impactedAreaFunctionFilter = ` AND EXISTS (
-              SELECT 1 
-              FROM Controls c
-              JOIN ControlFunctions cf ON cf.control_id = c.id 
-                AND cf.function_id IN (${ids}) 
-                AND cf.deletedAt IS NULL
-              WHERE c.deletedAt IS NULL
-                AND EXISTS (
-                  SELECT 1 FROM ImpactedAreas ia_check
-                  WHERE ia_check.id = ia.id
-                )
-            )`;
-          }
-        }
+        const impactedAreaControlFunctionFilter = this.buildControlFunctionFilterForComply('ctrl', userAccess, functionId);
+        
         return `
 SELECT
   ia.name AS impacted_area,
-  COUNT(sia.id) AS control_links
+  COUNT(DISTINCT ctrl.id) AS control_links
 FROM survey_impacted_area sia
 JOIN ImpactedAreas ia ON ia.id = sia.impactedAreaId
-WHERE sia.deletedAt IS NULL ${impactedAreaDateFilter} ${impactedAreaFunctionFilter}
+LEFT JOIN ${fq('ComplianceControlActions')} CCA ON CCA.id = sia.complianceControlActionId AND CCA.deletedAt IS NULL
+LEFT JOIN ${fq('Controls')} ctrl ON ctrl.id = CCA.control_id AND ctrl.deletedAt IS NULL
+WHERE sia.deletedAt IS NULL 
+  AND ctrl.id IS NOT NULL ${impactedAreaDateFilter} ${impactedAreaControlFunctionFilter}
 GROUP BY ia.name
 ORDER BY control_links DESC
 `;
@@ -519,20 +480,20 @@ SELECT DISTINCT
   [approval_status],
   cre.code AS StandardCode,
   CRE.NAME AS StandardName,
-  (SELECT CODE FROM [NEWDCC-V4-UAT].[dbo].[Domains] WHERE id = D.id) AS FunctionID,
+  (SELECT CODE FROM ${fq('Domains')} WHERE id = D.id) AS FunctionID,
   (SELECT [en_name]
-   FROM [NEWDCC-V4-UAT].[dbo].[Domains]
-   WHERE ID IN (SELECT parentId FROM [NEWDCC-V4-UAT].[dbo].[Domains] WHERE id = D.id)
+   FROM ${fq('Domains')}
+   WHERE ID IN (SELECT parentId FROM ${fq('Domains')} WHERE id = D.id)
   ) AS Functionn,
   D.[en_name] AS Domain,
   Controls.CODE AS ControlCode,
   Controls.name AS ControlName
-FROM [NEWDCC-V4-UAT].[dbo].[Compliances] C,
-     [NEWDCC-V4-UAT].[dbo].[complianceReferences] CR,
+FROM ${fq('Compliances')} C,
+     ${fq('complianceReferences')} CR,
      ControlReferences CRE,
-     [NEWDCC-V4-UAT].[dbo].[Domains] D,
-     [NEWDCC-V4-UAT].[dbo].[controlDomains] CD,
-     [NEWDCC-V4-UAT].[dbo].[Controls] Controls
+     ${fq('Domains')} D,
+     ${fq('controlDomains')} CD,
+     ${fq('Controls')} Controls
 WHERE C.id = CR.compliance_id
   AND CR.reference_id = CRE.id
   AND CR.reference_id = D.standard_id
@@ -547,7 +508,7 @@ ORDER BY C.code,
 `;
 
       case '13':
-        const complianceEvidenceDateFilter = this.buildDateFilter(startDate, endDate, 'CCA.[createdAt]');
+        const complianceEvidenceDateFilter = this.buildDateFilter(startDate, endDate, `${fq('ComplianceControlActions')}.[createdAt]`);
         // Build function filter for compliance evidence - filter via Domains
         let complianceEvidenceFunctionFilter = '';
         if (functionId) {
@@ -580,14 +541,14 @@ FROM (
     control_id,
     [evidence],
     MIN([createdAt]) AS [createdAt]
-  FROM [NEWDCC-V4-UAT].[dbo].[ComplianceControlActions]
+  FROM ${fq('ComplianceControlActions')}
   WHERE [evidence] IS NULL
     AND [deletedAt] IS NULL ${complianceEvidenceDateFilter}
   GROUP BY compliance_id, domain_id, control_id, [evidence]
 ) AS CCA
-JOIN [NEWDCC-V4-UAT].[dbo].[Compliances] C ON C.id = CCA.compliance_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[Domains] D ON D.id = CCA.domain_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[Controls] Ctrl ON Ctrl.id = CCA.control_id
+JOIN ${fq('Compliances')} C ON C.id = CCA.compliance_id
+LEFT JOIN ${fq('Domains')} D ON D.id = CCA.domain_id
+LEFT JOIN ${fq('Controls')} Ctrl ON Ctrl.id = CCA.control_id
 WHERE C.[deletedAt] IS NULL ${complianceEvidenceFunctionFilter}
 ORDER BY ComplianceCode,
          DomainCode,
@@ -767,7 +728,7 @@ ORDER BY failed_count DESC;
 SELECT
   question_type,
   COUNT(code) AS count
-FROM [NEWDCC-V4-UAT].[dbo].BankQuestions
+FROM ${fq('BankQuestions')}
 WHERE [deletedAt] IS NULL ${questionTypeDateFilter}
 GROUP BY question_type;
 `;
@@ -844,10 +805,10 @@ GROUP BY Domains.en_name;
 SELECT
   COUNT(C.[id]) AS Compliance,
   C.[complianceStatus]
-FROM [NEWDCC-V4-UAT].[dbo].[Compliances] C
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[complianceReferences] CR ON C.id = CR.compliance_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[controlDomains] CD ON CR.reference_id = CD.domain_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[Domains] D ON CD.domain_id = D.id
+FROM ${fq('Compliances')} C
+LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
 WHERE C.[deletedAt] IS NULL ${complianceStatusDateFilter} ${complianceStatusFunctionFilter}
 GROUP BY C.[complianceStatus];
 `;
@@ -859,10 +820,10 @@ GROUP BY C.[complianceStatus];
 SELECT
   COUNT(C.[id]) AS Compliance,
   C.[progressStatus]
-FROM [NEWDCC-V4-UAT].[dbo].[Compliances] C
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[complianceReferences] CR ON C.id = CR.compliance_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[controlDomains] CD ON CR.reference_id = CD.domain_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[Domains] D ON CD.domain_id = D.id
+FROM ${fq('Compliances')} C
+LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
 WHERE C.[deletedAt] IS NULL ${progressStatusDateFilter} ${progressStatusFunctionFilter}
 GROUP BY C.[progressStatus];
 `;
@@ -874,10 +835,10 @@ GROUP BY C.[progressStatus];
 SELECT
   COUNT(C.[id]) AS Compliance,
   C.[approval_status]
-FROM [NEWDCC-V4-UAT].[dbo].[Compliances] C
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[complianceReferences] CR ON C.id = CR.compliance_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[controlDomains] CD ON CR.reference_id = CD.domain_id
-LEFT JOIN [NEWDCC-V4-UAT].[dbo].[Domains] D ON CD.domain_id = D.id
+FROM ${fq('Compliances')} C
+LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
 WHERE C.[deletedAt] IS NULL ${complianceApprovalStatusDateFilter} ${complianceApprovalStatusFunctionFilter}
 GROUP BY C.[approval_status];
 `;
@@ -1277,6 +1238,1301 @@ ORDER BY month;
       console.error(`[GrcComplyService.getPaginatedReport] Error fetching report ${report}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Detail methods for chart drill-downs
+   */
+  async getSurveysByStatus(
+    user: any,
+    status: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'ps.createdAt');
+    const query = `
+      SELECT 
+        ps.id,
+        ps.name_en as survey_name,
+        ps.approval_status,
+        ps.createdAt
+      FROM PublicSurveys ps
+      WHERE ps.deletedAt IS NULL 
+        AND ps.approval_status = '${status.replace(/'/g, "''")}' ${dateFilter}
+      ORDER BY ps.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM PublicSurveys ps
+      WHERE ps.deletedAt IS NULL 
+        AND ps.approval_status = '${status.replace(/'/g, "''")}' ${dateFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getComplianceByStatus(
+    user: any,
+    status: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'C.[createdAt]');
+    const functionFilter = this.buildComplianceFunctionFilter(access, functionId);
+    
+    const query = `
+      SELECT DISTINCT
+        C.[code] AS ComplianceCode,
+        C.[complianceItem_en],
+        C.[complianceStatus],
+        C.[progress],
+        C.[progressStatus],
+        C.[quarter],
+        C.[year],
+        C.[approval_status],
+        cre.code AS StandardCode,
+        CRE.NAME AS StandardName,
+        (SELECT CODE FROM ${fq('Domains')} WHERE id = D.id) AS FunctionID,
+        (SELECT [en_name]
+         FROM ${fq('Domains')}
+         WHERE ID IN (SELECT parentId FROM ${fq('Domains')} WHERE id = D.id)
+        ) AS Functionn,
+        D.[en_name] AS Domain
+      FROM ${fq('Compliances')} C
+      LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ControlReferences CRE ON CR.reference_id = CRE.id
+      WHERE C.[deletedAt] IS NULL 
+        AND C.[complianceStatus] = '${status.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+      ORDER BY C.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT C.[id]) as total
+      FROM ${fq('Compliances')} C
+      LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      WHERE C.[deletedAt] IS NULL 
+        AND C.[complianceStatus] = '${status.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getComplianceByProgress(
+    user: any,
+    progressStatus: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'C.[createdAt]');
+    const functionFilter = this.buildComplianceFunctionFilter(access, functionId);
+    
+    const query = `
+      SELECT DISTINCT
+        C.[code] AS ComplianceCode,
+        C.[complianceItem_en],
+        C.[complianceStatus],
+        C.[progress],
+        C.[progressStatus],
+        C.[quarter],
+        C.[year],
+        C.[approval_status],
+        cre.code AS StandardCode,
+        CRE.NAME AS StandardName,
+        (SELECT CODE FROM ${fq('Domains')} WHERE id = D.id) AS FunctionID,
+        (SELECT [en_name]
+         FROM ${fq('Domains')}
+         WHERE ID IN (SELECT parentId FROM ${fq('Domains')} WHERE id = D.id)
+        ) AS Functionn,
+        D.[en_name] AS Domain
+      FROM ${fq('Compliances')} C
+      LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ControlReferences CRE ON CR.reference_id = CRE.id
+      WHERE C.[deletedAt] IS NULL 
+        AND C.[progressStatus] = '${progressStatus.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+      ORDER BY C.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT C.[id]) as total
+      FROM ${fq('Compliances')} C
+      LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      WHERE C.[deletedAt] IS NULL 
+        AND C.[progressStatus] = '${progressStatus.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getComplianceByApproval(
+    user: any,
+    approvalStatus: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'C.[createdAt]');
+    const functionFilter = this.buildComplianceFunctionFilter(access, functionId);
+    
+    const query = `
+      SELECT DISTINCT
+        C.[code] AS ComplianceCode,
+        C.[complianceItem_en],
+        C.[complianceStatus],
+        C.[progress],
+        C.[progressStatus],
+        C.[quarter],
+        C.[year],
+        C.[approval_status],
+        cre.code AS StandardCode,
+        CRE.NAME AS StandardName,
+        (SELECT CODE FROM ${fq('Domains')} WHERE id = D.id) AS FunctionID,
+        (SELECT [en_name]
+         FROM ${fq('Domains')}
+         WHERE ID IN (SELECT parentId FROM ${fq('Domains')} WHERE id = D.id)
+        ) AS Functionn,
+        D.[en_name] AS Domain
+      FROM ${fq('Compliances')} C
+      LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ControlReferences CRE ON CR.reference_id = CRE.id
+      WHERE C.[deletedAt] IS NULL 
+        AND C.[approval_status] = '${approvalStatus.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+      ORDER BY C.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT C.[id]) as total
+      FROM ${fq('Compliances')} C
+      LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
+      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
+      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      WHERE C.[deletedAt] IS NULL 
+        AND C.[approval_status] = '${approvalStatus.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getAvgScoreBySurvey(
+    user: any,
+    surveyName: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
+    const functionFilter = this.buildSurveyUserFunctionFilter(access, functionId, 'sa.userId');
+    
+    const query = `
+      SELECT 
+        sa.id,
+        sa.surveyId,
+        ps.name_en AS survey_name,
+        bq.question_en AS question,
+        sa.answer,
+        CASE 
+          WHEN sa.answer LIKE '%Fully Implemented%' THEN 5
+          WHEN sa.answer LIKE '%Mostly Implemented%' THEN 4
+          WHEN sa.answer LIKE '%Most%' THEN 4
+          WHEN sa.answer LIKE '%Averagely Implemented%' THEN 3
+          WHEN sa.answer LIKE '%Moderate%' THEN 3
+          WHEN sa.answer LIKE '%Significant%' THEN 3
+          WHEN sa.answer LIKE '%Partially Implemented%' THEN 2
+          WHEN sa.answer LIKE '%Minimal%' THEN 1
+          WHEN sa.answer LIKE '%Least%' THEN 1
+          WHEN sa.answer LIKE '%Not Implemented%' THEN 1
+          ELSE NULL
+        END AS maturity_score,
+        sa.createdAt
+      FROM survey_assessment sa
+      JOIN PublicSurveys ps ON sa.surveyId = ps.id
+      LEFT JOIN BankQuestions bq ON sa.questionId = bq.id
+      WHERE ps.name_en = '${surveyName.replace(/'/g, "''")}'
+        AND CASE 
+          WHEN sa.answer LIKE '%Fully Implemented%' THEN 5
+          WHEN sa.answer LIKE '%Mostly Implemented%' THEN 4
+          WHEN sa.answer LIKE '%Most%' THEN 4
+          WHEN sa.answer LIKE '%Averagely Implemented%' THEN 3
+          WHEN sa.answer LIKE '%Moderate%' THEN 3
+          WHEN sa.answer LIKE '%Significant%' THEN 3
+          WHEN sa.answer LIKE '%Partially Implemented%' THEN 2
+          WHEN sa.answer LIKE '%Minimal%' THEN 1
+          WHEN sa.answer LIKE '%Least%' THEN 1
+          WHEN sa.answer LIKE '%Not Implemented%' THEN 1
+          ELSE NULL
+        END IS NOT NULL ${dateFilter} ${functionFilter}
+      ORDER BY sa.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM survey_assessment sa
+      JOIN PublicSurveys ps ON sa.surveyId = ps.id
+      WHERE ps.name_en = '${surveyName.replace(/'/g, "''")}'
+        AND CASE 
+          WHEN sa.answer LIKE '%Fully Implemented%' THEN 5
+          WHEN sa.answer LIKE '%Mostly Implemented%' THEN 4
+          WHEN sa.answer LIKE '%Most%' THEN 4
+          WHEN sa.answer LIKE '%Averagely Implemented%' THEN 3
+          WHEN sa.answer LIKE '%Moderate%' THEN 3
+          WHEN sa.answer LIKE '%Significant%' THEN 3
+          WHEN sa.answer LIKE '%Partially Implemented%' THEN 2
+          WHEN sa.answer LIKE '%Minimal%' THEN 1
+          WHEN sa.answer LIKE '%Least%' THEN 1
+          WHEN sa.answer LIKE '%Not Implemented%' THEN 1
+          ELSE NULL
+        END IS NOT NULL ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getComplianceByCategory(
+    user: any,
+    category: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
+    // Build function filter similar to report 16
+    let functionFilter = '';
+    if (functionId) {
+      if (!access.isSuperAdmin && !access.functionIds.includes(functionId)) {
+        functionFilter = ' AND 1 = 0';
+      } else {
+        functionFilter = ` AND EXISTS (
+          SELECT 1 
+          FROM BankQuestionControls bqc
+          JOIN Controls ctrl ON bqc.control_id = ctrl.id
+          JOIN ControlFunctions cf ON cf.control_id = ctrl.id 
+            AND cf.function_id = '${functionId}' 
+            AND cf.deletedAt IS NULL
+          WHERE bqc.bank_question_id = bq.id
+            AND bqc.deletedAt IS NULL
+            AND ctrl.deletedAt IS NULL
+        )`;
+      }
+    } else if (!access.isSuperAdmin) {
+      if (!access.functionIds.length) {
+        functionFilter = ' AND 1 = 0';
+      } else {
+        const ids = access.functionIds.map((id) => `'${id}'`).join(', ');
+        functionFilter = ` AND EXISTS (
+          SELECT 1 
+          FROM BankQuestionControls bqc
+          JOIN Controls ctrl ON bqc.control_id = ctrl.id
+          JOIN ControlFunctions cf ON cf.control_id = ctrl.id 
+            AND cf.function_id IN (${ids}) 
+            AND cf.deletedAt IS NULL
+          WHERE bqc.bank_question_id = bq.id
+            AND bqc.deletedAt IS NULL
+            AND ctrl.deletedAt IS NULL
+        )`;
+      }
+    }
+    
+    const query = `
+      SELECT DISTINCT
+        C.[code] AS ComplianceCode,
+        C.[complianceItem_en],
+        C.[complianceStatus],
+        cat.name AS category_name,
+        sa.answer,
+        CASE 
+          WHEN sa.answer LIKE '%Fully Implemented%' THEN 5
+          WHEN sa.answer LIKE '%Mostly Implemented%' THEN 4
+          WHEN sa.answer LIKE '%Most%' THEN 4
+          WHEN sa.answer LIKE '%Averagely Implemented%' THEN 3
+          WHEN sa.answer LIKE '%Moderate%' THEN 3
+          WHEN sa.answer LIKE '%Significant%' THEN 3
+          WHEN sa.answer LIKE '%Partially Implemented%' THEN 2
+          WHEN sa.answer LIKE '%Minimal%' THEN 1
+          WHEN sa.answer LIKE '%Least%' THEN 1
+          WHEN sa.answer LIKE '%Not Implemented%' THEN 1
+          ELSE NULL
+        END AS maturity_score
+      FROM survey_assessment sa
+      JOIN PublicSurveys ps ON sa.surveyId = ps.id
+      JOIN BankQuestions bq ON sa.questionId = bq.id
+      JOIN Categories cat ON bq.categoryId = cat.id
+      LEFT JOIN BankQuestionControls bqc ON bq.id = bqc.bank_question_id
+      LEFT JOIN Controls ctrl ON bqc.control_id = ctrl.id
+      LEFT JOIN ${fq('ComplianceControlActions')} CCA ON ctrl.id = CCA.control_id AND CCA.deletedAt IS NULL
+      LEFT JOIN ${fq('Compliances')} C ON C.id = CCA.compliance_id
+      WHERE cat.name = '${category.replace(/'/g, "''")}'
+        AND (C.deletedAt IS NULL OR C.id IS NULL)
+        AND CASE 
+          WHEN sa.answer LIKE '%Fully Implemented%' THEN 5
+          WHEN sa.answer LIKE '%Mostly Implemented%' THEN 4
+          WHEN sa.answer LIKE '%Most%' THEN 4
+          WHEN sa.answer LIKE '%Averagely Implemented%' THEN 3
+          WHEN sa.answer LIKE '%Moderate%' THEN 3
+          WHEN sa.answer LIKE '%Significant%' THEN 3
+          WHEN sa.answer LIKE '%Partially Implemented%' THEN 2
+          WHEN sa.answer LIKE '%Minimal%' THEN 1
+          WHEN sa.answer LIKE '%Least%' THEN 1
+          WHEN sa.answer LIKE '%Not Implemented%' THEN 1
+          ELSE NULL
+        END IS NOT NULL ${dateFilter} ${functionFilter}
+      ORDER BY C.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT C.[id]) as total
+      FROM survey_assessment sa
+      JOIN PublicSurveys ps ON sa.surveyId = ps.id
+      JOIN BankQuestions bq ON sa.questionId = bq.id
+      JOIN Categories cat ON bq.categoryId = cat.id
+      LEFT JOIN BankQuestionControls bqc ON bq.id = bqc.bank_question_id
+      LEFT JOIN Controls ctrl ON bqc.control_id = ctrl.id
+      LEFT JOIN ${fq('ComplianceControlActions')} CCA ON ctrl.id = CCA.control_id AND CCA.deletedAt IS NULL
+      LEFT JOIN ${fq('Compliances')} C ON C.id = CCA.compliance_id
+      WHERE cat.name = '${category.replace(/'/g, "''")}'
+        AND (C.deletedAt IS NULL OR C.id IS NULL)
+        AND CASE 
+          WHEN sa.answer LIKE '%Fully Implemented%' THEN 5
+          WHEN sa.answer LIKE '%Mostly Implemented%' THEN 4
+          WHEN sa.answer LIKE '%Most%' THEN 4
+          WHEN sa.answer LIKE '%Averagely Implemented%' THEN 3
+          WHEN sa.answer LIKE '%Moderate%' THEN 3
+          WHEN sa.answer LIKE '%Significant%' THEN 3
+          WHEN sa.answer LIKE '%Partially Implemented%' THEN 2
+          WHEN sa.answer LIKE '%Minimal%' THEN 1
+          WHEN sa.answer LIKE '%Least%' THEN 1
+          WHEN sa.answer LIKE '%Not Implemented%' THEN 1
+          ELSE NULL
+        END IS NOT NULL ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getTopFailedControls(
+    user: any,
+    controlName: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
+    const functionFilter = this.buildSurveyUserFunctionFilter(access, functionId, 'sa.userId');
+    
+    const query = `
+      SELECT 
+        sa.id,
+        ctrl.name AS control_name,
+        ctrl.code AS control_code,
+        bq.question_en AS question,
+        sa.answer,
+        ps.name_en AS survey_name,
+        sa.createdAt
+      FROM survey_assessment sa
+      JOIN PublicSurveys ps ON sa.surveyId = ps.id
+      JOIN BankQuestions bq ON sa.questionId = bq.id
+      JOIN BankQuestionControls bqc ON bq.id = bqc.bank_question_id
+      JOIN Controls ctrl ON bqc.control_id = ctrl.id
+      WHERE ctrl.name = '${controlName.replace(/'/g, "''")}'
+        AND (sa.answer LIKE '%Not Implemented%' 
+          OR sa.answer LIKE '%Minimal%' 
+          OR sa.answer LIKE '%Least%')
+        AND bqc.deletedAt IS NULL
+        AND ctrl.deletedAt IS NULL ${dateFilter} ${functionFilter}
+      ORDER BY sa.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM survey_assessment sa
+      JOIN PublicSurveys ps ON sa.surveyId = ps.id
+      JOIN BankQuestions bq ON sa.questionId = bq.id
+      JOIN BankQuestionControls bqc ON bq.id = bqc.bank_question_id
+      JOIN Controls ctrl ON bqc.control_id = ctrl.id
+      WHERE ctrl.name = '${controlName.replace(/'/g, "''")}'
+        AND (sa.answer LIKE '%Not Implemented%' 
+          OR sa.answer LIKE '%Minimal%' 
+          OR sa.answer LIKE '%Least%')
+        AND bqc.deletedAt IS NULL
+        AND ctrl.deletedAt IS NULL ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getControlsByCategory(
+    user: any,
+    category: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'BankQuestions.[createdAt]');
+    const functionFilter = this.buildControlFunctionFilterForComply('Controls', access, functionId);
+    
+    const query = `
+      SELECT DISTINCT
+        Controls.code AS control_code,
+        Controls.name AS control_name,
+        Categories.name AS category,
+        BankQuestions.code AS question_code,
+        BankQuestions.question_en AS question
+      FROM BankQuestionControls
+      JOIN Controls ON BankQuestionControls.control_id = Controls.id
+      JOIN BankQuestions ON BankQuestions.id = BankQuestionControls.bank_question_id
+      JOIN Categories ON BankQuestions.categoryId = Categories.id
+      WHERE BankQuestions.[deletedAt] IS NULL
+        AND Categories.name = '${category.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+      ORDER BY Controls.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT Controls.id) as total
+      FROM BankQuestionControls
+      JOIN Controls ON BankQuestionControls.control_id = Controls.id
+      JOIN BankQuestions ON BankQuestions.id = BankQuestionControls.bank_question_id
+      JOIN Categories ON BankQuestions.categoryId = Categories.id
+      WHERE BankQuestions.[deletedAt] IS NULL
+        AND Categories.name = '${category.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getRisksByCategory(
+    user: any,
+    category: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'BankQuestions.[createdAt]');
+    const functionFilter = this.buildRiskFunctionFilterForComply('Risks', access, functionId);
+    
+    const query = `
+      SELECT DISTINCT
+        Risks.code AS risk_code,
+        Risks.name AS risk_name,
+        Categories.name AS category,
+        BankQuestions.code AS question_code,
+        BankQuestions.question_en AS question
+      FROM BankQuestionRisks
+      JOIN Risks ON BankQuestionRisks.risk_id = Risks.id
+      JOIN BankQuestions ON BankQuestions.id = BankQuestionRisks.bank_question_id
+      JOIN Categories ON BankQuestions.categoryId = Categories.id
+      WHERE BankQuestions.[deletedAt] IS NULL
+        AND Categories.name = '${category.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+      ORDER BY Risks.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT Risks.id) as total
+      FROM BankQuestionRisks
+      JOIN Risks ON BankQuestionRisks.risk_id = Risks.id
+      JOIN BankQuestions ON BankQuestions.id = BankQuestionRisks.bank_question_id
+      JOIN Categories ON BankQuestions.categoryId = Categories.id
+      WHERE BankQuestions.[deletedAt] IS NULL
+        AND Categories.name = '${category.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getImpactedAreasByMonth(
+    user: any,
+    month: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    // Parse month (format: YYYY-MM) and build date range
+    const [year, monthNum] = month.split('-');
+    const monthStart = `${year}-${monthNum}-01`;
+    const nextMonth = parseInt(monthNum) === 12 ? `${parseInt(year) + 1}-01-01` : `${year}-${String(parseInt(monthNum) + 1).padStart(2, '0')}-01`;
+    
+    const query = `
+      SELECT 
+        sia.id,
+        ia.name AS name,
+        sia.createdAt,
+        COUNT(DISTINCT ctrl.id) AS linked_controls_count
+      FROM survey_impacted_area sia
+      LEFT JOIN ImpactedAreas ia ON ia.id = sia.impactedAreaId
+      LEFT JOIN ${fq('ComplianceControlActions')} CCA ON CCA.id = sia.complianceControlActionId AND CCA.deletedAt IS NULL
+      LEFT JOIN Controls ctrl ON ctrl.id = CCA.control_id AND ctrl.deletedAt IS NULL
+      WHERE sia.deletedAt IS NULL
+        AND CAST(sia.createdAt AS DATE) >= CAST('${monthStart}' AS DATE)
+        AND CAST(sia.createdAt AS DATE) < CAST('${nextMonth}' AS DATE)
+      GROUP BY sia.id, ia.name, sia.createdAt
+      ORDER BY sia.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT sia.id) as total
+      FROM survey_impacted_area sia
+      WHERE sia.deletedAt IS NULL
+        AND CAST(sia.createdAt AS DATE) >= CAST('${monthStart}' AS DATE)
+        AND CAST(sia.createdAt AS DATE) < CAST('${nextMonth}' AS DATE)
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getQuestionsByType(
+    user: any,
+    questionType: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'BankQuestions.[createdAt]');
+    
+    const query = `
+      SELECT 
+        BankQuestions.code AS question_code,
+        BankQuestions.question_en AS question,
+        BankQuestions.question_type,
+        Categories.name AS category_name,
+        BankQuestions.createdAt
+      FROM ${fq('BankQuestions')}
+      LEFT JOIN Categories ON BankQuestions.categoryId = Categories.id
+      WHERE BankQuestions.[deletedAt] IS NULL
+        AND BankQuestions.question_type = '${questionType.replace(/'/g, "''")}' ${dateFilter}
+      ORDER BY BankQuestions.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM ${fq('BankQuestions')}
+      WHERE [deletedAt] IS NULL
+        AND question_type = '${questionType.replace(/'/g, "''")}' ${dateFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getQuestionsByReference(
+    user: any,
+    referenceName: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'BankQuestions.[createdAt]');
+    
+    const query = `
+      SELECT 
+        BankQuestions.code AS question_code,
+        BankQuestions.question_en AS question,
+        ControlReferences.name AS Referencename,
+        Categories.name AS category_name,
+        BankQuestions.createdAt
+      FROM ${fq('BankQuestions')}
+      JOIN ${fq('ControlReferences')} ON BankQuestions.reference_id = ControlReferences.id
+      LEFT JOIN Categories ON BankQuestions.categoryId = Categories.id
+      WHERE BankQuestions.[deletedAt] IS NULL
+        AND ControlReferences.name = '${referenceName.replace(/'/g, "''")}' ${dateFilter}
+      ORDER BY BankQuestions.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM ${fq('BankQuestions')}
+      JOIN ${fq('ControlReferences')} ON BankQuestions.reference_id = ControlReferences.id
+      WHERE BankQuestions.[deletedAt] IS NULL
+        AND ControlReferences.name = '${referenceName.replace(/'/g, "''")}' ${dateFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getControlsByDomain(
+    user: any,
+    domain: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'controls.[createdAt]');
+    const functionFilter = this.buildControlFunctionFilterForComply('controls', access, functionId);
+    
+    const query = `
+      SELECT DISTINCT
+        controls.code AS control_code,
+        controls.name AS control_name,
+        Domains.en_name AS Domain,
+        controls.createdAt
+      FROM ${fq('controlDomains')}
+      JOIN ${fq('Domains')} ON controlDomains.domain_id = Domains.id
+      JOIN ${fq('controls')} ON controlDomains.control_id = controls.id
+      WHERE controls.[deletedAt] IS NULL
+        AND Domains.en_name = '${domain.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+      ORDER BY controls.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT controls.id) as total
+      FROM ${fq('controlDomains')}
+      JOIN ${fq('Domains')} ON controlDomains.domain_id = Domains.id
+      JOIN ${fq('controls')} ON controlDomains.control_id = controls.id
+      WHERE controls.[deletedAt] IS NULL
+        AND Domains.en_name = '${domain.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getAnswersByFunction(
+    user: any,
+    functionName: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
+    const functionFilter = this.buildSurveyFunctionFilter(access, functionId, 'f');
+    
+    const query = `
+      SELECT 
+        sa.id,
+        sa.answer,
+        sa.createdAt,
+        ps.name_en AS survey_name,
+        bq.question_en AS question,
+        u.name AS user_name
+      FROM survey_assessment sa
+      JOIN Users u ON sa.userId = u.id
+      JOIN UserFunction uf ON uf.userId = u.id AND uf.deletedAt IS NULL
+      JOIN Functions f ON f.id = uf.functionId AND f.deletedAt IS NULL
+      LEFT JOIN PublicSurveys ps ON sa.surveyId = ps.id
+      LEFT JOIN BankQuestions bq ON sa.questionId = bq.id
+      WHERE f.name = '${functionName.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+      ORDER BY sa.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM survey_assessment sa
+      JOIN Users u ON sa.userId = u.id
+      JOIN UserFunction uf ON uf.userId = u.id AND uf.deletedAt IS NULL
+      JOIN Functions f ON f.id = uf.functionId AND f.deletedAt IS NULL
+      WHERE f.name = '${functionName.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getQuestionsBySurveyAndCategory(
+    user: any,
+    surveyName: string,
+    categoryName: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
+    const functionFilter = this.buildSurveyUserFunctionFilter(access, functionId, 'sa.userId');
+    
+    const query = `
+      SELECT 
+        sa.id,
+        bq.code AS question_code,
+        bq.question_en AS question,
+        sa.answer,
+        ps.name_en AS survey_name,
+        c.name AS category_name,
+        sa.createdAt
+      FROM survey_assessment sa
+      JOIN PublicSurveys ps ON ps.id = sa.surveyId
+      JOIN BankQuestions bq ON sa.questionId = bq.id
+      JOIN Categories c ON c.id = bq.categoryId
+      WHERE ps.name_en = '${surveyName.replace(/'/g, "''")}'
+        AND c.name = '${categoryName.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+      ORDER BY bq.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM survey_assessment sa
+      JOIN PublicSurveys ps ON ps.id = sa.surveyId
+      JOIN BankQuestions bq ON sa.questionId = bq.id
+      JOIN Categories c ON c.id = bq.categoryId
+      WHERE ps.name_en = '${surveyName.replace(/'/g, "''")}'
+        AND c.name = '${categoryName.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getQuestionsByCategory(
+    user: any,
+    categoryName: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'bq.[createdAt]');
+    
+    const query = `
+      SELECT 
+        bq.code AS question_code,
+        bq.question_en AS question,
+        bq.question_type,
+        c.name AS category_name,
+        bq.createdAt
+      FROM ${fq('BankQuestions')} bq
+      JOIN Categories c ON bq.categoryId = c.id
+      WHERE bq.[deletedAt] IS NULL
+        AND c.name = '${categoryName.replace(/'/g, "''")}' ${dateFilter}
+      ORDER BY bq.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM ${fq('BankQuestions')} bq
+      JOIN Categories c ON bq.categoryId = c.id
+      WHERE bq.[deletedAt] IS NULL
+        AND c.name = '${categoryName.replace(/'/g, "''")}' ${dateFilter}
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getControlsByImpactedArea(
+    user: any,
+    impactedAreaName: string,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string
+  ) {
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const offset = (pageInt - 1) * limitInt;
+
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
+      user.id,
+      user.groupName,
+    );
+
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'sia.createdAt');
+    const functionFilter = this.buildControlFunctionFilterForComply('ctrl', access, functionId);
+    
+    const query = `
+      SELECT DISTINCT
+        ctrl.code AS control_code,
+        ctrl.name AS control_name,
+        ia.name AS impacted_area,
+        ctrl.createdAt
+      FROM survey_impacted_area sia
+      JOIN ImpactedAreas ia ON ia.id = sia.impactedAreaId
+      LEFT JOIN ${fq('ComplianceControlActions')} CCA ON CCA.id = sia.complianceControlActionId AND CCA.deletedAt IS NULL
+      LEFT JOIN ${fq('Controls')} ctrl ON ctrl.id = CCA.control_id AND ctrl.deletedAt IS NULL
+      WHERE sia.deletedAt IS NULL
+        AND ia.name = '${impactedAreaName.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+        AND ctrl.id IS NOT NULL
+      ORDER BY ctrl.code
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT ctrl.id) as total
+      FROM survey_impacted_area sia
+      JOIN ImpactedAreas ia ON ia.id = sia.impactedAreaId
+      LEFT JOIN ${fq('ComplianceControlActions')} CCA ON CCA.id = sia.complianceControlActionId AND CCA.deletedAt IS NULL
+      LEFT JOIN ${fq('Controls')} ctrl ON ctrl.id = CCA.control_id AND ctrl.deletedAt IS NULL
+      WHERE sia.deletedAt IS NULL
+        AND ia.name = '${impactedAreaName.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
+        AND ctrl.id IS NOT NULL
+    `;
+
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(query),
+      this.databaseService.query(countQuery)
+    ]);
+
+    const total = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(total / limitInt);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages,
+        hasNext: pageInt < totalPages,
+        hasPrev: pageInt > 1
+      }
+    };
   }
 }
 
