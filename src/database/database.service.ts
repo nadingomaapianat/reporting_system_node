@@ -9,12 +9,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
-    const dbHost = this.configService.get<string>('DB_HOST');
+    // Standard SQL Server Authentication
+    const dbHost = this.configService.get<string>('DB_HOST') || '206.189.57.0';
     const dbPort = parseInt(this.configService.get<string>('DB_PORT') || '1433', 10);
-    const dbName = this.configService.get<string>('DB_NAME');
-    const dbUsername = this.configService.get<string>('DB_USERNAME');
-    const dbPassword = this.configService.get<string>('DB_PASSWORD');
+    const dbName = this.configService.get<string>('DB_NAME') || 'NEWDCC-V4-UAT';
+    const dbUsername = this.configService.get<string>('DB_USERNAME') || 'SA';
+    const dbPassword = this.configService.get<string>('DB_PASSWORD') || 'Nothing_159';
 
+    // Standard SQL Server Authentication Configuration
     const config: sql.config = {
       server: dbHost,
       port: dbPort,
@@ -35,6 +37,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         enableArithAbort: true,
         packetSize: 32768,
       },
+      // Connection pool settings
       pool: {
         max: parseInt(
           this.configService.get<string>('DB_POOL_MAX') || '20',
@@ -53,7 +56,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     try {
       this.pool = await sql.connect(config);
-      console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName}`);
+      console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName} using SQL Server Authentication (user: ${dbUsername})!`);
     } catch (err) {
       console.error('Database connection failed:', err);
       console.error(`Connection details: server=${dbHost}:${dbPort}, database=${dbName}, user=${dbUsername}`);
