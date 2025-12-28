@@ -978,10 +978,14 @@ ORDER BY month;
     // Use report 6 query as base with filters
     let query = this.getSqlForReport('6', startDate, endDate, functionId, access);
     
-    // Add pagination - wrap the original query
+    // Remove ORDER BY and OFFSET/FETCH from query for use in subqueries
+    const queryWithoutOrderBy = query.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim();
+    const queryWithoutPagination = queryWithoutOrderBy.replace(/OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY/gi, '').trim();
+    
+    // Add pagination - wrap the query without ORDER BY
     const paginatedQuery = `
       SELECT * FROM (
-        ${query}
+        ${queryWithoutPagination}
       ) AS subquery
       ORDER BY [code]
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -989,7 +993,7 @@ ORDER BY month;
 
     const countQuery = `
       SELECT COUNT(*) as total FROM (
-        ${query}
+        ${queryWithoutPagination}
       ) AS subquery
     `;
 
@@ -1037,9 +1041,13 @@ ORDER BY month;
     // Use report 1 query as base with filters
     let query = this.getSqlForReport('1', startDate, endDate, functionId, access);
     
+    // Remove ORDER BY and OFFSET/FETCH from query for use in subqueries
+    const queryWithoutOrderBy = query.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim();
+    const queryWithoutPagination = queryWithoutOrderBy.replace(/OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY/gi, '').trim();
+    
     const paginatedQuery = `
       SELECT * FROM (
-        ${query}
+        ${queryWithoutPagination}
       ) AS subquery
       ORDER BY name_en
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1047,7 +1055,7 @@ ORDER BY month;
 
     const countQuery = `
       SELECT COUNT(*) as total FROM (
-        ${query}
+        ${queryWithoutPagination}
       ) AS subquery
     `;
 
@@ -1097,9 +1105,13 @@ ORDER BY month;
     // Use report 13 query as base with filters
     let query = this.getSqlForReport('13', startDate, endDate, functionId, access);
     
+    // Remove ORDER BY and OFFSET/FETCH from query for use in subqueries
+    const queryWithoutOrderBy = query.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim();
+    const queryWithoutPagination = queryWithoutOrderBy.replace(/OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY/gi, '').trim();
+    
     const paginatedQuery = `
       SELECT * FROM (
-        ${query}
+        ${queryWithoutPagination}
       ) AS subquery
       ORDER BY ControlName
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1107,7 +1119,7 @@ ORDER BY month;
 
     const countQuery = `
       SELECT COUNT(*) as total FROM (
-        ${query}
+        ${queryWithoutPagination}
       ) AS subquery
     `;
 
@@ -1169,24 +1181,30 @@ ORDER BY month;
       throw new BadRequestException(`Unknown report id: ${report}`);
     }
 
-    // Add pagination to the query
-    // Check if the query already has ORDER BY
+    // Remove ORDER BY from the query for use in subqueries (SQL Server doesn't allow ORDER BY in subqueries)
+    // Also remove OFFSET/FETCH if present
     const orderByMatch = sqlQuery.match(/ORDER\s+BY\s+([^;]+?)(?:\s*;)?$/i);
+    const queryWithoutOrderBy = orderByMatch 
+      ? sqlQuery.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim()
+      : sqlQuery.trim();
     
+    // Remove OFFSET/FETCH if present
+    const queryWithoutPagination = queryWithoutOrderBy.replace(/OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY/gi, '').trim();
+
+    // Add pagination to the query
     let paginatedQuery: string;
     if (orderByMatch) {
-      // Query already has ORDER BY, append OFFSET/FETCH after it
+      // Query originally had ORDER BY, add it back with OFFSET/FETCH
       const orderByClause = orderByMatch[1].trim();
-      const queryWithoutOrderBy = sqlQuery.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim();
       paginatedQuery = `
-        ${queryWithoutOrderBy}
+        ${queryWithoutPagination}
         ORDER BY ${orderByClause}
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
     } else {
-      // No ORDER BY, wrap and add one using first column
+      // No ORDER BY in original query, wrap and add one using first column
       // Extract first column from SELECT
-      const selectMatch = sqlQuery.match(/SELECT\s+(?:TOP\s+\d+\s+)?(?:DISTINCT\s+)?(.+?)\s+FROM/i);
+      const selectMatch = queryWithoutPagination.match(/SELECT\s+(?:TOP\s+\d+\s+)?(?:DISTINCT\s+)?(.+?)\s+FROM/i);
       let orderColumn = '1'; // Default to column position
       
       if (selectMatch) {
@@ -1200,17 +1218,17 @@ ORDER BY month;
       
       paginatedQuery = `
         SELECT * FROM (
-          ${sqlQuery}
+          ${queryWithoutPagination}
         ) AS subquery
         ORDER BY ${orderColumn}
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
     }
 
-    // Get total count - wrap the original query in COUNT
+    // Get total count - wrap the query without ORDER BY in COUNT
     const countQuery = `
       SELECT COUNT(*) as total FROM (
-        ${sqlQuery}
+        ${queryWithoutPagination}
       ) AS count_subquery
     `;
 
