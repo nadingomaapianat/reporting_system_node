@@ -30,12 +30,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(private readonly realtimeService: RealtimeService) {}
 
   handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
+    // console.log(`Client connected: ${client.id}`);
     this.realtimeService.addClient(client);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
+    // console.log(`Client disconnected: ${client.id}`);
     this.realtimeService.removeClient(client);
   }
 
@@ -46,7 +46,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     client.join(`dashboard_${data.dashboardId}`);
     this.realtimeService.joinDashboard(client, data.dashboardId);
-    console.log(`Client ${client.id} joined dashboard ${data.dashboardId}`);
+    // console.log(`Client ${client.id} joined dashboard ${data.dashboardId}`);
   }
 
   @SubscribeMessage('leave_dashboard')
@@ -56,7 +56,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   ) {
     client.leave(`dashboard_${data.dashboardId}`);
     this.realtimeService.leaveDashboard(client, data.dashboardId);
-    console.log(`Client ${client.id} left dashboard ${data.dashboardId}`);
+    // console.log(`Client ${client.id} left dashboard ${data.dashboardId}`);
   }
 
   @SubscribeMessage('subscribe_metrics')

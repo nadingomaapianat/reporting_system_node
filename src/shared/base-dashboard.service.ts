@@ -61,11 +61,11 @@ export abstract class BaseDashboardService {
   abstract getConfig(): DashboardConfig;
 
   async getDashboardData(user: any, startDate?: string, endDate?: string, functionId?: string) {
-    console.log('[BaseDashboardService.getDashboardData] Received parameters:', { startDate, endDate, functionId, userId: user?.id, groupName: user?.groupName });
+    // console.log('[BaseDashboardService.getDashboardData] Received parameters:', { startDate, endDate, functionId, userId: user?.id, groupName: user?.groupName });
     
     const config = this.getConfig();
     const dateFilter = this.buildDateFilter(startDate, endDate, config.dateField);
-    console.log('[BaseDashboardService.getDashboardData] Date filter:', dateFilter);
+    // console.log('[BaseDashboardService.getDashboardData] Date filter:', dateFilter);
     
     // Get function filter if user is provided and service is available
     let functionFilter = '';
@@ -74,7 +74,7 @@ export abstract class BaseDashboardService {
         user.id,
         user.groupName,
       );
-      console.log('[BaseDashboardService.getDashboardData] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionId: functionId });
+      // console.log('[BaseDashboardService.getDashboardData] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionId: functionId });
       
       // Apply appropriate function filter based on dashboard type
       if (config.tableName) {
@@ -89,7 +89,7 @@ export abstract class BaseDashboardService {
           functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
         }
       }
-      console.log('[BaseDashboardService.getDashboardData] Function filter:', functionFilter);
+      // console.log('[BaseDashboardService.getDashboardData] Function filter:', functionFilter);
     }
 
     try {
@@ -121,8 +121,8 @@ export abstract class BaseDashboardService {
     for (const metric of metrics) {
       try {
         let query = metric.query.replace('{dateFilter}', dateFilter || '');
-        console.log(`[getMetricsData] Processing metric ${metric.id}, functionFilter:`, functionFilter);
-        console.log(`[getMetricsData] Original query:`, query);
+        // console.log(`[getMetricsData] Processing metric ${metric.id}, functionFilter:`, functionFilter);
+        // console.log(`[getMetricsData] Original query:`, query);
         
         // Replace functionFilter placeholder if it exists (even if empty, to remove the placeholder)
         if (query.includes('{functionFilter}')) {
@@ -130,7 +130,7 @@ export abstract class BaseDashboardService {
           query = query.replace('{functionFilter}', replacedFilter);
           // Clean up any double spaces that might result from empty replacements
           query = query.replace(/\s{2,}/g, ' ').trim();
-          console.log(`[getMetricsData] Metric ${metric.id} - Replaced {functionFilter} placeholder with:`, replacedFilter || '(empty)', 'Filter length:', replacedFilter.length);
+          // console.log(`[getMetricsData] Metric ${metric.id} - Replaced {functionFilter} placeholder with:`, replacedFilter || '(empty)', 'Filter length:', replacedFilter.length);
         } else if (functionFilter && functionFilter.trim() !== '' && query.includes('FROM') && (query.includes('Controls') || query.includes('[Controls]'))) {
           // Auto-inject function filter for Control queries
           // Check if query uses alias 'c' for Controls (in FROM or JOIN)
@@ -191,10 +191,10 @@ export abstract class BaseDashboardService {
             }
           }
         }
-        console.log(`[getMetricsData] Final query for ${metric.id}:`, query);
+        // console.log(`[getMetricsData] Final query for ${metric.id}:`, query);
         const result = await this.databaseService.query(query);
         results[metric.id] = result[0]?.total || result[0]?.count || 0;
-        console.log(`[getMetricsData] Result for ${metric.id}:`, results[metric.id]);
+        // console.log(`[getMetricsData] Result for ${metric.id}:`, results[metric.id]);
         
         // Get change data if changeQuery is provided
         if (metric.changeQuery) {

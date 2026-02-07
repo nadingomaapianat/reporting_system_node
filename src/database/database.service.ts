@@ -56,7 +56,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     try {
       this.pool = await sql.connect(config);
-      console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName} using SQL Server Authentication (user: ${dbUsername})!`);
+      // console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName} using SQL Server Authentication (user: ${dbUsername})!`);
     } catch (err) {
       console.error('Database connection failed:', err);
       console.error(`Connection details: server=${dbHost}:${dbPort}, database=${dbName}, user=${dbUsername}`);
@@ -71,7 +71,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     if (this.pool) {
       await this.pool.close();
-      console.log('Database connection closed.');
+      // console.log('Database connection closed.');
     }
   }
 

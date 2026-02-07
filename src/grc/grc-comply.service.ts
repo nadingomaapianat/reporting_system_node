@@ -160,8 +160,8 @@ export class GrcComplyService {
   async runReport(report: GrcComplyReportKey, startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
     // Debug logging for report 26 to verify filters are being passed
     if (report === '26') {
-      console.log('[GrcComplyService.runReport] Report 26 - Impacted Areas Trend Over Time');
-      console.log('[GrcComplyService.runReport] Filters:', { startDate, endDate, functionId });
+      // console.log('[GrcComplyService.runReport] Report 26 - Impacted Areas Trend Over Time');
+      // console.log('[GrcComplyService.runReport] Filters:', { startDate, endDate, functionId });
     }
     
     // If access not provided, create a default (super admin) access
@@ -175,7 +175,7 @@ export class GrcComplyService {
 
     // Log the SQL query for report 26 to verify filters are applied
     if (report === '26') {
-      console.log('[GrcComplyService.runReport] Report 26 SQL Query:', sqlQuery);
+      // console.log('[GrcComplyService.runReport] Report 26 SQL Query:', sqlQuery);
     }
 
     return this.databaseService.query(sqlQuery);
@@ -183,7 +183,7 @@ export class GrcComplyService {
 
   async runAllReports(startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
     // Log filters for debugging - always log to see what's being received
-    console.log('[GrcComplyService.runAllReports] Called with filters:', { 
+    // console.log('[GrcComplyService.runAllReports] Called with filters:', { 
       startDate, 
       endDate, 
       functionId,
@@ -874,8 +874,8 @@ ORDER BY month;
 `;
         
         if (startDate || endDate) {
-          console.log('[GrcComplyService] Report 26 - Date filters applied:', { startDate, endDate });
-          console.log('[GrcComplyService] Report 26 - SQL Query:', sqlQuery);
+          // console.log('[GrcComplyService] Report 26 - Date filters applied:', { startDate, endDate });
+          // console.log('[GrcComplyService] Report 26 - SQL Query:', sqlQuery);
         }
         
         return sqlQuery;
@@ -891,14 +891,14 @@ ORDER BY month;
   async getComplyDashboard(user: any, startDate?: string, endDate?: string, functionId?: string) {
     // Get all reports and return them as dashboard data
     // The frontend will transform this data into cards, charts, and tables
-    console.log('[GrcComplyService.getComplyDashboard] Received filters:', { startDate, endDate, functionId, userId: user?.id, groupName: user?.groupName });
+    // console.log('[GrcComplyService.getComplyDashboard] Received filters:', { startDate, endDate, functionId, userId: user?.id, groupName: user?.groupName });
     
     // Get user function access (super_admin_ sees everything)
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
       user.id,
       user.groupName,
     );
-    console.log('[GrcComplyService.getComplyDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionId: functionId });
+    // console.log('[GrcComplyService.getComplyDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionId: functionId });
     
     // Pass filters and access to runAllReports so they are applied to all SQL queries
     return this.runAllReports(startDate, endDate, functionId, access);

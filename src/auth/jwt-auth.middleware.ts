@@ -8,9 +8,40 @@ export class JwtAuthMiddleware implements NestMiddleware {
   private readonly publicPaths = [
     '/csrf/token',
     '/api/auth/validate-token',
+    '/api/auth/entry-token',
     '/docs',
     '/swagger',
   ];
+
+  /**
+   * Get token from: (1) Authorization Bearer, (2) reporting_node_token cookie, (3) iframe_d_c_c_t_p_1 + iframe_d_c_c_t_p_2 cookies.
+   * Iframe token is handled only in reporting backend (not in main backend).
+   */
+  private getTokenFromRequest(req: Request): string | null {
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      const bearer = authHeader.split('Bearer ')[1];
+      if (bearer) return bearer;
+    }
+
+    const reportingToken = req.cookies?.['reporting_node_token'];
+    if (reportingToken) return reportingToken;
+
+    const iframePart1 = req.cookies?.['iframe_d_c_c_t_p_1'];
+    const iframePart2 = req.cookies?.['iframe_d_c_c_t_p_2'];
+    if (iframePart1) {
+      const encoded = `${iframePart1}${iframePart2 || ''}`;
+      if (encoded) {
+        try {
+          return decodeURIComponent(encoded);
+        } catch {
+          // invalid encoding
+        }
+      }
+    }
+
+    return null;
+  }
 
   use(req: Request, res: Response, next: NextFunction) {
     // Skip authentication for public paths
@@ -18,21 +49,12 @@ export class JwtAuthMiddleware implements NestMiddleware {
       return next();
     }
 
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Authorization header is missing' 
-      });
-    }
-
-    const token = authHeader.split('Bearer ')[1];
+    const token = this.getTokenFromRequest(req);
 
     if (!token) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        message: 'Bearer token is missing' 
+        message: 'Authorization token is missing (use Bearer header or reporting_node_token / iframe_d_c_c_t_p_* cookies)',
       });
     }
 
@@ -41,9 +63,9 @@ export class JwtAuthMiddleware implements NestMiddleware {
       (req as any).user = decoded;
       next();
     } catch (error) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         success: false,
-        message: 'Invalid or expired token' 
+        message: 'Invalid or expired token',
       });
     }
   }

@@ -1,7 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
-const EXCLUDED_PATHS = ['/csrf/token', '/docs', '/swagger'];
+const EXCLUDED_PATHS = ['/csrf/token', '/docs', '/swagger', '/api/auth/entry-token'];
 
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {

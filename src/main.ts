@@ -6,10 +6,14 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as bodyParser from 'body-parser';
 import * as express from 'express';
 import helmet from 'helmet';
+import * as express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
+  // Parse form POSTs (e.g. /api/auth/entry-token from HTML form with application/x-www-form-urlencoded)
+  app.use(express.urlencoded({ extended: true }));
+
   // Security middleware
   app.use(helmet());
   
@@ -115,9 +119,10 @@ async function bootstrap() {
   app.useWebSocketAdapter(new IoAdapter(app));
 
   const port = process.env.PORT || 3002;
-  await app.listen(port, '0.0.0.0', () => {
-    console.log(`Server is running on http://0.0.0.0:${port}`);
-  });
+  await app.listen(port, '0.0.0.0');
+  
+  // console.log(`🚀 Real-time API server running on port ${port}`);
+  // console.log(`📊 WebSocket server ready for real-time updates`);
 }
 
 bootstrap();

@@ -8,7 +8,7 @@ import { ChartRegistryService } from '../shared/chart-registry.service';
 const args = process.argv.slice(2);
 
 if (args.length < 2) {
-  console.log(`
+  // console.log(`
 Usage: npm run add-chart "Chart Name" "SQL Query" [Chart Type]
 
 Examples:
@@ -45,7 +45,7 @@ ChartRegistryService.addChart({
   sql
 });
 
-console.log(`
+// console.log(`
 ✅ Chart added successfully!
 
 Chart ID: ${chartId}
@@ -64,5 +64,5 @@ if (!sql.toLowerCase().includes('select')) {
 
 if (!sql.includes('{dateFilter}')) {
   console.warn('⚠️  Warning: Consider adding {dateFilter} for date filtering support');
-  console.log('   Example: WHERE 1=1 {dateFilter}');
+  // console.log('   Example: WHERE 1=1 {dateFilter}');
 }

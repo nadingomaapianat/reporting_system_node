@@ -18,20 +18,20 @@ export class GrcRisksService extends BaseDashboardService {
   }
 
   async getRisksDashboard(user: any, startDate?: string, endDate?: string, functionId?: string) {
-    console.log('[getRisksDashboard] Received parameters:', { startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
+    // console.log('[getRisksDashboard] Received parameters:', { startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
     
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    console.log('[getRisksDashboard] Date filter:', dateFilter);
+    // console.log('[getRisksDashboard] Date filter:', dateFilter);
     
     // Get user function access (super_admin_ sees everything)
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
       user.id,
       user.groupName,
     );
-    console.log('[getRisksDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
+    // console.log('[getRisksDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
     
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
-    console.log('[getRisksDashboard] Function filter:', functionFilter);
+    // console.log('[getRisksDashboard] Function filter:', functionFilter);
 
     try {
       // Total risks
@@ -62,19 +62,19 @@ export class GrcRisksService extends BaseDashboardService {
       let allRisks = [];
       try {
         allRisks = await this.databaseService.query(allRisksQuery);
-        console.log(`=== ALL RISKS QUERY DEBUG ===`);
-        console.log(`Found ${allRisks.length} total risks`);
+        // console.log(`=== ALL RISKS QUERY DEBUG ===`);
+        // console.log(`Found ${allRisks.length} total risks`);
       } catch (error) {
         console.error('Error fetching allRisks:', error);
         allRisks = [];
       }
       
       if (allRisks.length === 0) {
-        console.log(`No risks found! This might be a database connection issue.`);
+        // console.log(`No risks found! This might be a database connection issue.`);
         // Let's test a simple count query
         const testQuery = `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0`;
         const testResult = await this.databaseService.query(testQuery);
-        console.log(`Test count query result:`, testResult);
+        // console.log(`Test count query result:`, testResult);
       }
 
       // Risks by category via EventTypes (fallback to 'Unknown' for null)
@@ -294,7 +294,7 @@ export class GrcRisksService extends BaseDashboardService {
         `;
         risksPerBusinessProcess = await this.databaseService.query(risksPerBusinessProcessQuery);
       } catch (error) {
-        console.log('RiskProcesses table not found, using empty array');
+        // console.log('RiskProcesses table not found, using empty array');
       }
 
       try {
@@ -314,7 +314,7 @@ export class GrcRisksService extends BaseDashboardService {
         `;
         inherentResidualRiskComparison = await this.databaseService.query(inherentResidualRiskComparisonQuery);
       } catch (error) {
-        console.log('ResidualRisks table not found, using empty array');
+        // console.log('ResidualRisks table not found, using empty array');
       }
 
       try {
@@ -385,7 +385,7 @@ export class GrcRisksService extends BaseDashboardService {
         `;
         highResidualRiskOverview = await this.databaseService.query(highResidualRiskOverviewQuery);
       } catch (error) {
-        console.log('ResidualRisks table not found, using empty array');
+        // console.log('ResidualRisks table not found, using empty array');
       }
 
       try {
@@ -403,7 +403,7 @@ export class GrcRisksService extends BaseDashboardService {
         `;
         risksAndControlsCount = await this.databaseService.query(risksAndControlsCountQuery);
       } catch (error) {
-        console.log('RiskControls table not found, using empty array');
+        // console.log('RiskControls table not found, using empty array');
       }
 
       try {
@@ -421,7 +421,7 @@ export class GrcRisksService extends BaseDashboardService {
         `;
         controlsAndRiskCount = await this.databaseService.query(controlsAndRiskCountQuery);
       } catch (error) {
-        console.log('RiskControls table not found, using empty array');
+        // console.log('RiskControls table not found, using empty array');
       }
 
       try {
@@ -447,7 +447,7 @@ export class GrcRisksService extends BaseDashboardService {
         `;
         risksDetails = await this.databaseService.query(risksDetailsQuery);
       } catch (error) {
-        console.log('ResidualRisks or EventTypes table not found, using empty array');
+        // console.log('ResidualRisks or EventTypes table not found, using empty array');
       }
 
       return {
