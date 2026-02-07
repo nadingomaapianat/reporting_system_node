@@ -3,7 +3,7 @@
 // Initialize sample charts for testing
 import { ChartRegistryService } from '../shared/chart-registry.service';
 
-console.log('🚀 Initializing sample charts...');
+// console.log('🚀 Initializing sample charts...');
 
 // Sample chart 1: Sales by Region
 ChartRegistryService.addChart({
@@ -134,13 +134,13 @@ ChartRegistryService.addChart({
   `
 });
 
-console.log('✅ Sample charts initialized successfully!');
-console.log('📊 Available charts:');
+// console.log('✅ Sample charts initialized successfully!');
+// console.log('📊 Available charts:');
 ChartRegistryService.listCharts().forEach(chart => {
-  console.log(`   - ${chart.name} (${chart.type})`);
+  // console.log(`   - ${chart.name} (${chart.type})`);
 });
 
-console.log(`
+// console.log(`
 🚀 Next steps:
 1. Start your backend: npm run start:dev
 2. Visit: https://reporting-system-frontend.pianat.ai/api/charts/dashboard

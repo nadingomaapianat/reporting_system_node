@@ -165,7 +165,7 @@ export class UserFunctionAccessService {
     access: UserFunctionAccess,
     selectedFunctionId?: string,
   ): string {
-    console.log('[buildControlFunctionFilter] Called with:', { tableAlias, isSuperAdmin: access.isSuperAdmin, selectedFunctionId, hasFunctionIds: access.functionIds.length });
+    // console.log('[buildControlFunctionFilter] Called with:', { tableAlias, isSuperAdmin: access.isSuperAdmin, selectedFunctionId, hasFunctionIds: access.functionIds.length });
     
     // If a specific function is selected, filter by that only (even for super admins)
     // Treat empty string as no selection

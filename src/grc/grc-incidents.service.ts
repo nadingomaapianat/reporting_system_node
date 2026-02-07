@@ -53,21 +53,21 @@ export class GrcIncidentsService {
 
   async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string) {
     try {
-      console.log('[getIncidentsDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
+      // console.log('[getIncidentsDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
       
       const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
-      console.log('[getIncidentsDashboard] Date filter:', dateFilter);
+      // console.log('[getIncidentsDashboard] Date filter:', dateFilter);
 
       // Get user function access (super_admin_ sees everything)
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
         user.id,
         user.groupName,
       );
-      console.log('[getIncidentsDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
+      // console.log('[getIncidentsDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
       
       // Build function filter - use selected functionId if provided, otherwise use user's functions
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, functionId);
-      console.log('[getIncidentsDashboard] Function filter:', functionFilter);
+      // console.log('[getIncidentsDashboard] Function filter:', functionFilter);
 
       // Get total incidents
       const totalIncidentsQuery = `
@@ -1180,8 +1180,8 @@ export class GrcIncidentsService {
       }
       
       // Log for debugging
-      console.log('[getIncidentsByCategory] Received category:', category);
-      console.log('[getIncidentsByCategory] Decoded category:', decodedCategory);
+      // console.log('[getIncidentsByCategory] Received category:', category);
+      // console.log('[getIncidentsByCategory] Decoded category:', decodedCategory);
       
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
       
@@ -1236,7 +1236,7 @@ export class GrcIncidentsService {
       const countResult = await this.databaseService.query(countQuery);
       const total = countResult[0]?.total || 0;
       
-      console.log('[getIncidentsByCategory] Total count:', total);
+      // console.log('[getIncidentsByCategory] Total count:', total);
 
       return {
         data: result.map((row: any) => ({
@@ -1489,8 +1489,8 @@ export class GrcIncidentsService {
       }
       
       // Log for debugging
-      console.log('[getIncidentsByStatus] Received status:', status);
-      console.log('[getIncidentsByStatus] Decoded status:', decodedStatus);
+      // console.log('[getIncidentsByStatus] Received status:', status);
+      // console.log('[getIncidentsByStatus] Decoded status:', decodedStatus);
       
       // Map status names to the appropriate query conditions
       // Using the same staged status logic as the dashboard
@@ -1548,7 +1548,7 @@ export class GrcIncidentsService {
       const countResult = await this.databaseService.query(countQuery);
       const total = countResult[0]?.total || 0;
       
-      console.log('[getIncidentsByStatus] Total count:', total);
+      // console.log('[getIncidentsByStatus] Total count:', total);
 
       return {
         data: result.map((row: any) => ({

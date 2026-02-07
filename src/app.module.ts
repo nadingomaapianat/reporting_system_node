@@ -47,13 +47,17 @@ import * as cookieParser from 'cookie-parser';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Apply JWT auth first, then CSRF
+    // Cookie parser first so JwtAuthMiddleware can read token from cookies (reporting_node_token, iframe_d_c_c_t_p_*)
+    consumer
+      .apply(cookieParser())
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
     consumer
       .apply(JwtAuthMiddleware)
       .forRoutes({ path: '*', method: RequestMethod.ALL });
-    
+
     consumer
-      .apply(cookieParser(), CsrfMiddleware)
+      .apply(CsrfMiddleware)
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

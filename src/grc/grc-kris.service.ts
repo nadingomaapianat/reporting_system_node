@@ -53,20 +53,20 @@ export class GrcKrisService {
 
   async getKrisDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string) {
     try {
-      console.log('[getKrisDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
+      // console.log('[getKrisDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
       
       const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
-      console.log('[getKrisDashboard] Date filter:', dateFilter);
+      // console.log('[getKrisDashboard] Date filter:', dateFilter);
 
       // Get user function access (super_admin_ sees everything)
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
         user.id,
         user.groupName,
       );
-      console.log('[getKrisDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
+      // console.log('[getKrisDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
       
       const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
-      console.log('[getKrisDashboard] Function filter:', functionFilter);
+      // console.log('[getKrisDashboard] Function filter:', functionFilter);
 
       // Total KRIs (count)
       const totalKrisQuery = `
@@ -114,7 +114,7 @@ export class GrcKrisService {
       try {
         const [statusCountsResult] = await this.databaseService.query(krisStatusCountsQuery);
         statusCountsRow = statusCountsResult || {};
-        console.log('[KRI Dashboard] Status counts query result:', JSON.stringify(statusCountsRow));
+        // console.log('[KRI Dashboard] Status counts query result:', JSON.stringify(statusCountsRow));
       } catch (e) {
         console.error('KRIs status counts query failed:', e);
       }
@@ -467,7 +467,7 @@ export class GrcKrisService {
       let kriCountsByMonthYear: any[] = [];
       try {
         kriCountsByMonthYear = await this.databaseService.query(kriCountsByMonthYearQuery);
-        console.log('[KRI Dashboard] kriCountsByMonthYear query result:', JSON.stringify(kriCountsByMonthYear.slice(0, 3)));
+        // console.log('[KRI Dashboard] kriCountsByMonthYear query result:', JSON.stringify(kriCountsByMonthYear.slice(0, 3)));
       } catch (e) {
         console.error('KRI counts by Month/Year query failed:', e);
       }
@@ -1527,8 +1527,8 @@ export class GrcKrisService {
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Log for debugging
-    console.log('[getRisksByKriName] Received kriName:', kriName);
-    console.log('[getRisksByKriName] Decoded kriName:', decodedKriName);
+    // console.log('[getRisksByKriName] Received kriName:', kriName);
+    // console.log('[getRisksByKriName] Decoded kriName:', decodedKriName);
     
     // Escape special characters for SQL
     // SQL Server requires escaping single quotes by doubling them
@@ -1569,12 +1569,12 @@ export class GrcKrisService {
         ${endDate ? `AND k.createdAt <= '${endDate}'` : ''}
     `;
     
-    console.log('[getRisksByKriName] Count query:', countQuery);
+    // console.log('[getRisksByKriName] Count query:', countQuery);
     
     const totalRes = await this.databaseService.query(countQuery);
     const total = totalRes?.[0]?.total || 0;
     
-    console.log('[getRisksByKriName] Total count:', total);
+    // console.log('[getRisksByKriName] Total count:', total);
 
     const dataQuery = `
       SELECT 
@@ -1606,15 +1606,15 @@ export class GrcKrisService {
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     
-    console.log('[getRisksByKriName] Data query:', dataQuery);
+    // console.log('[getRisksByKriName] Data query:', dataQuery);
     
     const data = await this.databaseService.query(dataQuery);
     
-    console.log('[getRisksByKriName] Data returned:', data?.length || 0, 'rows');
+    // console.log('[getRisksByKriName] Data returned:', data?.length || 0, 'rows');
     
     // Additional debugging: show what KRI names exist in the database for this pattern
     if (total === 0 && decodedKriName !== 'Unknown') {
-      console.log('[getRisksByKriName] No match found, checking database for similar names...');
+      // console.log('[getRisksByKriName] No match found, checking database for similar names...');
       const debugQuery = `
         SELECT TOP 10 DISTINCT k.kriName, 
                LEN(k.kriName) as nameLength,
@@ -1632,7 +1632,7 @@ export class GrcKrisService {
       `;
       try {
         const debugResults = await this.databaseService.query(debugQuery);
-        console.log('[getRisksByKriName] Similar KRI names in database:', debugResults);
+        // console.log('[getRisksByKriName] Similar KRI names in database:', debugResults);
       } catch (e) {
         console.error('[getRisksByKriName] Debug query failed:', e);
       }

@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe, HttpException, HttpStatus, ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
+import * as express from 'express';
 
 @Catch()
 class GlobalExceptionFilter implements ExceptionFilter {
@@ -37,7 +38,10 @@ class GlobalExceptionFilter implements ExceptionFilter {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
+  // Parse form POSTs (e.g. /api/auth/entry-token from HTML form with application/x-www-form-urlencoded)
+  app.use(express.urlencoded({ extended: true }));
+
   // Security middleware
   app.use(helmet());
   
@@ -116,8 +120,8 @@ async function bootstrap() {
   const port = process.env.PORT || 3002;
   await app.listen(port, '0.0.0.0');
   
-  console.log(`🚀 Real-time API server running on port ${port}`);
-  console.log(`📊 WebSocket server ready for real-time updates`);
+  // console.log(`🚀 Real-time API server running on port ${port}`);
+  // console.log(`📊 WebSocket server ready for real-time updates`);
 }
 
 bootstrap().catch((error) => {

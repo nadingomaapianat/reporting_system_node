@@ -131,7 +131,7 @@ export class DashboardService {
     
     try {
       await this.databaseService.query(query);
-      console.log('Dashboard activity table created or already exists');
+      // console.log('Dashboard activity table created or already exists');
     } catch (error) {
       console.error('Error creating dashboard_activity table:', error);
     }
@@ -218,7 +218,7 @@ export class DashboardService {
           'default_user',
           dashboard.card_count
         );
-        console.log(`Initialized activity for ${dashboard.dashboard_id}`);
+        // console.log(`Initialized activity for ${dashboard.dashboard_id}`);
       }
     }
   }

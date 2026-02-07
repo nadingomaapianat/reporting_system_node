@@ -23,35 +23,35 @@ export class CsrfController {
   @Options('token')
   handleOptions(@Req() req: Request, @Res() res: Response) {
     // Handle OPTIONS preflight request
-    console.log('[CSRF] OPTIONS preflight request received');
-    console.log('[CSRF] Origin:', req.headers.origin);
+    // console.log('[CSRF] OPTIONS preflight request received');
+    // console.log('[CSRF] Origin:', req.headers.origin);
     // CORS middleware will handle the response, just return 204
     return res.status(204).send();
   }
 
   @Get('token')
   getToken(@Req() req: Request, @Res() res: Response) {
-    console.log('[CSRF] GET request received - Method:', req.method);
+    // console.log('[CSRF] GET request received - Method:', req.method);
     // STRICT: Require Origin header for browser requests
     // Allow server-side requests (no Origin) - these are from Next.js API routes
     const origin = req.headers.origin;
     const referer = req.headers.referer;
     const userAgent = req.headers['user-agent'] || '';
     
-    console.log(`[CSRF] Token request received - Origin: ${origin}, Referer: ${referer}`);
-    console.log(`[CSRF] User-Agent: ${userAgent}`);
-    console.log(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
+    // console.log(`[CSRF] Token request received - Origin: ${origin}, Referer: ${referer}`);
+    // console.log(`[CSRF] User-Agent: ${userAgent}`);
+    // console.log(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
     
     // Extract origin from referer if origin header is not present
     let originUrl: string | null = null;
     if (origin) {
       originUrl = origin;
-      console.log(`[CSRF] Using Origin header: ${originUrl}`);
+      // console.log(`[CSRF] Using Origin header: ${originUrl}`);
     } else if (referer) {
       try {
         const refererUrl = new URL(referer);
         originUrl = refererUrl.origin;
-        console.log(`[CSRF] Extracted origin from Referer: ${originUrl}`);
+        // console.log(`[CSRF] Extracted origin from Referer: ${originUrl}`);
       } catch {
         // Invalid referer URL, ignore
         console.warn(`[CSRF] Invalid Referer URL: ${referer}`);
@@ -72,8 +72,8 @@ export class CsrfController {
     }
     
     if (isServerSideRequest) {
-      console.log(`[CSRF] ✓ Allowing server-side request (no Origin header)`);
-      console.log(`[CSRF] Server-side indicators: User-Agent=${userAgent || 'MISSING'}, IP=${req.ip}`);
+      // console.log(`[CSRF] ✓ Allowing server-side request (no Origin header)`);
+      // console.log(`[CSRF] Server-side indicators: User-Agent=${userAgent || 'MISSING'}, IP=${req.ip}`);
       // Skip origin validation for server-side requests - proceed directly to token generation
     } else {
       // Validate origin against allowed list for browser requests only
@@ -86,7 +86,7 @@ export class CsrfController {
       const isAllowed = this.allowedOrigins.some(allowed => {
         // Exact match
         if (originUrl === allowed) {
-          console.log(`[CSRF] Origin matched exactly: ${originUrl} === ${allowed}`);
+          // console.log(`[CSRF] Origin matched exactly: ${originUrl} === ${allowed}`);
           return true;
         }
         // Support wildcard subdomains (e.g., *.pianat.ai)
@@ -95,7 +95,7 @@ export class CsrfController {
           const regex = new RegExp(`^${pattern}$`);
           const matches = regex.test(originUrl);
           if (matches) {
-            console.log(`[CSRF] Origin matched pattern: ${originUrl} matches ${allowed}`);
+            // console.log(`[CSRF] Origin matched pattern: ${originUrl} matches ${allowed}`);
           }
           return matches;
         }
@@ -109,7 +109,7 @@ export class CsrfController {
         throw new UnauthorizedException('Origin not allowed');
       }
       
-      console.log(`[CSRF] ✓ Allowed CSRF token request from origin: ${originUrl}`);
+      // console.log(`[CSRF] ✓ Allowed CSRF token request from origin: ${originUrl}`);
     }
 
     let csrfToken = req.cookies?.csrfToken;
@@ -122,12 +122,12 @@ export class CsrfController {
         sameSite: 'strict',
         path: '/',
       });
-      console.log(`[CSRF] Generated new CSRF token (length: ${csrfToken.length})`);
+      // console.log(`[CSRF] Generated new CSRF token (length: ${csrfToken.length})`);
     } else {
-      console.log(`[CSRF] Using existing CSRF token from cookie (length: ${csrfToken.length})`);
+      // console.log(`[CSRF] Using existing CSRF token from cookie (length: ${csrfToken.length})`);
     }
 
-    console.log(`[CSRF] ✓ Returning CSRF token to ${isServerSideRequest ? 'server-side' : 'browser'} request`);
+    // console.log(`[CSRF] ✓ Returning CSRF token to ${isServerSideRequest ? 'server-side' : 'browser'} request`);
     return res.status(200).json({ csrfToken });
   }
 }

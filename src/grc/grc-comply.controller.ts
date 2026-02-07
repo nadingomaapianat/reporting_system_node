@@ -18,13 +18,13 @@ export class GrcComplyController {
     @Query('functionId') functionId?: string
   ) {
     // Log received query parameters
-    console.log('[GrcComplyController.getDashboardOrReport] Query params received:', { 
-      report, 
-      startDate, 
-      endDate, 
-      functionId,
-      allQueryParams: req.query 
-    });
+    // console.log('[GrcComplyController.getDashboardOrReport] Query params received:', { 
+    //   report, 
+    //   startDate, 
+    //   endDate, 
+    //   functionId,
+    //   allQueryParams: req.query 
+    // });
     
     // If report query param is provided, return single report (backward compatibility)
     if (report) {
@@ -33,7 +33,7 @@ export class GrcComplyController {
     }
     
     // Otherwise, return dashboard data
-    console.log('[GrcComplyController.getDashboardOrReport] Calling getComplyDashboard with filters:', { startDate, endDate, functionId });
+    // console.log('[GrcComplyController.getDashboardOrReport] Calling getComplyDashboard with filters:', { startDate, endDate, functionId });
     return this.grcComplyService.getComplyDashboard(req.user, startDate, endDate, functionId);
   }
 

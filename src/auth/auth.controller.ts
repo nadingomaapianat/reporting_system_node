@@ -1,9 +1,60 @@
-import { Controller, Post, Body, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, Headers, ForbiddenException, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
+
+const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'http://localhost:3001';
+const COOKIE_NAME = 'reporting_node_token';
 
 @Controller('api/auth')
 export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  /**
+   * Validate IET with main backend, create JWT, set it in cookie (backend sets cookie – no token in body).
+   * Body: { iet, module_id, redirect_uri? }. Header: Origin.
+   * On success: Set-Cookie + 302 redirect to reporting frontend. On failure: 403.
+   */
+  @Post('entry-token')
+  async createEntryToken(
+    @Body() body: { iet?: string; module_id?: string; redirect_uri?: string },
+    @Headers('origin') origin: string,
+    @Res({ passthrough: false }) res: Response,
+  ): Promise<void> {
+    const iet = (body?.iet && String(body.iet).trim()) || '';
+    const moduleId = (body?.module_id && String(body.module_id).trim()) || 'default';
+
+    // console.log('body', body);
+    // console.log('iet', iet);
+    // console.log('moduleId', moduleId);
+    // console.log('origin', origin);
+
+    // console.log('[AuthController.entry-token] body keys:', body ? Object.keys(body) : [], 'iet length:', iet?.length ?? 0, 'origin:', origin);
+
+    if (!iet) {
+      throw new ForbiddenException('IET required');
+    }
+
+    const result = await this.authService.createTokenFromIet(iet, moduleId, origin || '');
+    // console.log('result', result);
+    if (!result) {
+      throw new ForbiddenException('Invalid or expired IET');
+    }
+
+    const redirectTo = (body?.redirect_uri && String(body.redirect_uri).trim()) || REPORTING_FRONTEND_URL.replace(/\/+$/, '') + '/';
+
+    res
+      .cookie(COOKIE_NAME, result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: result.expiresIn * 1000,
+        path: '/',
+      })
+      .status(302)
+      .redirect(redirectTo);
+  }
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
