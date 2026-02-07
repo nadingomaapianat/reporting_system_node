@@ -14,6 +14,7 @@ import { UserFunctionAccessService } from './shared/user-function-access.service
 import { UserFunctionsController } from './shared/user-functions.controller';
 import { CsrfModule } from './csrf/csrf.module';
 import { CsrfMiddleware } from './middleware/csrf.middleware';
+import { FrameAncestorsMiddleware } from './middleware/frame-ancestors.middleware';
 import { JwtAuthMiddleware } from './auth/jwt-auth.middleware';
 import * as cookieParser from 'cookie-parser';
 
@@ -42,6 +43,7 @@ import * as cookieParser from 'cookie-parser';
     ChartRegistryService,
     DatabaseService,
     JwtAuthMiddleware,
+    FrameAncestorsMiddleware,
     UserFunctionAccessService,
   ],
 })
@@ -50,6 +52,11 @@ export class AppModule implements NestModule {
     // Cookie parser first so JwtAuthMiddleware can read token from cookies (reporting_node_token, iframe_d_c_c_t_p_*)
     consumer
       .apply(cookieParser())
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+    // Clickjacking protection: frame-ancestors so module is only embeddable by main app
+    consumer
+      .apply(FrameAncestorsMiddleware)
       .forRoutes({ path: '*', method: RequestMethod.ALL });
 
     consumer

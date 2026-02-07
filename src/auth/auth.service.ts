@@ -15,7 +15,7 @@ const JWT_EXPIRES_IN = '2h';
 export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
 
-  async createTokenFromIet(iet: string, moduleId: string, _origin: string): Promise<{ token: string; expiresIn: number } | null> {
+  async createTokenFromIet(iet: string, moduleId: string, _origin: string): Promise<{ token: string; expiresIn: number; userId: string } | null> {
     const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
     const url = `${base}/entry/validate`;
 
@@ -51,7 +51,7 @@ export class AuthService {
         }
       }
 
-      if (res.status !== 201 || !res.data?.success || !res.data?.user_id) {
+      if ((res.status !== 200 && res.status !== 201) || !res.data?.success || !res.data?.user_id) {
         return null;
       }
 
@@ -66,7 +66,7 @@ export class AuthService {
       // console.log('token', token);
       // console.log('expiresInSeconds', expiresInSeconds);
      
-      return { token, expiresIn: expiresInSeconds };
+      return { token, expiresIn: expiresInSeconds, userId };
     } catch {
       return null;
     }

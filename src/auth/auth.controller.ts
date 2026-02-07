@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request, Headers, ForbiddenException, Res } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Request, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
@@ -7,8 +7,23 @@ import * as jwt from 'jsonwebtoken';
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'http://localhost:3001';
 const COOKIE_NAME = 'reporting_node_token';
 
+/** Bank-grade: allow redirect only to configured reporting frontend origin (no open redirect). */
+function isAllowedRedirectUri(uri: string): boolean {
+  const base = REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase();
+  const u = (uri || '').trim().toLowerCase().replace(/\/+$/, '');
+  if (!u) return false;
+  return u === base || u === `${base}/` || u.startsWith(`${base}/`);
+}
+
+/**
+ * Module backend auth: entry-token (IET exchange) and profile.
+ * After entry: user is authenticated ONLY via HttpOnly cookie reporting_node_token.
+ * No postMessage, no JS token access, no Referer-only validation.
+ */
 @Controller('api/auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly authService: AuthService) {}
 
   /**
@@ -33,17 +48,38 @@ export class AuthController {
     // console.log('[AuthController.entry-token] body keys:', body ? Object.keys(body) : [], 'iet length:', iet?.length ?? 0, 'origin:', origin);
 
     if (!iet) {
+      this.logger.warn(
+        `[AUDIT] event=ENTRY_TOKEN_FAIL reason=no_iet timestamp=${new Date().toISOString()}`,
+      );
       throw new ForbiddenException('IET required');
     }
 
     const result = await this.authService.createTokenFromIet(iet, moduleId, origin || '');
-    // console.log('result', result);
     if (!result) {
+      this.logger.warn(
+        `[AUDIT] event=ENTRY_TOKEN_FAIL reason=invalid_or_expired_iet iet_length=${iet.length} timestamp=${new Date().toISOString()}`,
+      );
       throw new ForbiddenException('Invalid or expired IET');
     }
 
-    const redirectTo = (body?.redirect_uri && String(body.redirect_uri).trim()) || REPORTING_FRONTEND_URL.replace(/\/+$/, '') + '/';
+    this.logger.log(
+      `[AUDIT] event=ENTRY_TOKEN_SUCCESS user_id=${result.userId} timestamp=${new Date().toISOString()}`,
+    );
 
+    const requestedRedirect = (body?.redirect_uri && String(body.redirect_uri).trim()) || '';
+    const defaultRedirect = REPORTING_FRONTEND_URL.replace(/\/+$/, '') + '/';
+    let redirectTo = defaultRedirect;
+    if (requestedRedirect) {
+      if (isAllowedRedirectUri(requestedRedirect)) {
+        redirectTo = requestedRedirect.replace(/\/+$/, '') + '/';
+      } else {
+        this.logger.warn(
+          `[AUDIT] event=REDIRECT_URI_REJECTED requested=${requestedRedirect} allowed_base=${REPORTING_FRONTEND_URL} timestamp=${new Date().toISOString()}`,
+        );
+      }
+    }
+
+    // Bank-grade: HttpOnly (no JS access), Secure in production, SameSite for same-site/cross-site POST
     res
       .cookie(COOKIE_NAME, result.token, {
         httpOnly: true,
