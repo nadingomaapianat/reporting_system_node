@@ -6,11 +6,20 @@ const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'GRC_
 
 @Injectable()
 export class JwtAuthMiddleware implements NestMiddleware {
-  // Paths that don't require authentication
+  /**
+   * Paths that don't require a JWT (by design, not a security gap):
+   * - /api/auth/entry-token: User arrives with IET from main app; backend validates IET and issues JWT.
+   *   If we required JWT here, no one could ever log in. Security is in IET validation + single-use/short TTL.
+   * - /api/auth/validate-token: Used to check if current token is valid; must be callable without auth.
+   * - /csrf/token: Frontend needs a CSRF token before sending authenticated requests; must be obtainable first.
+   * - /docs, /swagger: API docs. Consider disabling or protecting in production (e.g. NODE_ENV check).
+   * - /api/auth/logout: Clears reporting_node_token cookie; must be callable without JWT so main app can clear it on logout.
+   */
   private readonly publicPaths = [
     '/csrf/token',
     '/api/auth/validate-token',
     '/api/auth/entry-token',
+    '/api/auth/logout',
     '/docs',
     '/swagger',
   ];
