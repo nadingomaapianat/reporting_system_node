@@ -1,8 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/dashboard')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('Reporting', ['show'])
 export class DashboardController {
   constructor(
     private readonly dashboardService: DashboardService,

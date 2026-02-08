@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { GrcDashboardController } from './grc-dashboard.controller';
 import { GrcDashboardService } from './grc-dashboard.service';
 import { GrcRisksController } from './grc-risks.controller';
@@ -11,7 +12,9 @@ import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService } from '../shared/user-function-access.service';
 import { GrcComplyController } from './grc-comply.controller';
 import { GrcComplyService } from './grc-comply.service';
+
 @Module({
+  imports: [AuthModule],
   controllers: [GrcDashboardController, GrcRisksController, GrcIncidentsController, GrcKrisController, GrcComplyController],
   providers: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, GrcComplyService, DatabaseService, UserFunctionAccessService],
   exports: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, GrcComplyService],

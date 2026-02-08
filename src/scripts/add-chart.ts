@@ -9,15 +9,15 @@ const args = process.argv.slice(2);
 
 if (args.length < 2) {
   // console.log(`
-Usage: npm run add-chart "Chart Name" "SQL Query" [Chart Type]
-
-Examples:
-  npm run add-chart "Sales by Region" "SELECT region as name, SUM(amount) as value FROM sales GROUP BY region" "bar"
-  npm run add-chart "User Status" "SELECT status as name, COUNT(*) as value FROM users GROUP BY status" "pie"
-  npm run add-chart "Monthly Trend" "SELECT FORMAT(date, 'yyyy-MM') as name, COUNT(*) as value FROM events GROUP BY FORMAT(date, 'yyyy-MM') ORDER BY name" "line"
-
-Chart Types: bar, pie, line, area, scatter (default: bar)
-  `);
+  // Usage: npm run add-chart "Chart Name" "SQL Query" [Chart Type]
+  //
+  // Examples:
+  //   npm run add-chart "Sales by Region" "SELECT region as name, SUM(amount) as value FROM sales GROUP BY region" "bar"
+  //   npm run add-chart "User Status" "SELECT status as name, COUNT(*) as value FROM users GROUP BY status" "pie"
+  //   npm run add-chart "Monthly Trend" "SELECT FORMAT(date, 'yyyy-MM') as name, COUNT(*) as value FROM events GROUP BY FORMAT(date, 'yyyy-MM') ORDER BY name" "line"
+  //
+  // Chart Types: bar, pie, line, area, scatter (default: bar)
+  // `);
   process.exit(1);
 }
 
@@ -46,16 +46,16 @@ ChartRegistryService.addChart({
 });
 
 // console.log(`
-✅ Chart added successfully!
-
-Chart ID: ${chartId}
-Name: ${name}
-Type: ${type}
-SQL: ${sql}
-
-The chart will be available at: /api/charts/${chartId}
-Dashboard data at: /api/charts/dashboard
-`);
+// ✅ Chart added successfully!
+//
+// Chart ID: ${chartId}
+// Name: ${name}
+// Type: ${type}
+// SQL: ${sql}
+//
+// The chart will be available at: /api/charts/${chartId}
+// Dashboard data at: /api/charts/dashboard
+// `);
 
 // Test the SQL (basic validation)
 if (!sql.toLowerCase().includes('select')) {

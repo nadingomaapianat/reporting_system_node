@@ -341,19 +341,22 @@ export abstract class BaseDashboardService {
     return results;
   }
 
+  /** Only treat as date if it looks like YYYY-MM-DD (avoids "Conversion failed when converting date" from invalid strings). */
+  private isValidDateString(s?: string): boolean {
+    if (s == null || typeof s !== 'string') return false;
+    const t = s.trim();
+    return t.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(t);
+  }
+
   protected buildDateFilter(startDate?: string, endDate?: string, dateField?: string) {
-    if (!startDate && !endDate) return '';
-    
+    const start = this.isValidDateString(startDate) ? startDate!.trim().slice(0, 10) : undefined;
+    const end = this.isValidDateString(endDate) ? endDate!.trim().slice(0, 10) : undefined;
+    if (!start && !end) return '';
+
     const field = dateField || 'createdAt';
     let filter = '';
-    
-    if (startDate) {
-      filter += ` AND ${field} >= '${startDate}'`;
-    }
-    if (endDate) {
-      filter += ` AND ${field} <= '${endDate} 23:59:59'`;
-    }
-    
+    if (start) filter += ` AND ${field} >= '${start}'`;
+    if (end) filter += ` AND ${field} <= '${end} 23:59:59'`;
     return filter;
   }
 

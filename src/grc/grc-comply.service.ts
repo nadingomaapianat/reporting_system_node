@@ -38,21 +38,22 @@ export class GrcComplyService {
     private readonly userFunctionAccess: UserFunctionAccessService,
   ) {}
 
+  /** Only treat as date if it looks like YYYY-MM-DD (avoids SQL "Conversion failed when converting date" from invalid strings). */
+  private isValidDateStr(s?: string): boolean {
+    return !!(s && /^\d{4}-\d{2}-\d{2}/.test(String(s).trim()));
+  }
+
   /**
    * Build date filter clause for SQL queries
    */
   private buildDateFilter(startDate?: string, endDate?: string, dateField: string = 'createdAt'): string {
-    if (!startDate && !endDate) return '';
-    
+    const start = this.isValidDateStr(startDate) ? String(startDate).trim().slice(0, 10) : undefined;
+    const end = this.isValidDateStr(endDate) ? String(endDate).trim().slice(0, 10) : undefined;
+    if (!start && !end) return '';
+
     let filter = '';
-    
-    if (startDate) {
-      filter += ` AND ${dateField} >= '${startDate}'`;
-    }
-    if (endDate) {
-      filter += ` AND ${dateField} <= '${endDate} 23:59:59'`;
-    }
-    
+    if (start) filter += ` AND ${dateField} >= '${start}'`;
+    if (end) filter += ` AND ${dateField} <= '${end} 23:59:59'`;
     return filter;
   }
 
@@ -183,7 +184,7 @@ export class GrcComplyService {
 
   async runAllReports(startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
     // Log filters for debugging - always log to see what's being received
-    // console.log('[GrcComplyService.runAllReports] Called with filters:', { 
+    /* console.log('[GrcComplyService.runAllReports] Called with filters:', { 
       startDate, 
       endDate, 
       functionId,
@@ -191,7 +192,7 @@ export class GrcComplyService {
       hasEndDate: !!endDate,
       hasAccess: !!access,
       isSuperAdmin: access?.isSuperAdmin
-    });
+    });*/
     
     // If access not provided, create a default (super admin) access
     const userAccess = access || { isSuperAdmin: true, functionIds: [] };

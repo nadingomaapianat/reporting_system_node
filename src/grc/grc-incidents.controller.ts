@@ -1,7 +1,12 @@
-import { Controller, Get, Query, Req } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { GrcIncidentsService } from './grc-incidents.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/grc/incidents')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('Reporting', ['show'])
 export class GrcIncidentsController {
   constructor(private readonly grcIncidentsService: GrcIncidentsService) {}
 
@@ -23,6 +28,18 @@ export class GrcIncidentsController {
     @Query('timeframe') timeframe?: string
   ) {
     return this.grcIncidentsService.exportIncidents(req.user, format, timeframe);
+  }
+
+  @Get('list')
+  async getIncidentsList(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10000,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
+  ) {
+    return this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, functionId);
   }
 
   @Get('total')

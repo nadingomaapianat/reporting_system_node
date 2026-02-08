@@ -1,7 +1,12 @@
-import { Controller, Get, Query, Param, Req } from '@nestjs/common';
+import { Controller, Get, Query, Param, Req, UseGuards } from '@nestjs/common';
 import { GrcRisksService } from './grc-risks.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/grc/risks')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('Reporting', ['show'])
 export class GrcRisksController {
   constructor(private readonly grcRisksService: GrcRisksService) {}
 
@@ -12,7 +17,9 @@ export class GrcRisksController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcRisksService.getRisksDashboard(req.user, startDate, endDate, functionId);
+    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+    const id = norm(functionId);
+    return this.grcRisksService.getRisksDashboard(req.user, norm(startDate) || undefined, norm(endDate) || undefined, id && id.length > 0 ? id : undefined);
   }
 
   @Get('total')
