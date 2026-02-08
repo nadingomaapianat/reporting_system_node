@@ -3,6 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
 
+const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'GRC_ADIB_2025';
+
 /**
  * Get token from: (1) Authorization Bearer, (2) reporting_node_token cookie, (3) iframe_d_c_c_t_p_1 + iframe_d_c_c_t_p_2 cookies.
  * Iframe token is handled only in reporting backend (not in main backend).
@@ -48,7 +50,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const decoded = jwt.verify(token, 'GRC_ADIB_2025');
+      const decoded = jwt.verify(token, JWT_SECRET);
       request.user = decoded;
       return true;
     } catch (error) {

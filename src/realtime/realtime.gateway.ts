@@ -12,13 +12,7 @@ import { RealtimeService } from './realtime.service';
 
 @WebSocketGateway({
   cors: {
-    origin: [
-      'https://reporting-system-frontend.pianat.ai',
-      'http://localhost:3000',
-      'http://localhost:8000',
-      'http://10.240.53.65:8000',
-      'http://10.240.53.65:3000', // Frontend production URL
-    ],
+    origin: ['https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai', 'http://localhost:3001', 'http://localhost:3000', 'http://localhost:5173', 'http://localhost:4200', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
     credentials: true,
     methods: ['GET', 'POST'],
   },

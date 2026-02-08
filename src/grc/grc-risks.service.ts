@@ -128,11 +128,14 @@ export class GrcRisksService extends BaseDashboardService {
       const quarterNames = ['quarterOne', 'quarterTwo', 'quarterThree', 'quarterFour'];
       const currentQuarterName = quarterNames[currentQuarter - 1];
 
-      // Build date filter for Residualrisks table
+      // Build date filter for Residualrisks table (only use dates that parse as YYYY-MM-DD to avoid SQL conversion errors)
       let residualDateFilter = `AND rr.quarter = '${currentQuarterName}' AND rr.year = ${currentYear}`;
-      if (startDate && endDate) {
-        // If date filters provided, use them to filter Residualrisks by createdAt
-        residualDateFilter = `AND rr.createdAt >= '${startDate}' AND rr.createdAt <= '${endDate} 23:59:59'`;
+      const validStart = startDate && /^\d{4}-\d{2}-\d{2}/.test(String(startDate).trim());
+      const validEnd = endDate && /^\d{4}-\d{2}-\d{2}/.test(String(endDate).trim());
+      if (validStart && validEnd) {
+        const start = String(startDate).trim().slice(0, 10);
+        const end = String(endDate).trim().slice(0, 10);
+        residualDateFilter = `AND rr.createdAt >= '${start}' AND rr.createdAt <= '${end} 23:59:59'`;
       }
 
       const riskReductionCountQuery = `
@@ -573,10 +576,14 @@ export class GrcRisksService extends BaseDashboardService {
         const quarterNames = ['quarterOne', 'quarterTwo', 'quarterThree', 'quarterFour'];
         const currentQuarterName = quarterNames[currentQuarter - 1];
 
-        // Build date filter for Residualrisks table
+        // Build date filter for Residualrisks table (only use valid YYYY-MM-DD to avoid SQL date conversion errors)
         let residualDateFilter = `AND rr.quarter = '${currentQuarterName}' AND rr.year = ${currentYear}`;
-        if (startDate && endDate) {
-          residualDateFilter = `AND rr.createdAt >= '${startDate}' AND rr.createdAt <= '${endDate} 23:59:59'`;
+        const validStart2 = startDate && /^\d{4}-\d{2}-\d{2}/.test(String(startDate).trim());
+        const validEnd2 = endDate && /^\d{4}-\d{2}-\d{2}/.test(String(endDate).trim());
+        if (validStart2 && validEnd2) {
+          const start2 = String(startDate).trim().slice(0, 10);
+          const end2 = String(endDate).trim().slice(0, 10);
+          residualDateFilter = `AND rr.createdAt >= '${start2}' AND rr.createdAt <= '${end2} 23:59:59'`;
         }
 
         dataQuery = `

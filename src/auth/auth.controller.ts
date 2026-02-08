@@ -4,7 +4,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
 
-const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'http://localhost:3001';
+const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'http://localhost:3000';
 const COOKIE_NAME = 'reporting_node_token';
 
 /** Bank-grade: allow redirect only to configured reporting frontend origin (no open redirect). */
@@ -114,7 +114,7 @@ export class AuthController {
     }
 
     try {
-      const secretKey = 'GRC_ADIB_2025';
+      const secretKey = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'GRC_ADIB_2025';
       const decoded: any = jwt.verify(token, secretKey);
 
       // Extract user info from token - matching v2_backend format exactly

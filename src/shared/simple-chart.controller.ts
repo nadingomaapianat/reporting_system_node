@@ -1,8 +1,13 @@
-import { Controller, Get, Post, Body, Query, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, Req, UseGuards } from '@nestjs/common';
 import { ChartRegistryService, SimpleChartConfig } from './chart-registry.service';
 import { AutoDashboardService } from './auto-dashboard.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('charts')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('Reporting', ['show'])
 export class SimpleChartController {
   constructor(private readonly autoDashboardService: AutoDashboardService) {}
 

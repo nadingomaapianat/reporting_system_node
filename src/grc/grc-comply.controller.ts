@@ -1,7 +1,12 @@
-import { Controller, Get, Query, Req, Param } from '@nestjs/common';
+import { Controller, Get, Query, Req, Param, UseGuards } from '@nestjs/common';
 import { GrcComplyService, GrcComplyReportKey } from './grc-comply.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/grc/comply')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('Reporting', ['show'])
 export class GrcComplyController {
   constructor(private readonly grcComplyService: GrcComplyService) {}
 
@@ -52,7 +57,15 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.runAllReports(startDate, endDate, functionId);
+    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+    const start = norm(startDate);
+    const end = norm(endDate);
+    const id = norm(functionId);
+    return this.grcComplyService.runAllReports(
+      start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
+      end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
+      id && id.length > 0 ? id : undefined
+    );
   }
 
   /**

@@ -1,7 +1,12 @@
-import { Controller, Get, Query, Req } from '@nestjs/common';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { GrcDashboardService } from './grc-dashboard.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/grc/controls')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@Permissions('Reporting', ['show'])
 export class GrcDashboardController {
   constructor(private readonly grcDashboardService: GrcDashboardService) {}
 

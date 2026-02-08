@@ -17,8 +17,11 @@ async function bootstrap() {
   // Security middleware
   app.use(helmet());
   
-  // CORS configuration - Reading from environment variables
-  const corsOrigins =  [
+  // CORS: env CORS_ORIGINS (comma-separated) or fallback for dev
+  const envOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
+  const corsOrigins = envOrigins?.length
+    ? envOrigins
+    : [
         'https://reporting-system-frontend.pianat.ai',
         'http://localhost:3001',
         'http://localhost:3000',

@@ -141,8 +141,8 @@ ChartRegistryService.listCharts().forEach(chart => {
 });
 
 // console.log(`
-🚀 Next steps:
-1. Start your backend: npm run start:dev
-2. Visit: https://reporting-system-frontend.pianat.ai/api/charts/dashboard
-3. Or use the frontend: http://localhost:3001/auto-dashboard
-`);
+// 🚀 Next steps:
+// 1. Start your backend: npm run start:dev
+// 2. Visit: https://reporting-system-frontend.pianat.ai/api/charts/dashboard
+// 3. Or use the frontend: http://localhost:3001/auto-dashboard
+// `);

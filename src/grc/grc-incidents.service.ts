@@ -886,10 +886,12 @@ export class GrcIncidentsService {
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
     const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = ["i.isDeleted = 0"]
-    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
-    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
+    const where: string[] = ["i.isDeleted = 0"];
+    const validStart = startDate && /^\d{4}-\d{2}-\d{2}/.test(String(startDate).trim());
+    const validEnd = endDate && /^\d{4}-\d{2}-\d{2}/.test(String(endDate).trim());
+    if (validStart) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`);
+    if (validEnd) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`);
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
     const totalRes = await this.databaseService.query(countQuery)
@@ -944,8 +946,8 @@ export class GrcIncidentsService {
     const limitInt = Math.floor(Number(limit)) || 10;
     const offset = Math.floor((pageInt - 1) * limitInt);
     const where: string[] = ["i.isDeleted = 0", "i.deletedAt IS NULL", "ISNULL(i.preparerStatus, '') <> 'sent'"]
-    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
-    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
+    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
+    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -1002,8 +1004,8 @@ export class GrcIncidentsService {
       "ISNULL(i.checkerStatus, '') <> 'approved'",
       "ISNULL(i.acceptanceStatus, '') <> 'approved'"
     ]
-    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
-    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
+    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
+    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -1060,8 +1062,8 @@ export class GrcIncidentsService {
       "ISNULL(i.reviewerStatus, '') <> 'sent'",
       "ISNULL(i.acceptanceStatus, '') <> 'approved'"
     ]
-    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
-    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
+    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
+    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -1117,8 +1119,8 @@ export class GrcIncidentsService {
       "ISNULL(i.reviewerStatus, '') = 'sent'",
       "ISNULL(i.acceptanceStatus, '') <> 'approved'"
     ]
-    if (startDate) where.push(`i.createdAt >= '${startDate}'`)
-    if (endDate) where.push(`i.createdAt <= '${endDate}'`)
+    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
+    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -2234,13 +2236,17 @@ export class GrcIncidentsService {
     }
   }
 
+  private isValidDateStr(s?: string): boolean {
+    return !!(s && /^\d{4}-\d{2}-\d{2}/.test(String(s).trim()));
+  }
+
   private buildDateRangeFilter(startDate?: string, endDate?: string, field: string = 'createdAt'): string {
     let filter = '';
-    if (startDate) {
-      filter += ` AND ${field} >= '${startDate}'`;
+    if (this.isValidDateStr(startDate)) {
+      filter += ` AND ${field} >= '${String(startDate).trim().slice(0, 10)}'`;
     }
-    if (endDate) {
-      filter += ` AND ${field} <= '${endDate}'`;
+    if (this.isValidDateStr(endDate)) {
+      filter += ` AND ${field} <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`;
     }
     return filter;
   }

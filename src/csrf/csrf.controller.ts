@@ -4,19 +4,20 @@ import { CsrfService } from './csrf.service';
 
 @Controller('csrf')
 export class CsrfController {
-  // Allowed origins for CSRF token requests (frontend only)
-  private readonly allowedOrigins = [
-    'https://reporting-system-frontend.pianat.ai',
-    'https://reporting-system-frontend.pianat.ai',
-    'http://localhost:3001',
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'http://localhost:4200',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    // Add environment variable support
-    ...(process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || []),
-  ];
+  // Allowed origins: env ALLOWED_ORIGINS (comma-separated) or fallback for dev
+  private readonly allowedOrigins = (() => {
+    const fromEnv = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
+    if (fromEnv?.length) return fromEnv;
+    return [
+      'https://reporting-system-frontend.pianat.ai',
+      'http://localhost:3001',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:4200',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+    ];
+  })();
 
   constructor(private readonly csrfService: CsrfService) {}
 
