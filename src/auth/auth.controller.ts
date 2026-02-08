@@ -7,6 +7,54 @@ import * as jwt from 'jsonwebtoken';
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'http://localhost:3000';
 const COOKIE_NAME = 'reporting_node_token';
 
+/** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */
+function getAllowedEntryOrigins(): string[] {
+  const list = [REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase()];
+  const extra = process.env.ENTRY_TOKEN_ALLOWED_ORIGINS;
+  if (extra) {
+    extra.split(',').forEach((o) => {
+      const t = o.trim().replace(/\/+$/, '').toLowerCase();
+      if (t && !list.includes(t)) list.push(t);
+    });
+  }
+  return list;
+}
+
+/** Allowed origins for logout (only main app may trigger logout so malicious sites cannot). */
+function getAllowedLogoutOrigins(): string[] {
+  const main = process.env.MAIN_APP_ORIGIN || process.env.MAIN_APP_URL || process.env.NEXT_PUBLIC_MAIN_APP_ORIGIN;
+  const list: string[] = [];
+  if (main) list.push(main.replace(/\/+$/, '').toLowerCase());
+  const extra = process.env.LOGOUT_ALLOWED_ORIGINS;
+  if (extra) {
+    extra.split(',').forEach((o) => {
+      const t = o.trim().replace(/\/+$/, '').toLowerCase();
+      if (t && !list.includes(t)) list.push(t);
+    });
+  }
+  return list;
+}
+
+/** Normalize to origin (protocol + host, no path). */
+function toOriginBase(value: string): string | null {
+  const v = (value || '').trim();
+  if (!v) return null;
+  try {
+    const url = new URL(v.startsWith('http') ? v : `https://${v}`);
+    return `${url.protocol}//${url.host}`.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/** True if the request origin or referer is in the allowed list. */
+function isAllowedOrigin(origin: string, referer: string, allowed: string[]): boolean {
+  const o = toOriginBase(origin || '');
+  if (o && allowed.includes(o)) return true;
+  const r = toOriginBase(referer || '');
+  return r !== null && allowed.includes(r);
+}
+
 /** Bank-grade: allow redirect only to configured reporting frontend origin (no open redirect). */
 function isAllowedRedirectUri(uri: string): boolean {
   const base = REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase();
@@ -35,17 +83,20 @@ export class AuthController {
   async createEntryToken(
     @Body() body: { iet?: string; module_id?: string; redirect_uri?: string },
     @Headers('origin') origin: string,
+    @Headers('referer') referer: string,
     @Res({ passthrough: false }) res: Response,
   ): Promise<void> {
     const iet = (body?.iet && String(body.iet).trim()) || '';
     const moduleId = (body?.module_id && String(body.module_id).trim()) || 'default';
 
-    // console.log('body', body);
-    // console.log('iet', iet);
-    // console.log('moduleId', moduleId);
-    // console.log('origin', origin);
-
-    // console.log('[AuthController.entry-token] body keys:', body ? Object.keys(body) : [], 'iet length:', iet?.length ?? 0, 'origin:', origin);
+    // Server-side: only accept form POST from reporting frontend (or allowed origins)
+    const allowedEntry = getAllowedEntryOrigins();
+    if (allowedEntry.length && !isAllowedOrigin(origin || '', referer || '', allowedEntry)) {
+      this.logger.warn(
+        `[AUDIT] event=ENTRY_TOKEN_FAIL reason=invalid_origin origin=${origin || '(none)'} referer=${referer || '(none)'} timestamp=${new Date().toISOString()}`,
+      );
+      throw new ForbiddenException('Invalid origin');
+    }
 
     if (!iet) {
       this.logger.warn(
@@ -130,24 +181,57 @@ export class AuthController {
     }
   }
 
-  @Post('logout')
-  @UseGuards(JwtAuthGuard)
-  async logout(@Request() req: any): Promise<any> {
-    try {
-      // Note: Session management is handled by v2_backend
-      // This endpoint validates the token and returns success
-      // The actual logout (isSessionActive update) should be done via v2_backend
-      
-      return {
-        isSuccess: true,
-        message: 'Logged out successfully',
-      };
-    } catch (error) {
-      console.error('Error during logout:', error);
-      return {
-        isSuccess: false,
-        message: 'An error occurred during logout',
-      };
+  /**
+   * Logout: clear reporting_node_token (and iframe token cookies) so that when the user
+   * logs out from the main app, the reporting module is also logged out in other tabs.
+   * Only allowed origins (main app) may call this so a malicious site cannot iframe-logout the user.
+   */
+  @Get('logout')
+  async logoutGet(
+    @Headers('origin') origin: string,
+    @Headers('referer') referer: string,
+    @Res({ passthrough: false }) res: Response,
+  ): Promise<void> {
+    const allowed = getAllowedLogoutOrigins();
+    const fromAllowedOrigin = allowed.length === 0 || isAllowedOrigin(origin || '', referer || '', allowed);
+    if (!fromAllowedOrigin) {
+      this.logger.warn(
+        `[AUDIT] event=LOGOUT_ORIGIN_UNKNOWN origin=${origin || '(none)'} referer=${referer || '(none)'} – cookie cleared anyway`,
+      );
     }
+    // Always clear the cookie when this endpoint is hit so reporting_node_token is removed (e.g. after main app logout)
+    this.clearReportingCookies(res);
+    res.status(200).json({ success: true, message: 'Logged out' });
+  }
+
+  @Post('logout')
+  async logoutPost(
+    @Headers('origin') origin: string,
+    @Headers('referer') referer: string,
+    @Res({ passthrough: false }) res: Response,
+  ): Promise<void> {
+    const allowed = getAllowedLogoutOrigins();
+    const fromAllowedOrigin = allowed.length === 0 || isAllowedOrigin(origin || '', referer || '', allowed);
+    if (!fromAllowedOrigin) {
+      this.logger.warn(
+        `[AUDIT] event=LOGOUT_ORIGIN_UNKNOWN origin=${origin || '(none)'} referer=${referer || '(none)'} – cookie cleared anyway`,
+      );
+    }
+    this.clearReportingCookies(res);
+    res.status(200).json({ success: true, message: 'Logged out' });
+  }
+
+  /** Clear reporting auth cookies (same path/domain/options as when set). */
+  private clearReportingCookies(res: Response): void {
+    const opts = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      maxAge: 0,
+      path: '/',
+    };
+    res.cookie(COOKIE_NAME, '', opts);
+    res.cookie('iframe_d_c_c_t_p_1', '', opts);
+    res.cookie('iframe_d_c_c_t_p_2', '', opts);
   }
 }
