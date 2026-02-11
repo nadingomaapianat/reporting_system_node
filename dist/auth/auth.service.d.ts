@@ -1,29 +1,10 @@
+import { JwtService } from '@nestjs/jwt';
 export declare class AuthService {
-    login(email: string, password: string): Promise<{
-        user: {
-            id: string;
-            email: string;
-            name: string;
-            role: string;
-        };
+    private readonly jwtService;
+    constructor(jwtService: JwtService);
+    createTokenFromIet(iet: string, moduleId: string, _origin: string): Promise<{
         token: string;
-        expiresIn: string;
-    }>;
-    register(email: string, password: string, name: string): Promise<{
-        user: {
-            id: string;
-            email: string;
-            name: string;
-            role: string;
-        };
-        token: string;
-        expiresIn: string;
-        message: string;
-    }>;
-    validateUser(email: string, password: string): Promise<{
-        id: string;
-        email: string;
-        name: string;
-        role: string;
-    }>;
+        expiresIn: number;
+        userId: string;
+    } | null>;
 }

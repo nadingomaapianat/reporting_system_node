@@ -2,8 +2,8 @@ import { BaseDashboardService } from './base-dashboard.service';
 export declare abstract class BaseDashboardController {
     protected readonly dashboardService: BaseDashboardService;
     constructor(dashboardService: BaseDashboardService);
-    getDashboard(startDate?: string, endDate?: string): Promise<any>;
-    getCardData(cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getDashboard(req: any, startDate?: string, endDate?: string, functionId?: string): Promise<any>;
+    getCardData(req: any, cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;

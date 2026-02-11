@@ -10,8 +10,8 @@ const core_1 = require("@nestjs/core");
 const app_module_1 = require("./app.module");
 const common_1 = require("@nestjs/common");
 const platform_socket_io_1 = require("@nestjs/platform-socket.io");
-const cors = require("cors");
 const helmet_1 = require("helmet");
+const express = require("express");
 let GlobalExceptionFilter = class GlobalExceptionFilter {
     catch(exception, host) {
         const ctx = host.switchToHttp();
@@ -40,11 +40,61 @@ GlobalExceptionFilter = __decorate([
 ], GlobalExceptionFilter);
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    app.use(express.urlencoded({ extended: true }));
     app.use((0, helmet_1.default)());
-    app.use(cors({
-        origin: ['https://reporting-system-frontend.pianat.ai', 'http://localhost:3001', 'https://reporting-system-backend.pianat.ai', 'https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai'],
-        credentials: true,
-    }));
+    const envOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
+    const devOrigins = [
+        'https://reporting-system-frontend.pianat.ai',
+        'https://dcc.pianat.ai',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'http://localhost:5173',
+        'http://localhost:4200',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3002',
+    ];
+    const baseOrigins = envOrigins?.length
+        ? envOrigins
+        : [
+            'https://reporting-system-frontend.pianat.ai',
+            'https://reporting-system-backend.pianat.ai',
+            ...devOrigins,
+        ];
+    const corsOrigins = process.env.NODE_ENV === 'production'
+        ? baseOrigins
+        : [...new Set([...baseOrigins, ...devOrigins])];
+    const corsMethods = process.env.CORS_METHODS
+        ? process.env.CORS_METHODS.split(',').map(method => method.trim())
+        : ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
+    const corsAllowedHeaders = process.env.CORS_ALLOWED_HEADERS
+        ? process.env.CORS_ALLOWED_HEADERS.split(',').map(header => header.trim())
+        : ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'x-csrf-token'];
+    const corsExposedHeaders = process.env.CORS_EXPOSED_HEADERS
+        ? process.env.CORS_EXPOSED_HEADERS.split(',').map(header => header.trim())
+        : ['Content-Range', 'X-Content-Range'];
+    app.enableCors({
+        origin: function (origin, callback) {
+            if (!origin) {
+                return callback(null, true);
+            }
+            if (corsOrigins.indexOf(origin) !== -1 || corsOrigins.includes('*')) {
+                callback(null, true);
+            }
+            else {
+                console.warn('[CORS] Blocked origin:', origin);
+                console.warn('[CORS] Allowed origins:', corsOrigins);
+                callback(new Error(`Origin ${origin} is not allowed by CORS policy`), false);
+            }
+        },
+        credentials: process.env.CORS_CREDENTIALS === 'true' || process.env.CORS_CREDENTIALS === undefined,
+        methods: corsMethods,
+        allowedHeaders: [...corsAllowedHeaders, 'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'x-csrf-token'],
+        exposedHeaders: corsExposedHeaders,
+        preflightContinue: false,
+        optionsSuccessStatus: 204,
+    });
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         forbidNonWhitelisted: true,
@@ -54,8 +104,6 @@ async function bootstrap() {
     app.useWebSocketAdapter(new platform_socket_io_1.IoAdapter(app));
     const port = process.env.PORT || 3002;
     await app.listen(port, '0.0.0.0');
-    console.log(`🚀 Real-time API server running on port ${port}`);
-    console.log(`📊 WebSocket server ready for real-time updates`);
 }
 bootstrap().catch((error) => {
     console.error('Failed to start server:', error);

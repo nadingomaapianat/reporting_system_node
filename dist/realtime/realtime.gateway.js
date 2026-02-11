@@ -21,22 +21,18 @@ let RealtimeGateway = class RealtimeGateway {
         this.realtimeService = realtimeService;
     }
     handleConnection(client) {
-        console.log(`Client connected: ${client.id}`);
         this.realtimeService.addClient(client);
     }
     handleDisconnect(client) {
-        console.log(`Client disconnected: ${client.id}`);
         this.realtimeService.removeClient(client);
     }
     handleJoinDashboard(client, data) {
         client.join(`dashboard_${data.dashboardId}`);
         this.realtimeService.joinDashboard(client, data.dashboardId);
-        console.log(`Client ${client.id} joined dashboard ${data.dashboardId}`);
     }
     handleLeaveDashboard(client, data) {
         client.leave(`dashboard_${data.dashboardId}`);
         this.realtimeService.leaveDashboard(client, data.dashboardId);
-        console.log(`Client ${client.id} left dashboard ${data.dashboardId}`);
     }
     handleSubscribeMetrics(client, data) {
         this.realtimeService.subscribeToMetrics(client, data.metrics);
@@ -139,7 +135,7 @@ __decorate([
 exports.RealtimeGateway = RealtimeGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
-            origin: ['https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai'],
+            origin: ['https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai', 'http://localhost:3001', 'http://localhost:3000', 'http://localhost:5173', 'http://localhost:4200', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
             credentials: true,
         },
     }),

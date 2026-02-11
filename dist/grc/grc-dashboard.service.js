@@ -14,54 +14,211 @@ const common_1 = require("@nestjs/common");
 const base_dashboard_service_1 = require("../shared/base-dashboard.service");
 const dashboard_config_service_1 = require("../shared/dashboard-config.service");
 const database_service_1 = require("../database/database.service");
+const user_function_access_service_1 = require("../shared/user-function-access.service");
+const db_config_1 = require("../shared/db-config");
 let GrcDashboardService = class GrcDashboardService extends base_dashboard_service_1.BaseDashboardService {
-    constructor(databaseService) {
-        super(databaseService);
+    constructor(databaseService, userFunctionAccess) {
+        super(databaseService, userFunctionAccess);
     }
     getConfig() {
         return dashboard_config_service_1.DashboardConfigService.getControlsConfig();
     }
-    async getControlsDashboard(startDate, endDate) {
-        return this.getDashboardData(startDate, endDate);
+    async getControlsDashboard(user, startDate, endDate, functionId) {
+        return this.getDashboardData(user, startDate, endDate, functionId);
     }
-    async getTotalControls(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('total', page, limit, startDate, endDate);
-    }
-    async getUnmappedControls(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('unmapped', page, limit, startDate, endDate);
-    }
-    async getPendingPreparerControls(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('pendingPreparer', page, limit, startDate, endDate);
-    }
-    async getPendingCheckerControls(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('pendingChecker', page, limit, startDate, endDate);
-    }
-    async getPendingReviewerControls(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('pendingReviewer', page, limit, startDate, endDate);
-    }
-    async getPendingAcceptanceControls(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('pendingAcceptance', page, limit, startDate, endDate);
-    }
-    async getTestsPendingPreparer(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('testsPendingPreparer', page, limit, startDate, endDate);
-    }
-    async getTestsPendingChecker(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('testsPendingChecker', page, limit, startDate, endDate);
-    }
-    async getTestsPendingReviewer(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('testsPendingReviewer', page, limit, startDate, endDate);
-    }
-    async getTestsPendingAcceptance(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('testsPendingAcceptance', page, limit, startDate, endDate);
-    }
-    async getUnmappedIcofrControls(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('unmappedIcofrControls', page, limit, startDate, endDate);
-    }
-    async getUnmappedNonIcofrControls(page = 1, limit = 10, startDate, endDate) {
-        return this.getCardData('unmappedNonIcofrControls', page, limit, startDate, endDate);
-    }
-    async getControlsByQuarter(quarter, page = 1, limit = 10, startDate, endDate) {
+    async getFilteredCardData(user, cardType, page = 1, limit = 10, startDate, endDate, functionId) {
+        const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+        const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+        const config = this.getConfig();
+        const dateFilter = this.buildDateFilter(startDate, endDate, config.dateField);
+        const metric = config.metrics.find(m => m.id === cardType);
+        if (!metric) {
+            throw new Error(`Card type ${cardType} not found`);
+        }
         try {
+            let dataQuery;
+            let countQuery = metric.query.replace('{dateFilter}', dateFilter);
+            if (cardType === 'total') {
+                dataQuery = `SELECT c.id, c.name, c.code FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+                countQuery = `SELECT COUNT(*) as total FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
+            }
+            else if (cardType === 'unmapped') {
+                dataQuery = `SELECT c.id, c.name, c.code FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
+                countQuery = `SELECT COUNT(*) as total FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`;
+            }
+            else if (cardType.startsWith('pending') && !cardType.startsWith('testsPending')) {
+                let whereClause = '';
+                if (cardType === 'pendingPreparer') {
+                    whereClause = "(ISNULL(c.preparerStatus, '') <> 'sent')";
+                }
+                else if (cardType === 'pendingChecker') {
+                    whereClause = "(ISNULL(c.preparerStatus, '') = 'sent' AND ISNULL(c.checkerStatus, '') <> 'approved' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
+                }
+                else if (cardType === 'pendingReviewer') {
+                    whereClause = "(ISNULL(c.checkerStatus, '') = 'approved' AND ISNULL(c.reviewerStatus, '') <> 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
+                }
+                else if (cardType === 'pendingAcceptance') {
+                    whereClause = "(ISNULL(c.reviewerStatus, '') = 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
+                }
+                else {
+                    const statusField = cardType.replace('pending', '').toLowerCase() + 'Status';
+                    whereClause = `c.${statusField} != 'approved'`;
+                }
+                dataQuery = `SELECT c.id, c.name, c.code FROM ${(0, db_config_1.fq)('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+                countQuery = `SELECT COUNT(*) as total FROM ${(0, db_config_1.fq)('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${functionFilter}`;
+            }
+            else if (cardType.startsWith('testsPending')) {
+                let whereClause = '';
+                if (cardType === 'testsPendingPreparer') {
+                    whereClause = "(ISNULL(t.preparerStatus, '') <> 'sent')";
+                }
+                else if (cardType === 'testsPendingChecker') {
+                    whereClause = "(ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
+                }
+                else if (cardType === 'testsPendingReviewer') {
+                    whereClause = "(ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
+                }
+                else if (cardType === 'testsPendingAcceptance') {
+                    whereClause = "(ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
+                }
+                const statusField = cardType === 'testsPendingPreparer' ? 'preparerStatus' :
+                    cardType === 'testsPendingChecker' ? 'checkerStatus' :
+                        cardType === 'testsPendingReviewer' ? 'reviewerStatus' :
+                            'acceptanceStatus';
+                dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus
+          FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
+          INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}
+          ORDER BY c.createdAt DESC`;
+                countQuery = `SELECT COUNT(DISTINCT t.id) as total
+          FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
+          INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON c.id = t.control_id
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}`;
+            }
+            else if (cardType === 'unmappedIcofrControls') {
+                dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
+          'Not Mapped' as coso_component,
+          'Not Mapped' as coso_point
+          FROM ${(0, db_config_1.fq)('Controls')} c 
+          JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id 
+          WHERE c.isDeleted = 0 AND c.icof_id IS NOT NULL 
+          AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
+          AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
+               AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
+          AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}
+          ORDER BY c.createdAt DESC`;
+                countQuery = `SELECT COUNT(*) as total
+          FROM ${(0, db_config_1.fq)('Controls')} c 
+          JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id 
+          WHERE c.isDeleted = 0 AND c.icof_id IS NOT NULL 
+          AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
+          AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
+               AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
+          AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}`;
+            }
+            else if (cardType === 'unmappedNonIcofrControls') {
+                dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
+          'Not Mapped' as coso_component,
+          'Not Mapped' as coso_point
+          FROM ${(0, db_config_1.fq)('Controls')} c 
+          LEFT JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id 
+          WHERE c.isDeleted = 0 
+          AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
+          AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
+               AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) 
+               OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
+          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}
+          ORDER BY c.createdAt DESC`;
+                countQuery = `SELECT COUNT(*) as total
+          FROM ${(0, db_config_1.fq)('Controls')} c 
+          LEFT JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id 
+          WHERE c.isDeleted = 0 
+          AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
+          AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
+               AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) 
+               OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
+          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}`;
+            }
+            else {
+                dataQuery = `SELECT c.id, c.name, c.code FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+                countQuery = `SELECT COUNT(*) as total FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter}`;
+            }
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = this.clampLimit(limit);
+            const offset = Math.floor((pageInt - 1) * limitInt);
+            const hasOrderBy = /\border\s+by\b/i.test(dataQuery);
+            const orderClause = hasOrderBy ? '' : ' ORDER BY c.createdAt DESC';
+            const paginatedQuery = `${dataQuery}${orderClause} OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
+            const [data, countResult] = await Promise.all([
+                this.databaseService.query(paginatedQuery),
+                this.databaseService.query(countQuery)
+            ]);
+            const total = countResult[0]?.total || countResult[0]?.count || 0;
+            const totalPages = Math.ceil(total / limitInt);
+            return {
+                data: data.map((row, index) => ({
+                    control_code: row.code || `CTRL-${row.control_id || row.id}`,
+                    control_name: row.name || `Control ${row.control_id || row.id}`,
+                    ...row
+                })),
+                pagination: {
+                    page: pageInt,
+                    limit: limitInt,
+                    total,
+                    totalPages,
+                    hasNext: pageInt < totalPages,
+                    hasPrev: pageInt > 1
+                }
+            };
+        }
+        catch (error) {
+            console.error(`Error fetching card data for ${cardType}:`, error);
+            throw error;
+        }
+    }
+    async getTotalControls(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, functionId);
+    }
+    async getUnmappedControls(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'unmapped', page, limit, startDate, endDate, functionId);
+    }
+    async getPendingPreparerControls(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'pendingPreparer', page, limit, startDate, endDate, functionId);
+    }
+    async getPendingCheckerControls(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'pendingChecker', page, limit, startDate, endDate, functionId);
+    }
+    async getPendingReviewerControls(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'pendingReviewer', page, limit, startDate, endDate, functionId);
+    }
+    async getPendingAcceptanceControls(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'pendingAcceptance', page, limit, startDate, endDate, functionId);
+    }
+    async getTestsPendingPreparer(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'testsPendingPreparer', page, limit, startDate, endDate, functionId);
+    }
+    async getTestsPendingChecker(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'testsPendingChecker', page, limit, startDate, endDate, functionId);
+    }
+    async getTestsPendingReviewer(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'testsPendingReviewer', page, limit, startDate, endDate, functionId);
+    }
+    async getTestsPendingAcceptance(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'testsPendingAcceptance', page, limit, startDate, endDate, functionId);
+    }
+    async getUnmappedIcofrControls(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'unmappedIcofrControls', page, limit, startDate, endDate, functionId);
+    }
+    async getUnmappedNonIcofrControls(user, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.getFilteredCardData(user, 'unmappedNonIcofrControls', page, limit, startDate, endDate, functionId);
+    }
+    async getControlsByQuarter(user, quarter, page = 1, limit = 10, startDate, endDate, functionId) {
+        try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const match = quarter.match(/Q(\d+)\s+(\d+)/);
             if (!match) {
                 throw new Error('Invalid quarter format. Expected format: "Q1 2024"');
@@ -79,12 +236,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND YEAR(c.createdAt) = @param0
           AND DATEPART(QUARTER, c.createdAt) = @param1
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param2 ROWS
         FETCH NEXT @param3 ROWS ONLY
       `;
-            const offset = (page - 1) * limit;
-            const result = await this.databaseService.query(query, [year, quarterNum, offset, limit]);
+            const result = await this.databaseService.query(query, [year, quarterNum, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Controls] c
@@ -92,6 +249,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND YEAR(c.createdAt) = @param0
           AND DATEPART(QUARTER, c.createdAt) = @param1
           ${dateFilter}
+          ${functionFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, [year, quarterNum]);
             const total = countResult[0]?.total || 0;
@@ -102,12 +260,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -116,10 +274,14 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByDepartment(department, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByDepartment(user, department, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const query = `
         SELECT 
           c.code as control_code,
@@ -131,11 +293,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND f.name = @param0
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [department, offset, limit]);
+            const result = await this.databaseService.query(query, [department, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Controls] c
@@ -144,6 +307,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND f.name = @param0
           ${dateFilter}
+          ${functionFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, [department]);
             const total = countResult[0]?.total || 0;
@@ -154,12 +318,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -168,13 +332,17 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByType(type, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByType(user, type, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isNotSpecified = type === 'Not Specified';
             const typeCondition = isNotSpecified ? '(c.type IS NULL OR c.type = \'\')' : 'c.type = @param0';
-            const params = isNotSpecified ? [offset, limit] : [type, offset, limit];
+            const params = isNotSpecified ? [offset, limitInt] : [type, offset, limitInt];
             const query = `
         SELECT 
           c.code as control_code,
@@ -184,6 +352,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND ${typeCondition}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET ${isNotSpecified ? '@param0' : '@param1'} ROWS
         FETCH NEXT ${isNotSpecified ? '@param1' : '@param2'} ROWS ONLY
@@ -195,6 +364,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND ${typeCondition}
           ${dateFilter}
+          ${functionFilter}
       `;
             const countParams = isNotSpecified ? [] : [type];
             const countResult = await this.databaseService.query(countQuery, countParams);
@@ -206,12 +376,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -220,13 +390,17 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByLevel(level, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByLevel(user, level, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isNotSpecified = level === 'Not Specified';
             const levelCondition = isNotSpecified ? '(c.entityLevel IS NULL OR c.entityLevel = \'\')' : 'c.entityLevel = @param0';
-            const params = isNotSpecified ? [offset, limit] : [level, offset, limit];
+            const params = isNotSpecified ? [offset, limitInt] : [level, offset, limitInt];
             const query = `
         SELECT 
           c.code as control_code,
@@ -236,6 +410,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND ${levelCondition}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET ${isNotSpecified ? '@param0' : '@param1'} ROWS
         FETCH NEXT ${isNotSpecified ? '@param1' : '@param2'} ROWS ONLY
@@ -247,6 +422,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND ${levelCondition}
           ${dateFilter}
+          ${functionFilter}
       `;
             const countParams = isNotSpecified ? [] : [level];
             const countResult = await this.databaseService.query(countQuery, countParams);
@@ -258,12 +434,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -272,10 +448,14 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByFrequency(frequency, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByFrequency(user, frequency, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const query = `
         SELECT 
           c.code as control_code,
@@ -285,17 +465,19 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND c.frequency = @param0
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [frequency, offset, limit]);
+            const result = await this.databaseService.query(query, [frequency, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
           AND c.frequency = @param0
           ${dateFilter}
+          ${functionFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, [frequency]);
             const total = countResult[0]?.total || 0;
@@ -306,12 +488,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -320,15 +502,19 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByRiskResponse(riskResponse, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByRiskResponse(user, riskResponse, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isUnknown = riskResponse === 'Unknown' || riskResponse === 'NULL' || riskResponse === '';
             const riskResponseCondition = isUnknown
                 ? '(c.risk_response IS NULL OR c.risk_response = \'\')'
                 : 'c.risk_response = @param0';
-            const params = isUnknown ? [offset, limit] : [riskResponse, offset, limit];
+            const params = isUnknown ? [offset, limitInt] : [riskResponse, offset, limitInt];
             const query = `
         SELECT 
           c.code as control_code,
@@ -338,6 +524,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND ${riskResponseCondition}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET ${isUnknown ? '@param0' : '@param1'} ROWS
         FETCH NEXT ${isUnknown ? '@param1' : '@param2'} ROWS ONLY
@@ -349,6 +536,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND ${riskResponseCondition}
           ${dateFilter}
+          ${functionFilter}
       `;
             const countParams = isUnknown ? [] : [riskResponse];
             const countResult = await this.databaseService.query(countQuery, countParams);
@@ -360,12 +548,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -374,10 +562,14 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByAntiFraud(antiFraud, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByAntiFraud(user, antiFraud, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const antiFraudValue = antiFraud === 'Anti-Fraud' ? 1 : 0;
             const query = `
         SELECT 
@@ -388,17 +580,19 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND c.AntiFraud = @param0
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [antiFraudValue, offset, limit]);
+            const result = await this.databaseService.query(query, [antiFraudValue, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
           AND c.AntiFraud = @param0
           ${dateFilter}
+          ${functionFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, [antiFraudValue]);
             const total = countResult[0]?.total || 0;
@@ -409,12 +603,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -423,10 +617,14 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByIcofrStatus(icofrStatus, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByIcofrStatus(user, icofrStatus, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isIcofr = icofrStatus === 'ICOFR';
             const query = `
         SELECT 
@@ -443,11 +641,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0))
           OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))`}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param0 ROWS
         FETCH NEXT @param1 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [offset, limit]);
+            const result = await this.databaseService.query(query, [offset, limitInt]);
             const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Controls] c
@@ -460,6 +659,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0))
           OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))`}
           ${dateFilter}
+          ${functionFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, []);
             const total = countResult[0]?.total || 0;
@@ -470,12 +670,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -487,7 +687,9 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
     async getFocusPointsByPrinciple(principle, page = 1, limit = 10, startDate, endDate) {
         try {
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'point.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const query = `
         SELECT 
           NULL as focus_point_code,
@@ -502,7 +704,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [principle, offset, limit]);
+            const result = await this.databaseService.query(query, [principle, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(point.id) as total
         FROM dbo.[CosoPoints] point
@@ -520,12 +722,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -534,10 +736,14 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByComponent(component, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByComponent(user, component, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const query = `
         SELECT DISTINCT
           c.code as control_code,
@@ -551,11 +757,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND cc.name = @param0
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [component, offset, limit]);
+            const result = await this.databaseService.query(query, [component, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(DISTINCT c.id) as total
         FROM dbo.[Controls] c
@@ -566,6 +773,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND cc.name = @param0
           ${dateFilter}
+          ${functionFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, [component]);
             const total = countResult[0]?.total || 0;
@@ -576,12 +784,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -593,7 +801,9 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
     async getFocusPointsByComponent(component, page = 1, limit = 10, startDate, endDate) {
         try {
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'point.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const query = `
         SELECT 
           NULL as focus_point_code,
@@ -609,7 +819,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [component, offset, limit]);
+            const result = await this.databaseService.query(query, [component, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(point.id) as total
         FROM dbo.[CosoPoints] point
@@ -628,12 +838,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -642,17 +852,21 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByDepartmentAndKeyControl(department, keyControl, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByDepartmentAndKeyControl(user, department, keyControl, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isKeyControl = keyControl === 'Key Controls' || keyControl === '1' || keyControl === 'true';
             const keyControlValue = isKeyControl ? 1 : 0;
             const isUnassigned = department === 'Unassigned Department';
             const departmentCondition = isUnassigned
                 ? '(jt.name IS NULL OR jt.name = \'\')'
                 : 'jt.name = @param0';
-            const params = isUnassigned ? [keyControlValue, offset, limit] : [department, keyControlValue, offset, limit];
+            const params = isUnassigned ? [keyControlValue, offset, limitInt] : [department, keyControlValue, offset, limitInt];
             const query = `
         SELECT 
           c.code as control_code,
@@ -664,6 +878,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND c.keyControl = ${isUnassigned ? '@param0' : '@param1'}
           AND ${departmentCondition}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET ${isUnassigned ? '@param1' : '@param2'} ROWS
         FETCH NEXT ${isUnassigned ? '@param2' : '@param3'} ROWS ONLY
@@ -677,6 +892,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND c.keyControl = ${isUnassigned ? '@param0' : '@param1'}
           AND ${departmentCondition}
           ${dateFilter}
+          ${functionFilter}
       `;
             const countParams = isUnassigned ? [keyControlValue] : [department, keyControlValue];
             const countResult = await this.databaseService.query(countQuery, countParams);
@@ -688,12 +904,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -702,17 +918,21 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByProcessAndKeyControl(process, keyControl, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByProcessAndKeyControl(user, process, keyControl, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isKeyControl = keyControl === 'Key Controls' || keyControl === '1' || keyControl === 'true';
             const keyControlValue = isKeyControl ? 1 : 0;
             const isUnassigned = process === 'Unassigned Process';
             const processCondition = isUnassigned
                 ? '(p.name IS NULL OR p.name = \'\')'
                 : 'p.name = @param0';
-            const params = isUnassigned ? [keyControlValue, offset, limit] : [process, keyControlValue, offset, limit];
+            const params = isUnassigned ? [keyControlValue, offset, limitInt] : [process, keyControlValue, offset, limitInt];
             const query = `
         SELECT 
           c.code as control_code,
@@ -725,6 +945,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND c.keyControl = ${isUnassigned ? '@param0' : '@param1'}
           AND ${processCondition}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET ${isUnassigned ? '@param1' : '@param2'} ROWS
         FETCH NEXT ${isUnassigned ? '@param2' : '@param3'} ROWS ONLY
@@ -739,6 +960,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND c.keyControl = ${isUnassigned ? '@param0' : '@param1'}
           AND ${processCondition}
           ${dateFilter}
+          ${functionFilter}
       `;
             const countParams = isUnassigned ? [keyControlValue] : [process, keyControlValue];
             const countResult = await this.databaseService.query(countQuery, countParams);
@@ -750,12 +972,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -764,10 +986,14 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByBusinessUnitAndKeyControl(businessUnit, keyControl, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByBusinessUnitAndKeyControl(user, businessUnit, keyControl, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isKeyControl = keyControl === 'Key Controls' || keyControl === '1' || keyControl === 'true';
             const keyControlValue = isKeyControl ? 1 : 0;
             const query = `
@@ -782,11 +1008,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND f.name = @param0
           AND c.keyControl = @param1
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param2 ROWS
         FETCH NEXT @param3 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [businessUnit, keyControlValue, offset, limit]);
+            const result = await this.databaseService.query(query, [businessUnit, keyControlValue, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[ControlFunctions] cf
@@ -796,6 +1023,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND f.name = @param0
           AND c.keyControl = @param1
           ${dateFilter}
+          ${functionFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, [businessUnit, keyControlValue]);
             const total = countResult[0]?.total || 0;
@@ -806,12 +1034,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -820,15 +1048,19 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByAssertion(assertionName, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByAssertion(user, assertionName, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isUnassigned = assertionName === 'Unassigned Assertion';
             const assertionCondition = isUnassigned
                 ? '(a.name IS NULL OR a.name = \'\')'
                 : 'a.name = @param0';
-            const params = isUnassigned ? [offset, limit] : [assertionName, offset, limit];
+            const params = isUnassigned ? [offset, limitInt] : [assertionName, offset, limitInt];
             const query = `
         SELECT 
           c.code as control_code,
@@ -839,6 +1071,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND ${assertionCondition}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET ${isUnassigned ? '@param0' : '@param1'} ROWS
         FETCH NEXT ${isUnassigned ? '@param1' : '@param2'} ROWS ONLY
@@ -851,6 +1084,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE c.isDeleted = 0
           AND ${assertionCondition}
           ${dateFilter}
+          ${functionFilter}
       `;
             const countParams = isUnassigned ? [] : [assertionName];
             const countResult = await this.databaseService.query(countQuery, countParams);
@@ -862,12 +1096,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -876,10 +1110,14 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByComponentAndIcofrStatus(component, icofrStatus, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByComponentAndIcofrStatus(user, component, icofrStatus, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             let icofrWhereCondition = '';
             if (icofrStatus === 'ICOFR') {
                 icofrWhereCondition = `
@@ -927,11 +1165,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND comp.name = @param0
           ${icofrWhereCondition}
           ${dateFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [component, offset, limit]);
+            const result = await this.databaseService.query(query, [component, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(DISTINCT c.id) as total
         FROM dbo.[Controls] c
@@ -944,6 +1183,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
           AND comp.name = @param0
           ${icofrWhereCondition}
           ${dateFilter}
+          ${functionFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, [component]);
             const total = countResult[0]?.total || 0;
@@ -954,12 +1194,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -968,10 +1208,14 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
             throw error;
         }
     }
-    async getControlsByFunctionQuarterYear(functionName, quarter, year, columnType, page = 1, limit = 10, startDate, endDate) {
+    async getControlsByFunctionQuarterYear(user, functionName, quarter, year, columnType, page = 1, limit = 10, startDate, endDate, functionId) {
         try {
+            const access = await this.userFunctionAccess.getUserFunctionAccess(user.id, user.groupName);
+            const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const quarterMap = {
                 1: 'quarterOne',
                 2: 'quarterTwo',
@@ -1002,12 +1246,13 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE f.name = @param0
           AND cdt.id IS NOT NULL
           ${additionalCondition}
+          ${functionFilter}
           ${dateFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param3 ROWS
         FETCH NEXT @param4 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [functionName, quarterValue, year, offset, limit]);
+            const result = await this.databaseService.query(query, [functionName, quarterValue, year, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(DISTINCT c.id) as total
         FROM dbo.[Functions] f
@@ -1021,6 +1266,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         WHERE f.name = @param0
           AND cdt.id IS NOT NULL
           ${additionalCondition}
+          ${functionFilter}
           ${dateFilter}
       `;
             const countResult = await this.databaseService.query(countQuery, [functionName, quarterValue, year]);
@@ -1032,12 +1278,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -1049,7 +1295,9 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
     async getActionPlansByStatus(status, page = 1, limit = 10, startDate, endDate) {
         try {
             const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'a.createdAt');
-            const offset = (page - 1) * limit;
+            const pageInt = Math.floor(Number(page)) || 1;
+            const limitInt = Math.floor(Number(limit)) || 10;
+            const offset = Math.floor((pageInt - 1) * limitInt);
             const isOverdue = status === 'Overdue';
             const query = `
         SELECT 
@@ -1067,7 +1315,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
       `;
-            const result = await this.databaseService.query(query, [status, offset, limit]);
+            const result = await this.databaseService.query(query, [status, offset, limitInt]);
             const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Actionplans] a
@@ -1087,12 +1335,12 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
                     createdAt: row.created_at || null
                 })),
                 pagination: {
-                    page,
-                    limit,
+                    page: pageInt,
+                    limit: limitInt,
                     total,
-                    totalPages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
+                    totalPages: Math.ceil(total / limitInt),
+                    hasNext: pageInt * limitInt < total,
+                    hasPrev: pageInt > 1
                 }
             };
         }
@@ -1117,6 +1365,7 @@ let GrcDashboardService = class GrcDashboardService extends base_dashboard_servi
 exports.GrcDashboardService = GrcDashboardService;
 exports.GrcDashboardService = GrcDashboardService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [database_service_1.DatabaseService])
+    __metadata("design:paramtypes", [database_service_1.DatabaseService,
+        user_function_access_service_1.UserFunctionAccessService])
 ], GrcDashboardService);
 //# sourceMappingURL=grc-dashboard.service.js.map

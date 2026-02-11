@@ -1,4 +1,5 @@
 import { DatabaseService } from '../database/database.service';
+import { UserFunctionAccessService } from './user-function-access.service';
 export interface DashboardConfig {
     name: string;
     tableName: string;
@@ -39,16 +40,18 @@ export interface ColumnConfig {
 }
 export declare abstract class BaseDashboardService {
     protected readonly databaseService: DatabaseService;
-    constructor(databaseService: DatabaseService);
+    protected readonly userFunctionAccess?: UserFunctionAccessService;
+    constructor(databaseService: DatabaseService, userFunctionAccess?: UserFunctionAccessService);
     abstract getConfig(): DashboardConfig;
-    getDashboardData(startDate?: string, endDate?: string): Promise<any>;
+    getDashboardData(user: any, startDate?: string, endDate?: string, functionId?: string): Promise<any>;
     private getMetricsData;
     private getChartsData;
     private getTablesData;
+    private isValidDateString;
     protected buildDateFilter(startDate?: string, endDate?: string, dateField?: string): string;
     private calculateChange;
     private formatValue;
-    getCardData(cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getCardData(user: any, cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -59,4 +62,6 @@ export declare abstract class BaseDashboardService {
             hasPrev: boolean;
         };
     }>;
+    protected getDefaultLimit(): number;
+    protected clampLimit(limit?: number): number;
 }

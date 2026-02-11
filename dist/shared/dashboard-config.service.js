@@ -20,7 +20,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                 {
                     id: 'total',
                     name: 'Total Controls',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE isDeleted = 0 AND deletedAt IS NULL AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND 1=1 {dateFilter} {functionFilter}`,
                     color: 'blue',
                     icon: 'chart-bar'
                 },
@@ -67,49 +67,49 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
                 {
                     id: 'pendingPreparer',
                     name: 'Pending Preparer',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (ISNULL(preparerStatus, '') <> 'sent') AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE (ISNULL(c.preparerStatus, '') <> 'sent') AND c.deletedAt IS NULL AND c.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
                     color: 'orange',
                     icon: 'clock'
                 },
                 {
                     id: 'pendingChecker',
                     name: 'Pending Checker',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved') AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE (ISNULL(c.preparerStatus, '') = 'sent' AND ISNULL(c.checkerStatus, '') <> 'approved' AND ISNULL(c.acceptanceStatus, '') <> 'approved') AND c.deletedAt IS NULL AND c.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
                     color: 'purple',
                     icon: 'check-circle'
                 },
                 {
                     id: 'pendingReviewer',
                     name: 'Pending Reviewer',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved') AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE (ISNULL(c.checkerStatus, '') = 'approved' AND ISNULL(c.reviewerStatus, '') <> 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved') AND c.deletedAt IS NULL AND c.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
                     color: 'indigo',
                     icon: 'document-check'
                 },
                 {
                     id: 'pendingAcceptance',
                     name: 'Pending Acceptance',
-                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] WHERE (ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved') AND deletedAt IS NULL AND isDeleted = 0 AND 1=1 {dateFilter}`,
+                    query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE (ISNULL(c.reviewerStatus, '') = 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved') AND c.deletedAt IS NULL AND c.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
                     color: 'red',
                     icon: 'exclamation-triangle'
                 },
                 {
                     id: 'unmapped',
                     name: 'Unmapped Controls',
-                    query: `SELECT COUNT(*) as total FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 {dateFilter} AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`,
+                    query: `SELECT COUNT(*) as total FROM ${(0, db_config_1.fq)('Controls')} c WHERE c.isDeleted = 0 {dateFilter} {functionFilter} AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`,
                     color: 'yellow',
                     icon: 'exclamation-triangle'
                 },
                 {
                     id: 'unmappedIcofrControls',
                     name: 'Unmapped ICOFR Controls to COSO',
-                    query: `SELECT COUNT(*) AS total FROM ${(0, db_config_1.fq)('Controls')} c JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id WHERE c.isDeleted = 0 {dateFilter} AND c.icof_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) AND a.account_type IN ('Balance Sheet', 'Income Statement')) AND a.isDeleted = 0`,
+                    query: `SELECT COUNT(*) AS total FROM ${(0, db_config_1.fq)('Controls')} c JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id WHERE c.isDeleted = 0 {dateFilter} {functionFilter} AND c.icof_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) AND a.account_type IN ('Balance Sheet', 'Income Statement')) AND a.isDeleted = 0`,
                     color: 'red',
                     icon: 'exclamation-triangle'
                 },
                 {
                     id: 'unmappedNonIcofrControls',
                     name: 'Unmapped Non-ICOFR Controls to COSO',
-                    query: `SELECT COUNT(*) AS total FROM ${(0, db_config_1.fq)('Controls')} c LEFT JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id WHERE c.isDeleted = 0 {dateFilter} AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) AND (a.isDeleted = 0 OR a.id IS NULL)`,
+                    query: `SELECT COUNT(*) AS total FROM ${(0, db_config_1.fq)('Controls')} c LEFT JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id WHERE c.isDeleted = 0 {dateFilter} {functionFilter} AND NOT EXISTS (SELECT 1 FROM ${(0, db_config_1.fq)('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) AND (a.isDeleted = 0 OR a.id IS NULL)`,
                     color: 'orange',
                     icon: 'exclamation-triangle'
                 }
@@ -125,7 +125,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
           FROM ${(0, db_config_1.fq)('Controls')} c
           JOIN ${(0, db_config_1.fq)('ControlFunctions')} cf ON c.id = cf.control_id
           JOIN ${(0, db_config_1.fq)('Functions')} f ON cf.function_id = f.id
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY f.name
           ORDER BY COUNT(c.id) DESC, f.name`,
                     xField: 'name',
@@ -140,7 +140,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             ISNULL(c.risk_response, 'Unknown') AS name,
             COUNT(c.id) AS value
           FROM ${(0, db_config_1.fq)('Controls')} c
-          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}
           GROUP BY ISNULL(c.risk_response, 'Unknown')
           ORDER BY COUNT(c.id) DESC`,
                     xField: 'name',
@@ -155,7 +155,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             CONCAT('Q', DATEPART(QUARTER, c.createdAt), ' ', YEAR(c.createdAt)) AS name,
             COUNT(c.id) AS value
           FROM ${(0, db_config_1.fq)('Controls')} c
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY YEAR(c.createdAt), DATEPART(QUARTER, c.createdAt)
           ORDER BY YEAR(c.createdAt), DATEPART(QUARTER, c.createdAt)`,
                     xField: 'name',
@@ -173,7 +173,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             END AS name,
             COUNT(c.id) AS value
           FROM ${(0, db_config_1.fq)('Controls')} c
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY c.type
           ORDER BY COUNT(c.id) DESC`,
                     xField: 'name',
@@ -192,7 +192,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             END AS name,
             COUNT(c.id) AS value
           FROM ${(0, db_config_1.fq)('Controls')} c
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY c.AntiFraud
           ORDER BY COUNT(c.id) DESC`,
                     xField: 'name',
@@ -210,7 +210,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             END AS name,
             COUNT(c.id) AS value
           FROM ${(0, db_config_1.fq)('Controls')} c
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY c.entityLevel
           ORDER BY COUNT(c.id) DESC`,
                     xField: 'name',
@@ -235,7 +235,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             END AS name,
             COUNT(c.id) AS value
           FROM ${(0, db_config_1.fq)('Controls')} c
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY c.frequency
           ORDER BY COUNT(c.id) DESC`,
                     xField: 'name',
@@ -257,7 +257,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             COUNT(c.id) AS value
           FROM ${(0, db_config_1.fq)('Controls')} c
           LEFT JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id AND a.isDeleted = 0
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY 
             CASE 
               WHEN a.id IS NULL THEN 'Non-ICOFR'
@@ -342,7 +342,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             AND ccx.deletedAt IS NULL 
             AND cp.deletedAt IS NULL 
             AND pr.deletedAt IS NULL 
-            AND cc.deletedAt IS NULL {dateFilter}
+            AND cc.deletedAt IS NULL {dateFilter} {functionFilter}
           GROUP BY cc.name
           ORDER BY COUNT(DISTINCT c.id) DESC`,
                     xField: 'name',
@@ -367,7 +367,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
           FROM ${(0, db_config_1.fq)('Controls')} c
           LEFT JOIN ${(0, db_config_1.fq)('ControlFunctions')} cf ON cf.control_id = c.id
           LEFT JOIN ${(0, db_config_1.fq)('Functions')} f ON f.id = cf.function_id
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY 
             c.id,
             c.name,
@@ -416,7 +416,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
           FROM ${(0, db_config_1.fq)('ControlDesignTests')} AS t
           INNER JOIN ${(0, db_config_1.fq)('Controls')} AS c ON t.control_id = c.id
           INNER JOIN ${(0, db_config_1.fq)('Functions')} AS f ON t.function_id = f.id
-          WHERE c.isDeleted = 0 AND (t.deletedAt IS NULL) AND t.function_id IS NOT NULL {dateFilter}
+          WHERE c.isDeleted = 0 AND (t.deletedAt IS NULL) AND t.function_id IS NOT NULL {dateFilter} {functionFilter}
           ORDER BY c.createdAt DESC, c.name`,
                     columns: [
                         { key: 'index', label: 'Index', type: 'number' },
@@ -442,7 +442,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
           FROM ${(0, db_config_1.fq)('Controls')} c
           JOIN ${(0, db_config_1.fq)('ControlFunctions')} cf ON c.id = cf.control_id
           JOIN ${(0, db_config_1.fq)('Functions')} f ON cf.function_id = f.id
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           ORDER BY c.createdAt DESC, f.name, c.name`,
                     columns: [
                         { key: 'function_name', label: 'Function/Department', type: 'text' },
@@ -462,7 +462,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             COUNT(c.id) AS [Total Controls]
           FROM ${(0, db_config_1.fq)('Controls')} c
           LEFT JOIN ${(0, db_config_1.fq)('JobTitles')} jt ON c.departmentId = jt.id
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY COALESCE(jt.name, 'Unassigned Department'), c.departmentId
           ORDER BY COUNT(c.id) DESC, COALESCE(jt.name, 'Unassigned Department')`,
                     columns: [
@@ -487,7 +487,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
           FROM ${(0, db_config_1.fq)('Controls')} c
           LEFT JOIN ${(0, db_config_1.fq)('ControlProcesses')} cp ON c.id = cp.control_id
           LEFT JOIN ${(0, db_config_1.fq)('Processes')} p ON cp.process_id = p.id
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY 
             CASE 
               WHEN p.name IS NULL THEN 'Unassigned Process'
@@ -517,7 +517,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
           FROM ${(0, db_config_1.fq)('ControlFunctions')} cf
           JOIN ${(0, db_config_1.fq)('Functions')} f ON cf.function_id = f.id
           JOIN ${(0, db_config_1.fq)('Controls')} c ON cf.control_id = c.id
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY f.name
           ORDER BY COUNT(c.id) DESC, f.name`,
                     columns: [
@@ -537,7 +537,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
             COUNT(c.id) AS [Control Count]
           FROM ${(0, db_config_1.fq)('Controls')} c
           LEFT JOIN ${(0, db_config_1.fq)('Assertions')} a ON c.icof_id = a.id AND a.isDeleted = 0
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY a.name, a.account_type
           ORDER BY COUNT(c.id) DESC, a.name`,
                     columns: [
@@ -571,7 +571,7 @@ let DashboardConfigService = DashboardConfigService_1 = class DashboardConfigSer
           JOIN ${(0, db_config_1.fq)('CosoPoints')} point ON ccx.coso_id = point.id AND point.deletedAt IS NULL
           JOIN ${(0, db_config_1.fq)('CosoPrinciples')} prin ON point.principle_id = prin.id AND prin.deletedAt IS NULL
           JOIN ${(0, db_config_1.fq)('CosoComponents')} comp ON prin.component_id = comp.id AND comp.deletedAt IS NULL
-          WHERE c.isDeleted = 0 {dateFilter}
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY comp.name, 
             CASE 
               WHEN c.icof_id IS NOT NULL 

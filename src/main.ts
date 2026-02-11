@@ -47,20 +47,30 @@ async function bootstrap() {
   
   // CORS: env CORS_ORIGINS (comma-separated) or fallback for dev
   const envOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
-  const corsOrigins = envOrigins?.length
+  const devOrigins = [
+    'https://reporting-system-frontend.pianat.ai',
+    'https://dcc.pianat.ai',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://localhost:5173',
+    'http://localhost:4200',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
+  ];
+  const baseOrigins = envOrigins?.length
     ? envOrigins
     : [
         'https://reporting-system-frontend.pianat.ai',
-        'http://localhost:3001',
-        'http://localhost:3000',
         'https://reporting-system-backend.pianat.ai',
-        'https://reporting-system-frontend.pianat.ai',
-        'http://localhost:5173',
-        'http://localhost:4200',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:3001',
-        'http://127.0.0.1:3002',
+        ...devOrigins,
       ];
+  // In development, always include localhost so reporting frontend (e.g. :3000) works when CORS_ORIGINS is set
+  const corsOrigins =
+    process.env.NODE_ENV === 'production'
+      ? baseOrigins
+      : [...new Set([...baseOrigins, ...devOrigins])];
   
   const corsMethods = process.env.CORS_METHODS
     ? process.env.CORS_METHODS.split(',').map(method => method.trim())

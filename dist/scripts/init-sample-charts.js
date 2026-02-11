@@ -2,7 +2,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const chart_registry_service_1 = require("../shared/chart-registry.service");
-console.log('🚀 Initializing sample charts...');
 chart_registry_service_1.ChartRegistryService.addChart({
     id: 'sales-by-region',
     name: 'Sales by Region',
@@ -122,15 +121,6 @@ chart_registry_service_1.ChartRegistryService.addChart({
     ORDER BY score DESC
   `
 });
-console.log('✅ Sample charts initialized successfully!');
-console.log('📊 Available charts:');
 chart_registry_service_1.ChartRegistryService.listCharts().forEach(chart => {
-    console.log(`   - ${chart.name} (${chart.type})`);
 });
-console.log(`
-🚀 Next steps:
-1. Start your backend: npm run start:dev
-2. Visit: https://reporting-system-frontend.pianat.ai/api/charts/dashboard
-3. Or use the frontend: http://localhost:3001/auto-dashboard
-`);
 //# sourceMappingURL=init-sample-charts.js.map

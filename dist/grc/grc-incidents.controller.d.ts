@@ -2,7 +2,7 @@ import { GrcIncidentsService } from './grc-incidents.service';
 export declare class GrcIncidentsController {
     private readonly grcIncidentsService;
     constructor(grcIncidentsService: GrcIncidentsService);
-    getIncidentsDashboard(timeframe?: string): Promise<{
+    getIncidentsDashboard(req: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string): Promise<{
         totalIncidents: any;
         pendingPreparer: any;
         pendingChecker: any;
@@ -112,12 +112,12 @@ export declare class GrcIncidentsController {
             totalValue: any;
         }[];
     }>;
-    exportIncidents(format: string, timeframe?: string): Promise<{
+    exportIncidents(req: any, format: string, timeframe?: string): Promise<{
         message: string;
         timeframe: string;
         status: string;
     }>;
-    getTotalIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsList(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -128,7 +128,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getPendingPreparerIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTotalIncidents(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -139,7 +139,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getPendingCheckerIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingPreparerIncidents(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -150,7 +150,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getPendingReviewerIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingCheckerIncidents(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -161,7 +161,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getPendingAcceptanceIncidents(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingReviewerIncidents(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -172,7 +172,18 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByCategory(category: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingAcceptanceIncidents(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsByCategory(req: any, category: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -189,7 +200,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByEventType(eventType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByEventType(req: any, eventType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -206,7 +217,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByFinancialImpact(financialImpact: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByFinancialImpact(req: any, financialImpact: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -223,7 +234,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByStatus(status: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByStatus(req: any, status: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -238,7 +249,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByMonthYear(monthYear: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByMonthYear(req: any, monthYear: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -253,24 +264,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsBySubCategory(subCategory: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
-        data: {
-            code: any;
-            name: any;
-            createdAt: any;
-            netLoss: any;
-            recoveryAmount: any;
-        }[];
-        pagination: {
-            page: number;
-            limit: number;
-            total: any;
-            totalPages: number;
-            hasNext: boolean;
-            hasPrev: boolean;
-        };
-    }>;
-    getIncidentsByPeriod(period: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsBySubCategory(req: any, subCategory: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -287,7 +281,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByInternalFraud(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByPeriod(req: any, period: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -304,7 +298,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByExternalFraud(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByInternalFraud(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -321,7 +315,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByPhysicalAssetDamage(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByExternalFraud(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -338,7 +332,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByATMIssue(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByPhysicalAssetDamage(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -355,7 +349,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByPeopleError(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByATMIssue(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -372,7 +366,24 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsWithRecognitionTime(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByPeopleError(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: {
+            code: any;
+            name: any;
+            createdAt: any;
+            netLoss: any;
+            recoveryAmount: any;
+        }[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getIncidentsWithRecognitionTime(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -390,7 +401,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByPeriodAndType(period: string, incidentType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByPeriodAndType(req: any, period: string, incidentType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -407,7 +418,7 @@ export declare class GrcIncidentsController {
             hasPrev: boolean;
         };
     }>;
-    getIncidentsByComprehensiveMetric(metric: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getIncidentsByComprehensiveMetric(req: any, metric: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;

@@ -16,6 +16,9 @@ exports.DashboardController = void 0;
 const common_1 = require("@nestjs/common");
 const dashboard_service_1 = require("./dashboard.service");
 const realtime_gateway_1 = require("../realtime/realtime.gateway");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const permissions_guard_1 = require("../auth/guards/permissions.guard");
+const permissions_decorator_1 = require("../auth/decorators/permissions.decorator");
 let DashboardController = class DashboardController {
     constructor(dashboardService, realtimeGateway) {
         this.dashboardService = dashboardService;
@@ -148,6 +151,8 @@ __decorate([
 ], DashboardController.prototype, "updateDashboardActivity", null);
 exports.DashboardController = DashboardController = __decorate([
     (0, common_1.Controller)('api/dashboard'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, permissions_guard_1.PermissionsGuard),
+    (0, permissions_decorator_1.Permissions)('Reporting', ['show']),
     __metadata("design:paramtypes", [dashboard_service_1.DashboardService,
         realtime_gateway_1.RealtimeGateway])
 ], DashboardController);

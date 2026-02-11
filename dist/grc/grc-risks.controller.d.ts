@@ -2,7 +2,7 @@ import { GrcRisksService } from './grc-risks.service';
 export declare class GrcRisksController {
     private readonly grcRisksService;
     constructor(grcRisksService: GrcRisksService);
-    getRisksDashboard(startDate?: string, endDate?: string): Promise<{
+    getRisksDashboard(req: any, startDate?: string, endDate?: string, functionId?: string): Promise<{
         totalRisks: any;
         allRisks: any[];
         risksByCategory: import("mssql").IRecordSet<any>;
@@ -25,95 +25,59 @@ export declare class GrcRisksController {
         controlsAndRiskCount: any[];
         risksDetails: any[];
     }>;
-    getTotalRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTotalRisks(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
             limit: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    } | {
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
             total: any;
             totalPages: number;
             hasNext: boolean;
             hasPrev: boolean;
         };
     }>;
-    getCard(cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getCard(req: any, cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
             limit: number;
+            total: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    } | {
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
             total: any;
             totalPages: number;
             hasNext: boolean;
             hasPrev: boolean;
         };
     }>;
-    getCardByParam(cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getCardByParam(req: any, cardType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
             limit: number;
-            total: any;
+            total: number;
             totalPages: number;
             hasNext: boolean;
             hasPrev: boolean;
         };
-    }>;
-    getHighRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
-        data: import("mssql").IRecordSet<any>;
-        pagination: {
-            total: any;
-            page: number;
-            limit: number;
-            totalPages: number;
-            hasNext: boolean;
-            hasPrev: boolean;
-        };
-    }>;
-    getMediumRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
-        data: import("mssql").IRecordSet<any>;
-        pagination: {
-            total: any;
-            page: number;
-            limit: number;
-            totalPages: number;
-            hasNext: boolean;
-            hasPrev: boolean;
-        };
-    }>;
-    getLowRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
-        data: import("mssql").IRecordSet<any>;
-        pagination: {
-            total: any;
-            page: number;
-            limit: number;
-            totalPages: number;
-            hasNext: boolean;
-            hasPrev: boolean;
-        };
-    }>;
-    getRiskReduction(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
-        data: import("mssql").IRecordSet<any>;
-        pagination: {
-            total: any;
-            page: number;
-            limit: number;
-            totalPages: number;
-            hasNext: boolean;
-            hasPrev: boolean;
-        };
-    }>;
-    getNewRisks(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
-        data: import("mssql").IRecordSet<any>;
-        pagination: {
-            total: any;
-            page: number;
-            limit: number;
-            totalPages: number;
-            hasNext: boolean;
-            hasPrev: boolean;
-        };
-    }>;
-    getRisksByCategory(category: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    } | {
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -124,7 +88,62 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByEventType(eventType: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getHighRisks(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getMediumRisks(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getLowRisks(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRiskReduction(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getNewRisks(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            total: any;
+            page: number;
+            limit: number;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksByCategory(req: any, category: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -135,7 +154,7 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByQuarter(quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByEventType(req: any, eventType: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -146,7 +165,7 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByApprovalStatus(approvalStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByQuarter(req: any, quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -157,7 +176,7 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByFinancialImpact(financialImpact: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByApprovalStatus(req: any, approvalStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -168,7 +187,7 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByFunction(functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByFinancialImpact(req: any, financialImpact: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -179,7 +198,7 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByBusinessProcess(processName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByFunction(req: any, functionName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -190,7 +209,7 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByName(riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByBusinessProcess(req: any, processName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -201,7 +220,7 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksByControlName(controlName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByName(req: any, riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;
@@ -212,7 +231,18 @@ export declare class GrcRisksController {
             hasPrev: boolean;
         };
     }>;
-    getRisksForComparison(riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getRisksByControlName(req: any, controlName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
+        data: import("mssql").IRecordSet<any>;
+        pagination: {
+            page: number;
+            limit: number;
+            total: any;
+            totalPages: number;
+            hasNext: boolean;
+            hasPrev: boolean;
+        };
+    }>;
+    getRisksForComparison(req: any, riskName: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: import("mssql").IRecordSet<any>;
         pagination: {
             page: number;

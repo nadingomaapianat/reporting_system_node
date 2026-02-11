@@ -129,7 +129,6 @@ let DashboardService = class DashboardService {
     `;
         try {
             await this.databaseService.query(query);
-            console.log('Dashboard activity table created or already exists');
         }
         catch (error) {
             console.error('Error creating dashboard_activity table:', error);
@@ -200,7 +199,6 @@ let DashboardService = class DashboardService {
             const existing = await this.databaseService.query('SELECT id FROM dashboard_activity WHERE dashboard_id = @param0 AND user_id = @param1', [dashboard.dashboard_id, 'default_user']);
             if (!existing || existing.length === 0) {
                 await this.updateDashboardActivity(dashboard.dashboard_id, 'default_user', dashboard.card_count);
-                console.log(`Initialized activity for ${dashboard.dashboard_id}`);
             }
         }
     }

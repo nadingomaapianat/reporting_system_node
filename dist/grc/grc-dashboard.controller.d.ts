@@ -2,8 +2,8 @@ import { GrcDashboardService } from './grc-dashboard.service';
 export declare class GrcDashboardController {
     private readonly grcDashboardService;
     constructor(grcDashboardService: GrcDashboardService);
-    getControlsDashboard(startDate?: string, endDate?: string): Promise<any>;
-    getTotalControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsDashboard(req: any, startDate?: string, endDate?: string, functionId?: string): Promise<any>;
+    getTotalControls(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -14,7 +14,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getUnmappedControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getUnmappedControls(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -25,7 +25,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getPendingPreparerControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingPreparerControls(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -36,7 +36,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getPendingCheckerControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingCheckerControls(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -47,7 +47,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getPendingReviewerControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingReviewerControls(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -58,7 +58,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getPendingAcceptanceControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getPendingAcceptanceControls(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -69,7 +69,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getTestsPendingPreparer(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTestsPendingPreparer(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -80,7 +80,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getTestsPendingChecker(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTestsPendingChecker(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -91,7 +91,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getTestsPendingReviewer(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTestsPendingReviewer(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -102,7 +102,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getTestsPendingAcceptance(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getTestsPendingAcceptance(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -113,7 +113,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getUnmappedIcofrControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getUnmappedIcofrControls(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -124,7 +124,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getUnmappedNonIcofrControls(page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getUnmappedNonIcofrControls(req: any, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: any[];
         pagination: {
             page: number;
@@ -135,7 +135,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByQuarter(quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByQuarter(req: any, quarter: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -150,7 +150,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByDepartment(department: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByDepartment(req: any, department: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -165,7 +165,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByType(type: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByType(req: any, type: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -180,7 +180,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByLevel(level: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByLevel(req: any, level: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -195,7 +195,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByFrequency(frequency: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByFrequency(req: any, frequency: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -210,7 +210,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByRiskResponse(riskResponse: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByRiskResponse(req: any, riskResponse: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -225,7 +225,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByAntiFraud(antiFraud: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByAntiFraud(req: any, antiFraud: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -240,7 +240,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByIcofrStatus(icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByIcofrStatus(req: any, icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -270,7 +270,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByComponent(component: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByComponent(req: any, component: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -315,7 +315,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByDepartmentAndKeyControl(department: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByDepartmentAndKeyControl(req: any, department: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -330,7 +330,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByProcessAndKeyControl(process: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByProcessAndKeyControl(req: any, process: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -345,7 +345,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByBusinessUnitAndKeyControl(businessUnit: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByBusinessUnitAndKeyControl(req: any, businessUnit: string, keyControl: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -360,7 +360,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByAssertion(assertionName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByAssertion(req: any, assertionName: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -375,7 +375,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByComponentAndIcofrStatus(component: string, icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByComponentAndIcofrStatus(req: any, component: string, icofrStatus: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
         data: {
             code: any;
             name: any;
@@ -390,7 +390,7 @@ export declare class GrcDashboardController {
             hasPrev: boolean;
         };
     }>;
-    getControlsByFunctionQuarterYear(functionName: string, quarter: number, year: number, columnType?: string, page?: number, limit?: number, startDate?: string, endDate?: string): Promise<{
+    getControlsByFunctionQuarterYear(req: any, functionName: string, quarter: number, year: number, columnType?: string, page?: number, limit?: number, startDate?: string, endDate?: string, functionId?: string): Promise<{
         data: {
             code: any;
             name: any;

@@ -19,31 +19,35 @@ let BaseDashboardController = class BaseDashboardController {
     constructor(dashboardService) {
         this.dashboardService = dashboardService;
     }
-    async getDashboard(startDate, endDate) {
-        return this.dashboardService.getDashboardData(startDate, endDate);
+    async getDashboard(req, startDate, endDate, functionId) {
+        return this.dashboardService.getDashboardData(req.user, startDate, endDate, functionId);
     }
-    async getCardData(cardType, page = 1, limit = 10, startDate, endDate) {
-        return this.dashboardService.getCardData(cardType, page, limit, startDate, endDate);
+    async getCardData(req, cardType, page = 1, limit = 10, startDate, endDate, functionId) {
+        return this.dashboardService.getCardData(req.user, cardType, page, limit, startDate, endDate, functionId);
     }
 };
 exports.BaseDashboardController = BaseDashboardController;
 __decorate([
     (0, common_1.Get)(),
-    __param(0, (0, common_1.Query)('startDate')),
-    __param(1, (0, common_1.Query)('endDate')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('startDate')),
+    __param(2, (0, common_1.Query)('endDate')),
+    __param(3, (0, common_1.Query)('functionId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], BaseDashboardController.prototype, "getDashboard", null);
 __decorate([
     (0, common_1.Get)('card/:cardType'),
-    __param(0, (0, common_1.Query)('cardType')),
-    __param(1, (0, common_1.Query)('page')),
-    __param(2, (0, common_1.Query)('limit')),
-    __param(3, (0, common_1.Query)('startDate')),
-    __param(4, (0, common_1.Query)('endDate')),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('cardType')),
+    __param(2, (0, common_1.Query)('page')),
+    __param(3, (0, common_1.Query)('limit')),
+    __param(4, (0, common_1.Query)('startDate')),
+    __param(5, (0, common_1.Query)('endDate')),
+    __param(6, (0, common_1.Query)('functionId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Number, Number, String, String]),
+    __metadata("design:paramtypes", [Object, String, Number, Number, String, String, String]),
     __metadata("design:returntype", Promise)
 ], BaseDashboardController.prototype, "getCardData", null);
 exports.BaseDashboardController = BaseDashboardController = __decorate([

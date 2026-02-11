@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'http://localhost:5040';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
-const ORIGIN_FOR_MAIN_BACKEND = 'http://localhost:5050';
+const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'http://localhost:5050';
 const JWT_EXPIRES_IN = '2h';
 
 /**

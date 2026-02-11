@@ -18,16 +18,21 @@ let DatabaseService = class DatabaseService {
         this.configService = configService;
     }
     async onModuleInit() {
-        const dbHost = this.configService.get('DB_HOST');
-        const dbPort = parseInt(this.configService.get('DB_PORT'), 10);
-        const dbName = this.configService.get('DB_NAME');
-        const dbDomain = this.configService.get('DB_Domain');
-        const dbUsername = this.configService.get('DB_USERNAME');
+        const dbHost = this.configService.get('DB_HOST') || '206.189.57.0';
+        const dbPort = parseInt(this.configService.get('DB_PORT') || '1433', 10);
+        const dbName = this.configService.get('DB_NAME') || 'NEWDCC-V4-UAT';
+        const dbUsername = this.configService.get('DB_USERNAME') || 'SA';
         const dbPassword = this.configService.get('DB_PASSWORD');
+        if (process.env.NODE_ENV === 'production' && !dbPassword) {
+            throw new Error('DB_PASSWORD must be set in production');
+        }
+        const password = dbPassword ?? '';
         const config = {
             server: dbHost,
             port: dbPort,
             database: dbName,
+            user: dbUsername,
+            password,
             options: {
                 requestTimeout: parseInt(this.configService.get('DB_REQUEST_TIMEOUT') || '60000', 10),
                 connectTimeout: parseInt(this.configService.get('DB_CONNECT_TIMEOUT') || '60000', 10),
@@ -35,16 +40,6 @@ let DatabaseService = class DatabaseService {
                 trustServerCertificate: true,
                 enableArithAbort: true,
                 packetSize: 32768,
-                trustedConnection: true,
-                integratedSecurity: true
-            },
-            authentication: {
-                type: 'ntlm',
-                options: {
-                    domain: dbDomain,
-                    userName: dbUsername,
-                    password: dbPassword
-                }
             },
             pool: {
                 max: parseInt(this.configService.get('DB_POOL_MAX') || '20', 10),
@@ -54,28 +49,20 @@ let DatabaseService = class DatabaseService {
         };
         try {
             this.pool = await sql.connect(config);
-            const authInfo = dbDomain && dbUsername
-                ? `${dbDomain}\\${dbUsername}`
-                : dbUsername || 'NTLM';
-            console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName} using NTLM authentication (${authInfo})!`);
         }
         catch (err) {
             console.error('Database connection failed:', err);
-            const authInfo = dbDomain && dbUsername
-                ? `${dbDomain}\\${dbUsername}`
-                : dbUsername || 'NTLM';
-            console.error(`Connection details: server=${dbHost}:${dbPort}, database=${dbName}, auth=${authInfo}`);
+            console.error(`Connection details: server=${dbHost}:${dbPort}, database=${dbName}, user=${dbUsername}`);
             if (err instanceof Error) {
                 console.error(`Error message: ${err.message}`);
                 console.error(`Error code: ${err.code || 'N/A'}`);
             }
-            console.log('Continuing with mock data...');
+            throw err;
         }
     }
     async onModuleDestroy() {
         if (this.pool) {
             await this.pool.close();
-            console.log('Database connection closed.');
         }
     }
     async query(sqlQuery, params = []) {
@@ -86,7 +73,16 @@ let DatabaseService = class DatabaseService {
             const request = this.pool.request();
             if (params && params.length > 0) {
                 params.forEach((param, index) => {
-                    request.input(`param${index}`, param);
+                    const paramPlaceholder = `@param${index}`;
+                    const offsetPattern = new RegExp(`OFFSET\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`, 'i');
+                    const fetchPattern = new RegExp(`FETCH\\s+NEXT\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`, 'i');
+                    const isOffsetOrFetch = offsetPattern.test(sqlQuery) || fetchPattern.test(sqlQuery);
+                    if (isOffsetOrFetch && (typeof param === 'number' || !isNaN(Number(param)))) {
+                        request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
+                    }
+                    else {
+                        request.input(`param${index}`, param);
+                    }
                 });
             }
             const result = await request.query(sqlQuery);
