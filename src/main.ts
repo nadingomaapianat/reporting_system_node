@@ -3,7 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe, HttpException, HttpStatus, ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
-import * as express from 'express';
+
 
 @Catch()
 class GlobalExceptionFilter implements ExceptionFilter {
