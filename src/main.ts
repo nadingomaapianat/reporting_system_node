@@ -19,21 +19,27 @@ async function bootstrap() {
   
   // CORS: env CORS_ORIGINS (comma-separated) or fallback for dev
   const envOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
+  const devOrigins = [
+    'https://grc-reporting-uat.adib.co.eg',
+    'https://grc-reporting-node-uat.adib.co.eg',
+    
+   
+    
+   
+   
+    
+  ];
+  // When CORS_ORIGINS not set, use FRONTEND_URL / NODE_PUBLIC_URL from .env so links are env-driven
+  const fallbackFromEnv = [
+    process.env.FRONTEND_URL,
+    process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL,
+    process.env.NODE_PUBLIC_URL,
+  ].filter(Boolean) as string[];
   const corsOrigins = envOrigins?.length
-    ? envOrigins
-    : [
-        'https://reporting-system-frontend.pianat.ai',
-        'http://localhost:3001',
-        'http://localhost:3000',
-        'https://reporting-system-backend.pianat.ai',
-        'https://reporting-system-frontend.pianat.ai',
-        'http://localhost:5173',
-        'http://localhost:4200',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:3001',
-        'http://127.0.0.1:3002',
-        
-      ];
+    ? [...new Set([...envOrigins, ...devOrigins])]
+    : fallbackFromEnv.length
+      ? [...new Set([...fallbackFromEnv.map((o) => o.trim()), ...devOrigins])]
+      : [...devOrigins];
   
   const corsMethods = process.env.CORS_METHODS
     ? process.env.CORS_METHODS.split(',').map(method => method.trim())
