@@ -4,19 +4,18 @@ import { CsrfService } from './csrf.service';
 
 @Controller('csrf')
 export class CsrfController {
-  // Allowed origins: env ALLOWED_ORIGINS (comma-separated) or fallback for dev
+  // Allowed origins from .env: ALLOWED_ORIGINS or CORS_ORIGINS (comma-separated); else FRONTEND_URL + dev list
   private readonly allowedOrigins = (() => {
-    const fromEnv = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
+    const fromEnv =
+      process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean) ||
+      process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
     if (fromEnv?.length) return fromEnv;
     return [
-      'https://reporting-system-frontend.pianat.ai',
-      'http://localhost:3001',
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:4200',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-    ];
+      process.env.FRONTEND_URL ,
+      'https://grc-reporting-node-uat.adib.co.eg',
+      'https://grc-reporting-uat.adib.co.eg',
+      
+    ].filter(Boolean);
   })();
 
   constructor(private readonly csrfService: CsrfService) {}

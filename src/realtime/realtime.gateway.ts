@@ -10,9 +10,21 @@ import {
 import { Server, Socket } from 'socket.io';
 import { RealtimeService } from './realtime.service';
 
+// CORS origins from .env: CORS_ORIGINS (comma-separated) or fallback dev list
+const wsCorsOrigins = (() => {
+  const fromEnv = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
+  if (fromEnv?.length) return fromEnv;
+  return [
+    process.env.FRONTEND_URL,
+    'https://grc-reporting-node-uat.adib.co.eg',
+    'https://grc-reporting-uat.adib.co.eg',
+    
+  ].filter(Boolean);
+})();
+
 @WebSocketGateway({
   cors: {
-    origin: ['https://reporting-system-frontend.pianat.ai', 'https://reporting-system-backend.pianat.ai', 'http://localhost:3001', 'http://localhost:3000', 'http://localhost:5173', 'http://localhost:4200', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
+    origin: wsCorsOrigins,
     credentials: true,
   },
 })

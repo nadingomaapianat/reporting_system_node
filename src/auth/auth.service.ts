@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
 
-const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'http://localhost:5040';
+const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
-const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'http://localhost:5050';
+const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://grc-dcc-uat.adib.co.eg';
 const JWT_EXPIRES_IN = '2h';
 
 /**
@@ -43,7 +43,7 @@ export class AuthService {
         const reason = (res.data as { reason?: string })?.reason;
         if (reason) {
           const fixNoRow = 'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration on main backend; restart main backend; open Reporting from main app (do not paste IET from another tab)';
-          console.warn(`[IET] CASE=${reason} (from main backend) | FIX: ${reason === 'invalid_origin' ? 'Match origin (e.g. http://localhost:5050)' : reason === 'expired' ? 'Open Reporting again (< 90s)' : reason === 'already_used' ? 'Fresh IET, avoid double submit' : reason === 'no_row' ? fixNoRow : 'See main backend terminal'}`);
+          console.warn(`[IET] CASE=${reason} (from main backend) | FIX: ${reason === 'invalid_origin' ? 'Match origin (e.g. https://grc-dcc-uat.adib.co.eg)' : reason === 'expired' ? 'Open Reporting again (< 90s)' : reason === 'already_used' ? 'Fresh IET, avoid double submit' : reason === 'no_row' ? fixNoRow : 'See main backend terminal'}`);
         } else {
           console.warn(
             '[IET] Main backend returned 403 (no reason in body). Check MAIN BACKEND terminal for [IET] CASE=...',
