@@ -1,0 +1,212 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DashboardService = void 0;
+const common_1 = require("@nestjs/common");
+const realtime_service_1 = require("../realtime/realtime.service");
+const database_service_1 = require("../database/database.service");
+let DashboardService = class DashboardService {
+    constructor(realtimeService, databaseService) {
+        this.realtimeService = realtimeService;
+        this.databaseService = databaseService;
+    }
+    getConnectedClientsCount() {
+        return this.realtimeService.getConnectedClientsCount();
+    }
+    getCurrentMetrics() {
+        return {
+            timestamp: new Date().toISOString(),
+            activeUsers: this.realtimeService.getConnectedClientsCount(),
+            systemStatus: 'operational',
+            uptime: process.uptime(),
+        };
+    }
+    getActiveAlerts() {
+        return [
+            {
+                id: 'system_health',
+                type: 'info',
+                title: 'System Status',
+                message: 'All systems operational',
+                timestamp: new Date().toISOString(),
+                severity: 'low',
+                acknowledged: true,
+                source: 'system',
+            }
+        ];
+    }
+    acknowledgeAlert(alertId) {
+        return {
+            success: true,
+            message: `Alert ${alertId} acknowledged`,
+            timestamp: new Date().toISOString(),
+        };
+    }
+    getSystemHealth() {
+        return {
+            timestamp: new Date().toISOString(),
+            services: {
+                api: 'healthy',
+                database: 'healthy',
+                cache: 'healthy',
+                queue: 'healthy',
+                storage: 'healthy',
+            },
+            resources: {
+                cpu: {
+                    usage: '25.5',
+                    status: 'healthy',
+                },
+                memory: {
+                    usage: '45.2',
+                    status: 'healthy',
+                },
+                disk: {
+                    usage: '15.8',
+                    status: 'healthy',
+                },
+                network: {
+                    latency: '8.2',
+                    status: 'healthy',
+                },
+            },
+        };
+    }
+    getNotifications(limit = 10) {
+        return [
+            {
+                id: 'system_startup',
+                type: 'info',
+                title: 'System Started',
+                message: 'Dashboard system is running',
+                timestamp: new Date().toISOString(),
+                read: true,
+                source: 'system',
+            }
+        ].slice(0, limit);
+    }
+    markNotificationAsRead(notificationId) {
+        return {
+            success: true,
+            message: `Notification ${notificationId} marked as read`,
+            timestamp: new Date().toISOString(),
+        };
+    }
+    getWidgetData(widgetId) {
+        return {
+            widgetId,
+            data: { message: 'Widget data not implemented' },
+            timestamp: new Date().toISOString(),
+        };
+    }
+    refreshWidget(widgetId) {
+        return {
+            widgetId,
+            data: { message: 'Widget refreshed' },
+            timestamp: new Date().toISOString(),
+        };
+    }
+    async createActivityTable() {
+        const query = `
+      IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='dashboard_activity' AND xtype='U')
+      CREATE TABLE dashboard_activity (
+          id INT IDENTITY(1,1) PRIMARY KEY,
+          dashboard_id NVARCHAR(50) NOT NULL,
+          user_id NVARCHAR(100) DEFAULT 'default_user',
+          last_seen DATETIME2 NOT NULL DEFAULT GETDATE(),
+          card_count INT DEFAULT 0,
+          created_at DATETIME2 DEFAULT GETDATE(),
+          updated_at DATETIME2 DEFAULT GETDATE()
+      )
+    `;
+        try {
+            await this.databaseService.query(query);
+        }
+        catch (error) {
+            console.error('Error creating dashboard_activity table:', error);
+        }
+    }
+    async getDashboardActivities(userId = 'default_user') {
+        const query = `
+      SELECT 
+          dashboard_id,
+          last_seen,
+          card_count,
+          updated_at
+      FROM dashboard_activity 
+      WHERE user_id = @param0
+      ORDER BY last_seen DESC
+    `;
+        return await this.databaseService.query(query, [userId]);
+    }
+    async updateDashboardActivity(dashboardId, userId = 'default_user', cardCount = 0) {
+        try {
+            const checkQuery = `
+        SELECT id FROM dashboard_activity 
+        WHERE dashboard_id = @param0 AND user_id = @param1
+      `;
+            const existing = await this.databaseService.query(checkQuery, [dashboardId, userId]);
+            if (existing && existing.length > 0) {
+                const updateQuery = `
+          UPDATE dashboard_activity 
+          SET last_seen = GETUTCDATE(), 
+              card_count = @param0, 
+              updated_at = GETUTCDATE()
+          WHERE dashboard_id = @param1 AND user_id = @param2
+        `;
+                await this.databaseService.query(updateQuery, [cardCount, dashboardId, userId]);
+            }
+            else {
+                const insertQuery = `
+          INSERT INTO dashboard_activity (dashboard_id, user_id, last_seen, card_count)
+          VALUES (@param0, @param1, GETUTCDATE(), @param2)
+        `;
+                await this.databaseService.query(insertQuery, [dashboardId, userId, cardCount]);
+            }
+            const getQuery = `
+        SELECT 
+            dashboard_id,
+            last_seen,
+            card_count,
+            updated_at
+        FROM dashboard_activity 
+        WHERE dashboard_id = @param0 AND user_id = @param1
+      `;
+            const result = await this.databaseService.query(getQuery, [dashboardId, userId]);
+            return result && result.length > 0 ? result[0] : {};
+        }
+        catch (error) {
+            console.error('Error updating dashboard activity:', error);
+            return {};
+        }
+    }
+    async initializeDefaultActivities() {
+        const defaultDashboards = [
+            { dashboard_id: 'controls', card_count: 6 },
+            { dashboard_id: 'incidents', card_count: 7 },
+            { dashboard_id: 'kris', card_count: 5 },
+            { dashboard_id: 'risks', card_count: 8 }
+        ];
+        for (const dashboard of defaultDashboards) {
+            const existing = await this.databaseService.query('SELECT id FROM dashboard_activity WHERE dashboard_id = @param0 AND user_id = @param1', [dashboard.dashboard_id, 'default_user']);
+            if (!existing || existing.length === 0) {
+                await this.updateDashboardActivity(dashboard.dashboard_id, 'default_user', dashboard.card_count);
+            }
+        }
+    }
+};
+exports.DashboardService = DashboardService;
+exports.DashboardService = DashboardService = __decorate([
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [realtime_service_1.RealtimeService,
+        database_service_1.DatabaseService])
+], DashboardService);
+//# sourceMappingURL=dashboard.service.js.map

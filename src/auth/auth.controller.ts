@@ -4,7 +4,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
 
-const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://grc-reporting-uat.adib.co.eg';
+const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'http://localhost:3000';
 const COOKIE_NAME = 'reporting_node_token';
 
 /** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */

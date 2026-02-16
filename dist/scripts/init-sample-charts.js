@@ -1,16 +1,12 @@
 #!/usr/bin/env node
-
-// Initialize sample charts for testing
-import { ChartRegistryService } from '../shared/chart-registry.service';
-
-// console.log('🚀 Initializing sample charts...');
-
-// Sample chart 1: Sales by Region
-ChartRegistryService.addChart({
-  id: 'sales-by-region',
-  name: 'Sales by Region',
-  type: 'bar',
-  sql: `
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const chart_registry_service_1 = require("../shared/chart-registry.service");
+chart_registry_service_1.ChartRegistryService.addChart({
+    id: 'sales-by-region',
+    name: 'Sales by Region',
+    type: 'bar',
+    sql: `
     SELECT 
       CASE 
         WHEN region = 'North' THEN 'North America'
@@ -32,13 +28,11 @@ ChartRegistryService.addChart({
     ORDER BY SUM(amount) DESC
   `
 });
-
-// Sample chart 2: User Status Distribution
-ChartRegistryService.addChart({
-  id: 'user-status',
-  name: 'User Status Distribution',
-  type: 'pie',
-  sql: `
+chart_registry_service_1.ChartRegistryService.addChart({
+    id: 'user-status',
+    name: 'User Status Distribution',
+    type: 'pie',
+    sql: `
     SELECT 
       status as name,
       COUNT(*) as value
@@ -55,13 +49,11 @@ ChartRegistryService.addChart({
     ORDER BY COUNT(*) DESC
   `
 });
-
-// Sample chart 3: Monthly Growth Trend
-ChartRegistryService.addChart({
-  id: 'monthly-growth',
-  name: 'Monthly Growth Trend',
-  type: 'line',
-  sql: `
+chart_registry_service_1.ChartRegistryService.addChart({
+    id: 'monthly-growth',
+    name: 'Monthly Growth Trend',
+    type: 'line',
+    sql: `
     SELECT 
       FORMAT(date, 'yyyy-MM') as name,
       COUNT(*) as value
@@ -84,13 +76,11 @@ ChartRegistryService.addChart({
     ORDER BY name
   `
 });
-
-// Sample chart 4: Product Categories
-ChartRegistryService.addChart({
-  id: 'product-categories',
-  name: 'Product Categories',
-  type: 'bar',
-  sql: `
+chart_registry_service_1.ChartRegistryService.addChart({
+    id: 'product-categories',
+    name: 'Product Categories',
+    type: 'bar',
+    sql: `
     SELECT 
       category as name,
       COUNT(*) as value
@@ -109,13 +99,11 @@ ChartRegistryService.addChart({
     ORDER BY COUNT(*) DESC
   `
 });
-
-// Sample chart 5: Performance Score Distribution
-ChartRegistryService.addChart({
-  id: 'performance-scores',
-  name: 'Performance Score Distribution',
-  type: 'scatter',
-  sql: `
+chart_registry_service_1.ChartRegistryService.addChart({
+    id: 'performance-scores',
+    name: 'Performance Score Distribution',
+    type: 'scatter',
+    sql: `
     SELECT 
       'Team A' as name,
       score as value
@@ -133,16 +121,6 @@ ChartRegistryService.addChart({
     ORDER BY score DESC
   `
 });
-
-// console.log('✅ Sample charts initialized successfully!');
-// console.log('📊 Available charts:');
-ChartRegistryService.listCharts().forEach(chart => {
-  // console.log(`   - ${chart.name} (${chart.type})`);
+chart_registry_service_1.ChartRegistryService.listCharts().forEach(chart => {
 });
-
-// console.log(`
-// 🚀 Next steps:
-// 1. Start your backend: npm run start:dev
-// 2. Visit: https://reporting-system-frontend.pianat.ai/api/charts/dashboard
-// 3. Or use the frontend: http://localhost:3001/auto-dashboard
-// `);
+//# sourceMappingURL=init-sample-charts.js.map
