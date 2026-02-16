@@ -9,25 +9,43 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
-    // Standard SQL Server Authentication – no default password (use env)
-    const dbHost = this.configService.get<string>('DB_HOST') || '206.189.57.0';
-    const dbPort = parseInt(this.configService.get<string>('DB_PORT') || '1433', 10);
-    const dbName = this.configService.get<string>('DB_NAME') || 'NEWDCC-V4-UAT';
-    const dbUsername = this.configService.get<string>('DB_USERNAME') || 'SA';
-    const dbPassword = this.configService.get<string>('DB_PASSWORD');
-    if (process.env.NODE_ENV === 'production' && !dbPassword) {
-      throw new Error('DB_PASSWORD must be set in production');
-    }
-    const password = dbPassword ?? '';
+    const dbHost =
+      this.configService.get<string>('DB_HOST') ;
+    const dbPort = parseInt(
+      this.configService.get<string>('DB_PORT') ,
+      10
+    );
+    const dbName =
+      this.configService.get<string>('DB_NAME') ;
 
-    // Standard SQL Server Authentication Configuration
+    const domain =
+      this.configService.get<string>('DB_DOMAIN') ;
+    const username =
+      this.configService.get<string>('DB_USERNAME') ;
+    const password = this.configService.get<string>('DB_PASSWORD');
+
+    if (!password) {
+      throw new Error('DB_PASSWORD is required for NTLM authentication');
+    }
+
     const config: sql.config = {
       server: dbHost,
       port: dbPort,
       database: dbName,
-      user: dbUsername,
-      password,
+    
+      authentication: {
+        type: 'ntlm',
+        options: {
+          domain: domain,
+          userName: username,
+          password: password,
+        },
+      },
+    
       options: {
+        encrypt: true,
+        trustServerCertificate: true,
+        enableArithAbort: true,
         requestTimeout: parseInt(
           this.configService.get<string>('DB_REQUEST_TIMEOUT') || '60000',
           10
@@ -36,34 +54,29 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           this.configService.get<string>('DB_CONNECT_TIMEOUT') || '60000',
           10
         ),
-        encrypt: true,
-        trustServerCertificate: true,
-        enableArithAbort: true,
         packetSize: 32768,
       },
-      // Connection pool settings
+    
       pool: {
-        max: parseInt(
-          this.configService.get<string>('DB_POOL_MAX') || '20',
-          10
-        ),
-        min: parseInt(
-          this.configService.get<string>('DB_POOL_MIN') || '5',
-          10
-        ),
+        max: parseInt(this.configService.get<string>('DB_POOL_MAX') || '100', 10),
+        min: parseInt(this.configService.get<string>('DB_POOL_MIN') || '20', 10),
         idleTimeoutMillis: parseInt(
           this.configService.get<string>('DB_POOL_IDLE') || '30000',
           10
         ),
       },
     };
-
+    
     try {
       this.pool = await sql.connect(config);
-      // console.log(`Database connected successfully to ${dbHost}:${dbPort}/${dbName} using SQL Server Authentication (user: ${dbUsername})!`);
+      console.log(
+        `Database connected using NTLM: ${domain}\\${username}`
+      );
     } catch (err) {
       console.error('Database connection failed:', err);
-      console.error(`Connection details: server=${dbHost}:${dbPort}, database=${dbName}, user=${dbUsername}`);
+      console.error(
+        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain}, user=${username}`
+      );
       if (err instanceof Error) {
         console.error(`Error message: ${err.message}`);
         console.error(`Error code: ${(err as any).code || 'N/A'}`);
@@ -75,7 +88,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     if (this.pool) {
       await this.pool.close();
-      // console.log('Database connection closed.');
     }
   }
 
@@ -83,26 +95,37 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (!this.pool) {
       throw new Error('Database not connected');
     }
-    
+
     try {
       const request = this.pool.request();
+
       if (params && params.length > 0) {
         params.forEach((param, index) => {
-          // Check if parameter is used in OFFSET or FETCH clauses (which require integers)
           const paramPlaceholder = `@param${index}`;
-          // Use regex to match OFFSET/FETCH with the parameter (case-insensitive)
-          const offsetPattern = new RegExp(`OFFSET\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`, 'i');
-          const fetchPattern = new RegExp(`FETCH\\s+NEXT\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`, 'i');
-          const isOffsetOrFetch = offsetPattern.test(sqlQuery) || fetchPattern.test(sqlQuery);
-          
-          // If it's a number and used in OFFSET/FETCH, explicitly type it as integer
-          if (isOffsetOrFetch && (typeof param === 'number' || !isNaN(Number(param)))) {
+          const offsetPattern = new RegExp(
+            `OFFSET\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
+            'i'
+          );
+          const fetchPattern = new RegExp(
+            `FETCH\\s+NEXT\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
+            'i'
+          );
+
+          const isOffsetOrFetch =
+            offsetPattern.test(sqlQuery) ||
+            fetchPattern.test(sqlQuery);
+
+          if (
+            isOffsetOrFetch &&
+            (typeof param === 'number' || !isNaN(Number(param)))
+          ) {
             request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
           } else {
             request.input(`param${index}`, param);
           }
         });
       }
+
       const result = await request.query(sqlQuery);
       return result.recordset;
     } catch (error) {
@@ -135,14 +158,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      // Simple query to verify connection is alive
       const request = this.pool.request();
       await request.query('SELECT 1 as health');
       return { connected: true };
     } catch (error) {
       return {
         connected: false,
-        error: error instanceof Error ? error.message : 'Unknown error during health check',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Unknown error during health check',
       };
     }
   }
