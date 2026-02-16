@@ -18,8 +18,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const dbName =
       this.configService.get<string>('DB_NAME') ;
 
+    // Tedious requires domain to be a string for NTLM; use empty string if not set
     const domain =
-      this.configService.get<string>('DB_DOMAIN') ;
+      this.configService.get<string>('DB_DOMAIN') ?? '';
     const username =
       this.configService.get<string>('DB_USERNAME') ;
     const password = this.configService.get<string>('DB_PASSWORD');
@@ -36,7 +37,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       authentication: {
         type: 'ntlm',
         options: {
-          domain: domain,
+          domain,
           userName: username,
           password: password,
         },

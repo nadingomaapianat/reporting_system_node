@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, HttpException, HttpStatus, ExceptionFilter, Catch, ArgumentsHost } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import * as bodyParser from 'body-parser';
 import helmet from 'helmet';
 
 
@@ -40,7 +41,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Parse form POSTs (e.g. /api/auth/entry-token from HTML form with application/x-www-form-urlencoded)
-  app.use(express.urlencoded({ extended: true }));
+  app.use(bodyParser.urlencoded({ extended: true }));
 
   // Security middleware
   app.use(helmet());
@@ -113,17 +114,43 @@ async function bootstrap() {
     preflightContinue: false,
     optionsSuccessStatus: 204,
   });
-  
-  // Global validation pipe
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
-  
-  // Global exception filter to handle errors gracefully
-  app.useGlobalFilters(new GlobalExceptionFilter());
-  
+
+  app.use((req, res, next) => {
+    // إزالة الرأس X-Powered-By
+    res.removeHeader('X-Powered-By');
+    next();
+  });
+
+  // Configure body parser with increased limits
+  app.use(bodyParser.json({ limit: '50mb' }));
+  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+  // Configure body parser for large payloads (already set above with 50mb limit)
+
+  // Error handling middleware
+  app.use((err, req, res, next) => {
+    if (err.status === 413 || err.type === 'entity.too.large') {
+      return res.status(413).json({
+        statusCode: 413,
+        message: 'File size exceeds the maximum limit of 50MB',
+        error: 'Payload Too Large'
+      });
+    }
+    
+    res.status(500).json({
+      statusCode: 500,
+      message: 'Server Error',
+    });
+  });
+
+ 
+  app.useGlobalPipes(new ValidationPipe());
+
+  app.enableCors({ 
+    origin: [process.env.CHART_URL, process.env.WEB_SOCKET, process.env.FRONTEND_URL, process.env.FRONTEND_URL2], // Replace with your frontend URLs
+    credentials: true,  
+  });
+
   // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));
   
