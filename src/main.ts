@@ -6,37 +6,6 @@ import * as bodyParser from 'body-parser';
 import helmet from 'helmet';
 
 
-@Catch()
-class GlobalExceptionFilter implements ExceptionFilter {
-  catch(exception: any, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse();
-    const request = ctx.getRequest();
-    
-    const status = exception instanceof HttpException
-      ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
-    
-    const responseMessage = exception instanceof HttpException
-      ? exception.getResponse()
-      : { message: exception.message || 'Internal server error' };
-    
-    // Ensure message is always an object for spreading
-    const message = typeof responseMessage === 'string'
-      ? { message: responseMessage }
-      : responseMessage;
-    
-    console.error(`[${request.method}] ${request.url} - Error:`, exception);
-    
-    response.status(status).json({
-      statusCode: status,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      ...message
-    });
-  }
-}
-
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -49,8 +18,8 @@ async function bootstrap() {
   // CORS: env CORS_ORIGINS (comma-separated) or fallback for dev
   const envOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
   const devOrigins = [
-    'https://grc-reporting-uat.adib.co.eg',
-    'https://grc-reporting-node-uat.adib.co.eg',
+    'http://localhost:3000',
+    'http://localhost:3002',
     
    
     
@@ -153,7 +122,7 @@ async function bootstrap() {
 
   // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));
-  
+
   const port = process.env.PORT || 3002;
   await app.listen(port, '0.0.0.0');
   
@@ -161,7 +130,4 @@ async function bootstrap() {
   // console.log(`📊 WebSocket server ready for real-time updates`);
 }
 
-bootstrap().catch((error) => {
-  console.error('Failed to start server:', error);
-  process.exit(1);
-});
+bootstrap();

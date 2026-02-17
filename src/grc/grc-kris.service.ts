@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
+import { fq } from '../shared/db-config';
 
 @Injectable()
 export class GrcKrisService {
@@ -59,10 +60,7 @@ export class GrcKrisService {
       // console.log('[getKrisDashboard] Date filter:', dateFilter);
 
       // Get user function access (super_admin_ sees everything)
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       // console.log('[getKrisDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
       
       const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
@@ -655,6 +653,8 @@ export class GrcKrisService {
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           AND k.status = 'active'
+          ${dateFilter}
+          ${functionFilter}
       `;
       let activeKrisDetailsRows: any[] = [];
       try {
@@ -797,10 +797,7 @@ export class GrcKrisService {
 
   async getTotalKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -847,10 +844,7 @@ export class GrcKrisService {
   }
   async getPendingPreparerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -894,10 +888,7 @@ export class GrcKrisService {
 
   async getPendingCheckerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -947,10 +938,7 @@ export class GrcKrisService {
 
   async getPendingReviewerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1000,10 +988,7 @@ export class GrcKrisService {
 
   async getPendingAcceptanceKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1063,10 +1048,7 @@ export class GrcKrisService {
   // Detail endpoints for info icons
   async getKrisByStatus(user: any, status: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1137,10 +1119,7 @@ export class GrcKrisService {
 
   async getKrisByLevel(user: any, level: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1274,10 +1253,7 @@ export class GrcKrisService {
 
   async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1344,10 +1320,7 @@ export class GrcKrisService {
 
   async getKrisWithAssessmentsByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const kriFunctionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1445,10 +1418,7 @@ export class GrcKrisService {
 
   async getKrisByFrequency(user: any, frequency: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1520,10 +1490,7 @@ export class GrcKrisService {
     }
     
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Log for debugging
@@ -1653,10 +1620,7 @@ export class GrcKrisService {
 
   async getKrisByMonthYear(user: any, monthYear: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1739,10 +1703,7 @@ export class GrcKrisService {
 
   async getKriAssessmentsByMonthAndLevel(user: any, monthYear: string, assessmentLevel: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers
@@ -1878,10 +1839,7 @@ export class GrcKrisService {
 
   async getKrisByOverdueStatus(user: any, overdueStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
 
     // Ensure page and limit are integers

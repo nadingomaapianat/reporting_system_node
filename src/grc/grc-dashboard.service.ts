@@ -27,10 +27,7 @@ export class GrcDashboardService extends BaseDashboardService {
   // Control-specific card data with function filtering
   async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
     const config = this.getConfig();
@@ -241,10 +238,7 @@ export class GrcDashboardService extends BaseDashboardService {
   async getControlsByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       // Ensure page and limit are integers
@@ -327,10 +321,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -403,10 +394,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -479,10 +467,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -555,10 +540,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -627,10 +609,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -707,10 +686,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -780,10 +756,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -928,10 +901,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -1074,10 +1044,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -1161,10 +1128,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -1250,10 +1214,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -1330,10 +1291,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -1413,10 +1371,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
@@ -1532,10 +1487,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');

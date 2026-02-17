@@ -12,10 +12,7 @@ export class UserFunctionsController {
 
   @Get()
   async getUserFunctions(@Req() req: any) {
-    const functions = await this.userFunctionAccess.getUserFunctions(
-      req.user.id,
-      req.user.groupName,
-    );
+    const functions = await this.userFunctionAccess.getUserFunctions(req.user);
     return functions;
   }
 }
