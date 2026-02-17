@@ -77,6 +77,11 @@ function isAllowedRedirectUri(uri: string): boolean {
   // Allow 127.0.0.1 when base is localhost (and vice versa) for same port
   const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'http://localhost:3000' : null;
   if (altBase && (u === altBase || u === `${altBase}/` || u.startsWith(`${altBase}/`))) return true;
+  // In live UAT, allow redirect to both https and http for same host (e.g. grc-reporting-uat.adib.co.eg)
+  if (base.includes('grc-reporting-uat.adib.co.eg')) {
+    const other = base.startsWith('https://') ? base.replace('https://', 'http://') : base.replace('http://', 'https://');
+    if (u === other || u === `${other}/` || u.startsWith(`${other}/`)) return true;
+  }
   return false;
 }
 
