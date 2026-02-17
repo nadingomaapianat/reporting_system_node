@@ -70,10 +70,7 @@ export abstract class BaseDashboardService {
     // Get function filter if user is provided and service is available
     let functionFilter = '';
     if (user && this.userFunctionAccess) {
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       // console.log('[BaseDashboardService.getDashboardData] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionId: functionId });
       
       // Apply appropriate function filter based on dashboard type
@@ -390,10 +387,7 @@ export abstract class BaseDashboardService {
     // Get function filter if user is provided and service is available
     let functionFilter = '';
     if (user && this.userFunctionAccess) {
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       // Only apply Control function filter if this is Controls dashboard
       if (config.tableName && config.tableName.includes('Controls')) {
         functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);

@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
-const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://grc-dcc-uat.adib.co.eg';
+const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://grc-reporting-uat.adib.co.eg';
 const JWT_EXPIRES_IN = '2h';
 
 /**
@@ -56,8 +56,11 @@ export class AuthService {
       }
 
       const userId = res.data.user_id;
+      const groupName = res.data.group_name ?? res.data.groupName ?? undefined;
+      const role = res.data.role ?? undefined;
+      const isAdmin = res.data.is_admin ?? res.data.isAdmin ?? undefined;
       const token = this.jwtService.sign(
-        { id: userId },
+        { id: userId, groupName, role, isAdmin },
         { expiresIn: JWT_EXPIRES_IN },
       );
       const expiresInSeconds = 2 * 60 * 60; // 2 hours in seconds

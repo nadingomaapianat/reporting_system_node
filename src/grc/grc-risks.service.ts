@@ -24,10 +24,7 @@ export class GrcRisksService extends BaseDashboardService {
     // console.log('[getRisksDashboard] Date filter:', dateFilter);
     
     // Get user function access (super_admin_ sees everything)
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     // console.log('[getRisksDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
     
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
@@ -487,10 +484,7 @@ export class GrcRisksService extends BaseDashboardService {
   // Risk-specific card data with function filtering
   async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     // Normalize hyphenated card types from frontend (e.g., 'new-risks')
@@ -672,10 +666,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getHighRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
@@ -728,10 +719,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getMediumRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
@@ -784,10 +772,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getLowRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
@@ -840,10 +825,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRiskReduction(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
@@ -896,10 +878,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getNewRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
@@ -949,10 +928,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async exportRisks(user: any, format: 'pdf' | 'excel', startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
@@ -1015,10 +991,7 @@ export class GrcRisksService extends BaseDashboardService {
   // Detail endpoints for charts and tables
   async getRisksByCategory(user: any, category: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1098,10 +1071,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByEventType(user: any, eventType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1179,10 +1149,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1267,10 +1234,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByApprovalStatus(user: any, approvalStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1386,10 +1350,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByFinancialImpact(user: any, financialImpact: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1454,10 +1415,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const userFunctionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1531,10 +1489,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByBusinessProcess(user: any, processName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1594,10 +1549,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByName(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1665,10 +1617,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksByControlName(user: any, controlName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -1736,10 +1685,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   async getRisksForComparison(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');

@@ -895,10 +895,7 @@ ORDER BY month;
     // console.log('[GrcComplyService.getComplyDashboard] Received filters:', { startDate, endDate, functionId, userId: user?.id, groupName: user?.groupName });
     
     // Get user function access (super_admin_ sees everything)
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     // console.log('[GrcComplyService.getComplyDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionId: functionId });
     
     // Pass filters and access to runAllReports so they are applied to all SQL queries
@@ -971,10 +968,7 @@ ORDER BY month;
     const offset = (pageInt - 1) * limitInt;
 
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     // Use report 6 query as base with filters
     let query = this.getSqlForReport('6', startDate, endDate, functionId, access);
@@ -1034,10 +1028,7 @@ ORDER BY month;
     const offset = (pageInt - 1) * limitInt;
 
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     // Use report 1 query as base with filters
     let query = this.getSqlForReport('1', startDate, endDate, functionId, access);
@@ -1098,10 +1089,7 @@ ORDER BY month;
     const offset = (pageInt - 1) * limitInt;
 
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     // Use report 13 query as base with filters
     let query = this.getSqlForReport('13', startDate, endDate, functionId, access);
@@ -1170,10 +1158,7 @@ ORDER BY month;
     const offset = (pageInt - 1) * limitInt;
 
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     // Get the SQL query
     const sqlQuery = this.getSqlForReport(report, startDate, endDate, functionId, access);
@@ -1330,10 +1315,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'C.[createdAt]');
     const functionFilter = this.buildComplianceFunctionFilter(access, functionId);
@@ -1411,10 +1393,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'C.[createdAt]');
     const functionFilter = this.buildComplianceFunctionFilter(access, functionId);
@@ -1492,10 +1471,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'C.[createdAt]');
     const functionFilter = this.buildComplianceFunctionFilter(access, functionId);
@@ -1573,10 +1549,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
     const functionFilter = this.buildSurveyUserFunctionFilter(access, functionId, 'sa.userId');
@@ -1677,10 +1650,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
     // Build function filter similar to report 16
@@ -1828,10 +1798,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
     const functionFilter = this.buildSurveyUserFunctionFilter(access, functionId, 'sa.userId');
@@ -1909,10 +1876,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'BankQuestions.[createdAt]');
     const functionFilter = this.buildControlFunctionFilterForComply('Controls', access, functionId);
@@ -1978,10 +1942,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'BankQuestions.[createdAt]');
     const functionFilter = this.buildRiskFunctionFilterForComply('Risks', access, functionId);
@@ -2230,10 +2191,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'controls.[createdAt]');
     const functionFilter = this.buildControlFunctionFilterForComply('controls', access, functionId);
@@ -2296,10 +2254,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
     const functionFilter = this.buildSurveyFunctionFilter(access, functionId, 'f');
@@ -2367,10 +2322,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'sa.createdAt');
     const functionFilter = this.buildSurveyUserFunctionFilter(access, functionId, 'sa.userId');
@@ -2497,10 +2449,7 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'sia.createdAt');
     const functionFilter = this.buildControlFunctionFilterForComply('ctrl', access, functionId);

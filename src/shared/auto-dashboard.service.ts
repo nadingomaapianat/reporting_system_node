@@ -18,10 +18,7 @@ export class AutoDashboardService {
     // Get function filter if user is provided and service is available
     let functionFilter = '';
     if (user && this.userFunctionAccess) {
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
     }
 
@@ -68,10 +65,7 @@ export class AutoDashboardService {
     // Get function filter if user is provided and service is available
     let functionFilter = '';
     if (user && this.userFunctionAccess) {
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
     }
 

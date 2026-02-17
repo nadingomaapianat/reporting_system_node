@@ -59,10 +59,7 @@ export class GrcIncidentsService {
       // console.log('[getIncidentsDashboard] Date filter:', dateFilter);
 
       // Get user function access (super_admin_ sees everything)
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       // console.log('[getIncidentsDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
       
       // Build function filter - use selected functionId if provided, otherwise use user's functions
@@ -871,10 +868,7 @@ export class GrcIncidentsService {
 
   async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
@@ -930,10 +924,7 @@ export class GrcIncidentsService {
 
   async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
@@ -982,10 +973,7 @@ export class GrcIncidentsService {
 
   async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
@@ -1040,10 +1028,7 @@ export class GrcIncidentsService {
 
   async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
@@ -1098,10 +1083,7 @@ export class GrcIncidentsService {
 
   async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-      user.id,
-      user.groupName,
-    );
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
@@ -1188,10 +1170,7 @@ export class GrcIncidentsService {
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
       
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -1279,10 +1258,7 @@ export class GrcIncidentsService {
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -1379,10 +1355,7 @@ export class GrcIncidentsService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -1461,10 +1434,7 @@ export class GrcIncidentsService {
   ) {
     try {
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -1614,10 +1584,7 @@ export class GrcIncidentsService {
       }
 
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -1694,10 +1661,7 @@ export class GrcIncidentsService {
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -1797,10 +1761,7 @@ export class GrcIncidentsService {
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -1901,10 +1862,7 @@ export class GrcIncidentsService {
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -2011,10 +1969,7 @@ export class GrcIncidentsService {
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',
@@ -2132,10 +2087,7 @@ export class GrcIncidentsService {
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(
-        user.id,
-        user.groupName,
-      );
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
         'i',
         'function_id',

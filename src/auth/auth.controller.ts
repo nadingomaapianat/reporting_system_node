@@ -9,7 +9,20 @@ const COOKIE_NAME = 'reporting_node_token';
 
 /** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */
 function getAllowedEntryOrigins(): string[] {
-  const list = [REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase()];
+  const base = REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase();
+  const list = [base];
+  // In development, allow both localhost and 127.0.0.1 (browser may send either)
+  if (base.includes('localhost:3000')) {
+    if (!list.includes('http://127.0.0.1:3000')) list.push('http://127.0.0.1:3000');
+  }
+  if (base.includes('127.0.0.1:3000')) {
+    if (!list.includes('http://localhost:3000')) list.push('http://localhost:3000');
+  }
+  // In live UAT, allow both https and http for same host (e.g. https://grc-reporting-uat.adib.co.eg)
+  if (base.includes('grc-reporting-uat.adib.co.eg')) {
+    const other = base.startsWith('https://') ? base.replace('https://', 'http://') : base.replace('http://', 'https://');
+    if (!list.includes(other)) list.push(other);
+  }
   const extra = process.env.ENTRY_TOKEN_ALLOWED_ORIGINS;
   if (extra) {
     extra.split(',').forEach((o) => {
@@ -60,7 +73,11 @@ function isAllowedRedirectUri(uri: string): boolean {
   const base = REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase();
   const u = (uri || '').trim().toLowerCase().replace(/\/+$/, '');
   if (!u) return false;
-  return u === base || u === `${base}/` || u.startsWith(`${base}/`);
+  if (u === base || u === `${base}/` || u.startsWith(`${base}/`)) return true;
+  // Allow 127.0.0.1 when base is localhost (and vice versa) for same port
+  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'http://localhost:3000' : null;
+  if (altBase && (u === altBase || u === `${altBase}/` || u.startsWith(`${altBase}/`))) return true;
+  return false;
 }
 
 /**
@@ -90,19 +107,25 @@ export class AuthController {
     const moduleId = (body?.module_id && String(body.module_id).trim()) || 'default';
 
     // Server-side: only accept form POST from reporting frontend (or allowed origins)
+    const isDev = process.env.NODE_ENV !== 'production';
     const allowedEntry = getAllowedEntryOrigins();
-    if (allowedEntry.length && !isAllowedOrigin(origin || '', referer || '', allowedEntry)) {
+    const hasOriginOrReferer = !!(origin?.trim() || referer?.trim());
+    const allowed = isAllowedOrigin(origin || '', referer || '', allowedEntry);
+    const devAllowNoOrigin = isDev && allowedEntry.some((o) => o.includes('localhost') || o.includes('127.0.0.1'));
+    const skipOriginCheck = isDev && (allowedEntry.some((o) => o.includes('localhost') || o.includes('127.0.0.1')));
+    if (!skipOriginCheck && allowedEntry.length && !allowed && !(devAllowNoOrigin && !hasOriginOrReferer)) {
       this.logger.warn(
-        `[AUDIT] event=ENTRY_TOKEN_FAIL reason=invalid_origin origin=${origin || '(none)'} referer=${referer || '(none)'} timestamp=${new Date().toISOString()}`,
+        `[AUDIT] event=ENTRY_TOKEN_FAIL reason=invalid_origin origin=${origin || '(none)'} referer=${referer || '(none)'} allowed=${allowedEntry.join(',')} timestamp=${new Date().toISOString()}`,
       );
-      throw new ForbiddenException('Invalid origin');
+      throw new ForbiddenException({ reason: 'invalid_origin', message: 'Invalid origin' });
     }
 
     if (!iet) {
+      console.log('IET required');
       this.logger.warn(
         `[AUDIT] event=ENTRY_TOKEN_FAIL reason=no_iet timestamp=${new Date().toISOString()}`,
       );
-      throw new ForbiddenException('IET required');
+      throw new ForbiddenException({ reason: 'no_iet', message: 'IET required' });
     }
 
     const result = await this.authService.createTokenFromIet(iet, moduleId, origin || '');
@@ -110,7 +133,7 @@ export class AuthController {
       this.logger.warn(
         `[AUDIT] event=ENTRY_TOKEN_FAIL reason=invalid_or_expired_iet iet_length=${iet.length} timestamp=${new Date().toISOString()}`,
       );
-      throw new ForbiddenException('Invalid or expired IET');
+      throw new ForbiddenException({ reason: 'invalid_iet', message: 'Invalid or expired IET. Open Reporting from the main app again.' });
     }
 
     this.logger.log(

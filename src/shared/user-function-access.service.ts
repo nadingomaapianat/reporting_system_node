@@ -12,11 +12,33 @@ export class UserFunctionAccessService {
   constructor(private readonly db: DatabaseService) {}
 
   /**
-   * Get the list of function IDs a user has access to, plus super-admin flag.
-   * This mirrors the logic in adib_backend where groupName === 'super_admin_' means full access.
+   * Whether the user is admin (sees all functions and all data when no filter selected).
+   * Admin: groupName === 'super_admin_' from main backend, or userId in REPORTING_SUPER_ADMIN_USER_IDS, or role === 'admin' / isAdmin.
    */
-  async getUserFunctionAccess(userId: string, groupName?: string): Promise<UserFunctionAccess> {
-    const isSuperAdmin = groupName === 'super_admin_';
+  private isAdmin(userId: string, groupName?: string, role?: string, isAdmin?: boolean): boolean {
+    if (groupName === 'super_admin_') return true;
+    const allowedIds = (process.env.REPORTING_SUPER_ADMIN_USER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (allowedIds.includes(userId)) return true;
+    if (role === 'admin' || isAdmin === true) return true;
+    return false;
+  }
+
+  /**
+   * Get the list of function IDs a user has access to, plus super-admin flag.
+   * Admin: all data when no function selected; filter list shows all functions.
+   * Normal user: only their functions in filter and in data.
+   */
+  async getUserFunctionAccess(
+    userIdOrUser: string | { id: string; groupName?: string; role?: string; isAdmin?: boolean },
+    groupName?: string,
+    role?: string,
+    isAdminFlag?: boolean,
+  ): Promise<UserFunctionAccess> {
+    const userId = typeof userIdOrUser === 'object' ? userIdOrUser.id : userIdOrUser;
+    const g = typeof userIdOrUser === 'object' ? userIdOrUser.groupName : groupName;
+    const r = typeof userIdOrUser === 'object' ? userIdOrUser.role : role;
+    const adm = typeof userIdOrUser === 'object' ? userIdOrUser.isAdmin : isAdminFlag;
+    const isSuperAdmin = this.isAdmin(userId, g, r, adm);
     if (isSuperAdmin) {
       return { isSuperAdmin: true, functionIds: [] };
     }
@@ -101,6 +123,11 @@ export class UserFunctionAccessService {
     if (access.isSuperAdmin) return '';
 
     if (!access.functionIds.length) {
+      // When user has no function assignments, by default they see nothing (secure).
+      // Set REPORTS_EMPTY_FUNCTIONS_SEE_ALL=true to let them see all data (e.g. reporting DB has no UserFunction rows yet).
+      if (process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true') {
+        return '';
+      }
       return ' AND 1 = 0';
     }
 
@@ -140,6 +167,7 @@ export class UserFunctionAccessService {
     if (access.isSuperAdmin) return '';
 
     if (!access.functionIds.length) {
+      if (process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true') return '';
       return ' AND 1 = 0';
     }
 
@@ -188,6 +216,7 @@ export class UserFunctionAccessService {
     if (access.isSuperAdmin) return '';
 
     if (!access.functionIds.length) {
+      if (process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true') return '';
       return ' AND 1 = 0';
     }
 
@@ -202,13 +231,24 @@ export class UserFunctionAccessService {
   }
 
   /**
-   * Get user functions with names for display in UI
+   * Get user functions with names for display in UI.
+   * Admin: returns all functions so they can choose from dropdown.
+   * Normal user: returns only their assigned functions; if one function, UI can show direct data.
    */
-  async getUserFunctions(userId: string, groupName?: string): Promise<Array<{ id: string; name: string }>> {
-    const isSuperAdmin = groupName === 'super_admin_';
-    
+  async getUserFunctions(
+    userIdOrUser: string | { id: string; groupName?: string; role?: string; isAdmin?: boolean },
+    groupName?: string,
+    role?: string,
+    isAdminFlag?: boolean,
+  ): Promise<Array<{ id: string; name: string }>> {
+    const userId = typeof userIdOrUser === 'object' ? userIdOrUser.id : userIdOrUser;
+    const g = typeof userIdOrUser === 'object' ? userIdOrUser.groupName : groupName;
+    const r = typeof userIdOrUser === 'object' ? userIdOrUser.role : role;
+    const adm = typeof userIdOrUser === 'object' ? userIdOrUser.isAdmin : isAdminFlag;
+    const isSuperAdmin = this.isAdmin(userId, g, r, adm);
+
     if (isSuperAdmin) {
-      // Super admin sees all functions
+      // Admin sees all functions in filter
       const query = `
         SELECT f.id, f.name
         FROM ${fq('Functions')} f
