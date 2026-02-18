@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
-import https from 'https';
+import * as https from 'https';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
@@ -28,10 +28,14 @@ export class AuthService {
         'Content-Type': 'application/json',
       },
       validateStatus: () => true,
+      timeout: 15000,
     };
 
-    // In development, allow self-signed certificates
-    if (process.env.NODE_ENV === 'development' || process.env.ALLOW_SELF_SIGNED_CERTS === 'true') {
+    // In development or when ALLOW_SELF_SIGNED_CERTS=true, allow self-signed certificates for HTTPS URLs
+    const allowSelfSigned = process.env.NODE_ENV === 'development' || process.env.ALLOW_SELF_SIGNED_CERTS === 'true';
+    const isHttps = MAIN_BACKEND_URL.startsWith('https://');
+    
+    if (allowSelfSigned && isHttps && https && https.Agent) {
       config.httpsAgent = new https.Agent({
         rejectUnauthorized: false
       });
