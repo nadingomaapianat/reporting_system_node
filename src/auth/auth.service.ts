@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
+import https from 'https';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
@@ -20,22 +21,42 @@ export type CreateTokenFromIetResult =
 export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
 
+  private getAxiosConfig() {
+    const config: any = {
+      headers: {
+        Origin: ORIGIN_FOR_MAIN_BACKEND,
+        'Content-Type': 'application/json',
+      },
+      validateStatus: () => true,
+    };
+
+    // In development, allow self-signed certificates
+    if (process.env.NODE_ENV === 'development' || process.env.ALLOW_SELF_SIGNED_CERTS === 'true') {
+      config.httpsAgent = new https.Agent({
+        rejectUnauthorized: false
+      });
+    }
+
+    return config;
+  }
+
   async createTokenFromIet(iet: string, moduleId: string, _origin: string): Promise<CreateTokenFromIetResult> {
-    const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
-    const url = `${base}/entry/validate`;
+  
+    
+      const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
+      const url = `${base}/entry/validate`;
+  
+      
+   
+   
+    
 
     try {
       // POST with IET in body to avoid query-string encoding issues (no_row can be caused by mangled IET in GET)
       const res = await axios.post(
         url,
         { iet: iet, module_id: moduleId },
-        {
-          headers: {
-            Origin: ORIGIN_FOR_MAIN_BACKEND,
-            'Content-Type': 'application/json',
-          },
-          validateStatus: () => true,
-        },
+        this.getAxiosConfig(),
       );
 
       const reason = (res.data as { reason?: string })?.reason;
