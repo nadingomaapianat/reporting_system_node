@@ -54,13 +54,29 @@ export class UserFunctionAccessService {
         AND f.deletedAt IS NULL
     `;
 
-    const rows = await this.db.query(query, [userId]);
-    const functionIds = rows.map((r: any) => r.id as string);
+    try {
+      const rows = await this.db.query(query, [userId]);
+      const functionIds = rows.map((r: any) => r.id as string);
 
-    return {
-      isSuperAdmin: false,
-      functionIds,
-    };
+      return {
+        isSuperAdmin: false,
+        functionIds,
+      };
+    } catch (e: any) {
+      const msg = (e?.message || String(e)) as string;
+      // If the UserFunction table does not exist in this database (common in UAT where only NEWDCC-V4-UAT is present),
+      // fall back to a configurable behaviour so the dashboards still work.
+      if (msg.includes('Invalid object name') && msg.includes('UserFunction')) {
+        const seeAll = process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true';
+        if (seeAll) {
+          // Treat as admin: no function filter applied
+          return { isSuperAdmin: true, functionIds: [] };
+        }
+        // Secure default: no functions → no data
+        return { isSuperAdmin: false, functionIds: [] };
+      }
+      throw e;
+    }
   }
 
   /**
@@ -271,8 +287,30 @@ export class UserFunctionAccessService {
       ORDER BY f.name
     `;
 
-    const rows = await this.db.query(query, [userId]);
-    return rows.map((r: any) => ({ id: r.id, name: r.name }));
+    try {
+      const rows = await this.db.query(query, [userId]);
+      return rows.map((r: any) => ({ id: r.id, name: r.name }));
+    } catch (e: any) {
+      const msg = (e?.message || String(e)) as string;
+      if (msg.includes('Invalid object name') && msg.includes('UserFunction')) {
+        // If UserFunction table is missing but REPORTS_EMPTY_FUNCTIONS_SEE_ALL=true,
+        // fall back to showing all functions in the filter so the UI remains usable.
+        if (process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true') {
+          const allQuery = `
+            SELECT f.id, f.name
+            FROM ${fq('Functions')} f
+            WHERE f.isDeleted = 0
+              AND f.deletedAt IS NULL
+            ORDER BY f.name
+          `;
+          const rows = await this.db.query(allQuery);
+          return rows.map((r: any) => ({ id: r.id, name: r.name }));
+        }
+        // Otherwise, return empty list (no functions available).
+        return [];
+      }
+      throw e;
+    }
   }
 }
 
