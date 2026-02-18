@@ -134,11 +134,20 @@ export class AuthController {
     }
 
     const result = await this.authService.createTokenFromIet(iet, moduleId, origin || '');
-    if (!result) {
+    if (result.ok === false) {
+      const reason = result.reason || 'invalid_iet';
+      const message =
+        reason === 'expired'
+          ? 'Entry token expired. Open Reporting from the main app again.'
+          : reason === 'already_used'
+            ? 'Entry token was already used. Open Reporting from the main app again (do not refresh or open in two tabs).'
+            : reason === 'invalid_origin'
+              ? 'Invalid origin. Open Reporting from the main application.'
+              : 'Invalid or expired IET. Open Reporting from the main app again.';
       this.logger.warn(
-        `[AUDIT] event=ENTRY_TOKEN_FAIL reason=invalid_or_expired_iet iet_length=${iet.length} timestamp=${new Date().toISOString()}`,
+        `[AUDIT] event=ENTRY_TOKEN_FAIL reason=${reason} main_backend_reason=${reason} iet_length=${iet.length} timestamp=${new Date().toISOString()}`,
       );
-      throw new ForbiddenException({ reason: 'invalid_iet', message: 'Invalid or expired IET. Open Reporting from the main app again.' });
+      throw new ForbiddenException({ reason, message });
     }
 
     this.logger.log(
