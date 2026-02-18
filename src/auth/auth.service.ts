@@ -7,6 +7,11 @@ const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC
 const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://grc-reporting-uat.adib.co.eg';
 const JWT_EXPIRES_IN = '2h';
 
+/** Result of IET validation: success with token, or failure with reason from main backend. */
+export type CreateTokenFromIetResult =
+  | { ok: true; token: string; expiresIn: number; userId: string }
+  | { ok: false; reason: string };
+
 /**
  * Validate IET with main backend and create a JWT for reporting_system_node so the frontend can call our APIs.
  * Sends Origin = main app (IFRAME_MAIN_ORIGIN), not the reporting frontend origin, so main backend allows the request.
@@ -15,15 +20,9 @@ const JWT_EXPIRES_IN = '2h';
 export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
 
-  async createTokenFromIet(iet: string, moduleId: string, _origin: string): Promise<{ token: string; expiresIn: number; userId: string } | null> {
+  async createTokenFromIet(iet: string, moduleId: string, _origin: string): Promise<CreateTokenFromIetResult> {
     const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
     const url = `${base}/entry/validate`;
-
-    // console.log('iet', iet);
-    // console.log('moduleId', moduleId);
-    // console.log('origin', _origin);
-
-    // console.log('url', url);
 
     try {
       // POST with IET in body to avoid query-string encoding issues (no_row can be caused by mangled IET in GET)
@@ -38,21 +37,23 @@ export class AuthService {
           validateStatus: () => true,
         },
       );
-    
-      if (res.status === 403) {
-        const reason = (res.data as { reason?: string })?.reason;
-        if (reason) {
-          const fixNoRow = 'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration on main backend; restart main backend; open Reporting from main app (do not paste IET from another tab)';
-          console.warn(`[IET] CASE=${reason} (from main backend) | FIX: ${reason === 'invalid_origin' ? 'Match origin (e.g. https://grc-dcc-uat.adib.co.eg)' : reason === 'expired' ? 'Open Reporting again (< 90s)' : reason === 'already_used' ? 'Fresh IET, avoid double submit' : reason === 'no_row' ? fixNoRow : 'See main backend terminal'}`);
-        } else {
+
+      const reason = (res.data as { reason?: string })?.reason;
+      const success = (res.status === 200 || res.status === 201) && res.data?.success && res.data?.user_id;
+
+      if (!success) {
+        // Always log main backend response for debugging 403 invalid_iet
+        console.warn(
+          `[IET] main_backend response status=${res.status} reason=${reason ?? '(none)'} body=${JSON.stringify(res.data)}`,
+        );
+        if (res.status === 403 && reason) {
+          const fixNoRow =
+            'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration on main backend; restart main backend; open Reporting from main app (do not paste IET from another tab)';
           console.warn(
-            '[IET] Main backend returned 403 (no reason in body). Check MAIN BACKEND terminal for [IET] CASE=...',
+            `[IET] CASE=${reason} | FIX: ${reason === 'invalid_origin' ? 'Match origin (e.g. https://grc-dcc-uat.adib.co.eg)' : reason === 'expired' ? 'Open Reporting again (IET TTL may be 30s – consider increasing on main backend)' : reason === 'already_used' ? 'Fresh IET, avoid double submit or second tab' : reason === 'no_row' ? fixNoRow : 'See main backend'}`,
           );
         }
-      }
-
-      if ((res.status !== 200 && res.status !== 201) || !res.data?.success || !res.data?.user_id) {
-        return null;
+        return { ok: false, reason: reason ?? 'invalid_iet' };
       }
 
       const userId = res.data.user_id;
@@ -64,14 +65,10 @@ export class AuthService {
         { expiresIn: JWT_EXPIRES_IN },
       );
       const expiresInSeconds = 2 * 60 * 60; // 2 hours in seconds
-
-      // console.log('userId', userId);
-      // console.log('token', token);
-      // console.log('expiresInSeconds', expiresInSeconds);
-     
-      return { token, expiresIn: expiresInSeconds, userId };
-    } catch {
-      return null;
+      return { ok: true, token, expiresIn: expiresInSeconds, userId };
+    } catch (err) {
+      console.warn('[IET] createTokenFromIet request failed', (err as Error)?.message ?? err);
+      return { ok: false, reason: 'invalid_iet' };
     }
   }
 }
