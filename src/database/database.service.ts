@@ -22,7 +22,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const domain =
       this.configService.get<string>('DB_DOMAIN') ?? '';
     const username =
-      this.configService.get<string>('DB_USERNAME') ;
+      this.configService.get<string>('DB_USERNAME')?.trim();
     const password = this.configService.get<string>('DB_PASSWORD');
 
     if (!username) {
@@ -81,21 +81,44 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       },
     };
     
+    // Log connection attempt (without password)
+    console.log(
+      `Attempting database connection: server=${dbHost}:${dbPort}, database=${dbName}, authType=${useNtlm ? 'NTLM' : 'SQL Server'}, user=${username}`
+    );
+
     try {
       this.pool = await sql.connect(config);
       const authType = useNtlm ? 'NTLM' : 'SQL Server';
       const authInfo = useNtlm ? `${domain}\\${username}` : username;
       console.log(
-        `Database connected using ${authType} authentication: ${authInfo}`
+        `✓ Database connected successfully using ${authType} authentication: ${authInfo}`
       );
     } catch (err) {
-      console.error('Database connection failed:', err);
+      console.error('✗ Database connection failed:', err);
       console.error(
-        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain}, user=${username}, authType=${useNtlm ? 'NTLM' : 'SQL Server'}`
+        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain || '(empty)'}, user=${username}, authType=${useNtlm ? 'NTLM' : 'SQL Server'}`
       );
+      
       if (err instanceof Error) {
+        const errorCode = (err as any).code || 'N/A';
         console.error(`Error message: ${err.message}`);
-        console.error(`Error code: ${(err as any).code || 'N/A'}`);
+        console.error(`Error code: ${errorCode}`);
+        
+        // Provide helpful troubleshooting information
+        if (errorCode === 'ELOGIN') {
+          console.error('\n=== Troubleshooting ELOGIN error ===');
+          console.error('Possible causes:');
+          console.error('1. Incorrect username or password');
+          console.error('2. SQL Server authentication mode not enabled on the server');
+          console.error('3. User account is locked or disabled');
+          console.error('4. Password contains special characters that need proper encoding');
+          console.error('5. Network/firewall blocking the connection');
+          console.error('\nTo enable SQL Server authentication:');
+          console.error('  - Open SQL Server Management Studio');
+          console.error('  - Right-click server -> Properties -> Security');
+          console.error('  - Select "SQL Server and Windows Authentication mode"');
+          console.error('  - Restart SQL Server service');
+        }
       }
       throw err;
     }
