@@ -9,7 +9,7 @@ import { Request, Response, NextFunction } from 'express';
 const FRAME_ANCESTORS_ORIGIN =
   process.env.IFRAME_MAIN_ORIGIN ||
   process.env.MAIN_APP_ORIGIN ||
-  'https://grc-dcc-uat.adib.co.eg';
+  'https://dcc.pianat.ai';
 
 @Injectable()
 export class FrameAncestorsMiddleware implements NestMiddleware {

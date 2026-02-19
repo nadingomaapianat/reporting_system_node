@@ -18,8 +18,8 @@ async function bootstrap() {
   // CORS: env CORS_ORIGINS (comma-separated) or fallback for dev
   const envOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
   const devOrigins = [
-    'https://grc-reporting-uat.adib.co.eg',
-    'https://grc-reporting-node-uat.adib.co.eg',
+    'https://reporting-system-frontend.pianat.ai',
+    'https://reporting-system-backend.pianat.ai',
     
    
     

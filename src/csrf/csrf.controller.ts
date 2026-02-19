@@ -12,8 +12,8 @@ export class CsrfController {
     if (fromEnv?.length) return fromEnv;
     return [
       process.env.FRONTEND_URL ,
-      'https://grc-reporting-node-uat.adib.co.eg',
-      'https://grc-reporting-uat.adib.co.eg',
+      'https://reporting-system-backend.pianat.ai',
+      'https://reporting-system-frontend.pianat.ai',
       
     ].filter(Boolean);
   })();
