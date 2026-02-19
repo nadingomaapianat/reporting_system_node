@@ -18,35 +18,49 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const dbName =
       this.configService.get<string>('DB_NAME') ;
 
-    // Tedious requires domain to be a string for NTLM; use empty string if not set
+    // Determine authentication type based on domain configuration
     const domain =
       this.configService.get<string>('DB_DOMAIN') ?? '';
     const username =
       this.configService.get<string>('DB_USERNAME') ;
     const password = this.configService.get<string>('DB_PASSWORD');
 
+    if (!username) {
+      throw new Error('DB_USERNAME is required for database authentication');
+    }
     if (!password) {
-      throw new Error('DB_PASSWORD is required for NTLM authentication');
+      throw new Error('DB_PASSWORD is required for database authentication');
     }
 
+    // Use NTLM authentication only if domain is explicitly provided
+    // Otherwise, use SQL Server authentication with username and password (default)
+    const useNtlm = domain && domain.trim() !== '';
+    
+    // Build connection config
     const config: sql.config = {
       server: dbHost,
       port: dbPort,
       database: dbName,
-    
-      authentication: {
-        type: 'ntlm',
-        options: {
-          domain,
-          userName: username,
-          password: password,
-        },
-      },
-    
+      // SQL Server authentication: use user and password properties
+      user: useNtlm ? undefined : username,
+      password: useNtlm ? undefined : password,
+      // NTLM authentication: use authentication object (only when domain is provided)
+      authentication: useNtlm
+        ? {
+            type: 'ntlm',
+            options: {
+              domain,
+              userName: username,
+              password: password,
+            },
+          }
+        : undefined,
       options: {
         encrypt: true,
         trustServerCertificate: true,
         enableArithAbort: true,
+        // Note: TLS ServerName deprecation warning when using IP addresses is a Node.js/Tedious issue
+        // This warning is harmless and doesn't affect functionality. It will be resolved in future library versions.
         requestTimeout: parseInt(
           this.configService.get<string>('DB_REQUEST_TIMEOUT') || '60000',
           10
@@ -57,7 +71,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ),
         packetSize: 32768,
       },
-    
       pool: {
         max: parseInt(this.configService.get<string>('DB_POOL_MAX') || '100', 10),
         min: parseInt(this.configService.get<string>('DB_POOL_MIN') || '20', 10),
@@ -70,13 +83,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     
     try {
       this.pool = await sql.connect(config);
+      const authType = useNtlm ? 'NTLM' : 'SQL Server';
+      const authInfo = useNtlm ? `${domain}\\${username}` : username;
       console.log(
-        `Database connected using NTLM: ${domain}\\${username}`
+        `Database connected using ${authType} authentication: ${authInfo}`
       );
     } catch (err) {
       console.error('Database connection failed:', err);
       console.error(
-        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain}, user=${username}`
+        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain}, user=${username}, authType=${useNtlm ? 'NTLM' : 'SQL Server'}`
       );
       if (err instanceof Error) {
         console.error(`Error message: ${err.message}`);
@@ -85,6 +100,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw err;
     }
   }
+
 
   async onModuleDestroy() {
     if (this.pool) {
