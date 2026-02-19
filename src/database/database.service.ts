@@ -101,7 +101,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-
   async onModuleDestroy() {
     if (this.pool) {
       await this.pool.close();
