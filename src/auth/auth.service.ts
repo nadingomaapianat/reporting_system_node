@@ -3,9 +3,9 @@ import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
 import * as https from 'https';
 
-const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://dcc-backend.pianat.ai';
+const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'http://localhost:5040';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
-const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://reporting-system-frontend.pianat.ai';
+const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'http://localhost:3000';
 const JWT_EXPIRES_IN = '2h';
 
 /** Result of IET validation: success with token, or failure with reason from main backend. */
@@ -75,7 +75,7 @@ export class AuthService {
           const fixNoRow =
             'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration on main backend; restart main backend; open Reporting from main app (do not paste IET from another tab)';
           console.warn(
-            `[IET] CASE=${reason} | FIX: ${reason === 'invalid_origin' ? 'Match origin (e.g. https://dcc.pianat.ai)' : reason === 'expired' ? 'Open Reporting again (IET TTL may be 30s – consider increasing on main backend)' : reason === 'already_used' ? 'Fresh IET, avoid double submit or second tab' : reason === 'no_row' ? fixNoRow : 'See main backend'}`,
+            `[IET] CASE=${reason} | FIX: ${reason === 'invalid_origin' ? 'Match origin (e.g. http://localhost:5050)' : reason === 'expired' ? 'Open Reporting again (IET TTL may be 30s – consider increasing on main backend)' : reason === 'already_used' ? 'Fresh IET, avoid double submit or second tab' : reason === 'no_row' ? fixNoRow : 'See main backend'}`,
           );
         }
         return { ok: false, reason: reason ?? 'invalid_iet' };

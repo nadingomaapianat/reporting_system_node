@@ -12,8 +12,8 @@ export class CsrfController {
     if (fromEnv?.length) return fromEnv;
     return [
       process.env.FRONTEND_URL ,
-      'https://reporting-system-backend.pianat.ai',
-      'https://reporting-system-frontend.pianat.ai',
+      'http://localhost:3002',
+      'http://localhost:3000',
       
     ].filter(Boolean);
   })();
