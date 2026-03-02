@@ -5,7 +5,7 @@ import * as https from 'https';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://backend-madinetmasr-compliance.comply.now';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
-const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://reporting-madinetmasr-system-frontend.pianat.ai';
+const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://reporting-madinetmasr-system-frontend.comply.now';
 const JWT_EXPIRES_IN = '2h';
 
 /** Result of IET validation: success with token, or failure with reason from main backend. */

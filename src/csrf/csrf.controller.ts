@@ -12,8 +12,8 @@ export class CsrfController {
     if (fromEnv?.length) return fromEnv;
     return [
       process.env.FRONTEND_URL ,
-      'https://reporting-madinetmasr-system-python.pianat.ai',
-      'https://reporting-madinetmasr-system-frontend.pianat.ai',
+      'https://reporting-madinetmasr-system-python.comply.now',
+      'https://reporting-madinetmasr-system-frontend.comply.now',
       
     ].filter(Boolean);
   })();

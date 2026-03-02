@@ -4,7 +4,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
 
-const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://reporting-madinetmasr-system-frontend.pianat.ai';
+const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://reporting-madinetmasr-system-frontend.comply.now';
 const COOKIE_NAME = 'reporting_node_token';
 
 /** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */
@@ -16,9 +16,9 @@ function getAllowedEntryOrigins(): string[] {
     if (!list.includes('http://127.0.0.1:3000')) list.push('http://127.0.0.1:3000');
   }
   if (base.includes('127.0.0.1:3000')) {
-    if (!list.includes('https://reporting-madinetmasr-system-frontend.pianat.ai')) list.push('https://reporting-madinetmasr-system-frontend.pianat.ai');
+    if (!list.includes('https://reporting-madinetmasr-system-frontend.comply.now')) list.push('https://reporting-madinetmasr-system-frontend.comply.now');
   }
-  // In live UAT, allow both https and http for same host (e.g. https://reporting-madinetmasr-system-frontend.pianat.ai)
+  // In live UAT, allow both https and http for same host (e.g. https://reporting-madinetmasr-system-frontend.comply.now)
   if (base.includes('reporting-system-frontend.pianat.ai')) {
     const other = base.startsWith('https://') ? base.replace('https://', 'http://') : base.replace('http://', 'https://');
     if (!list.includes(other)) list.push(other);
@@ -75,7 +75,7 @@ function isAllowedRedirectUri(uri: string): boolean {
   if (!u) return false;
   if (u === base || u === `${base}/` || u.startsWith(`${base}/`)) return true;
   // Allow 127.0.0.1 when base is localhost (and vice versa) for same port
-  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'https://reporting-madinetmasr-system-frontend.pianat.ai' : null;
+  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'https://reporting-madinetmasr-system-frontend.comply.now' : null;
   if (altBase && (u === altBase || u === `${altBase}/` || u.startsWith(`${altBase}/`))) return true;
   // In live UAT, allow redirect to both https and http for same host (e.g. reporting-system-frontend.pianat.ai)
   if (base.includes('reporting-system-frontend.pianat.ai')) {
