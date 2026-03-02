@@ -18,8 +18,8 @@ async function bootstrap() {
   // CORS: env CORS_ORIGINS (comma-separated) or fallback for dev
   const envOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
   const devOrigins = [
-    'http://localhost:3000',
-    'http://localhost:3002',
+    'https://reporting-demo-system-frontend.pianat.ai',
+    'https://reporting-demo-system-python.pianat.ai',
     
    
     
