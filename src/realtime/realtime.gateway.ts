@@ -16,8 +16,8 @@ const wsCorsOrigins = (() => {
   if (fromEnv?.length) return fromEnv;
   return [
     process.env.FRONTEND_URL,
-    'https://reporting-demo-system-python.pianat.ai',
-    'https://reporting-demo-system-frontend.pianat.ai',
+    'https://reporting-madinetmasr-system-python.pianat.ai',
+    'https://reporting-madinetmasr-system-frontend.pianat.ai',
     
   ].filter(Boolean);
 })();
