@@ -229,6 +229,7 @@ export class GrcIncidentsService {
         SELECT 
           i.code,
           i.title,
+          f.name AS function_name,
           CASE 
             WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
             WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
@@ -239,6 +240,9 @@ export class GrcIncidentsService {
           END as status,
           FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
         FROM Incidents i
+        LEFT JOIN Functions f ON i.function_id = f.id
+          AND f.isDeleted = 0
+          AND f.deletedAt IS NULL
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${dateFilter}
@@ -387,8 +391,12 @@ export class GrcIncidentsService {
       const incidentsWithTimeframeQuery = `
         SELECT 
           i.title AS incident_name, 
-          i.timeFrame AS time_frame 
+          i.timeFrame AS time_frame,
+          f.name AS function_name
         FROM Incidents i
+        LEFT JOIN Functions f ON i.function_id = f.id
+          AND f.isDeleted = 0
+          AND f.deletedAt IS NULL
         WHERE i.isDeleted = 0 ${dateFilter}
           ${functionFilter}
           AND i.deletedAt IS NULL
@@ -804,7 +812,8 @@ export class GrcIncidentsService {
         })),
         incidentsWithTimeframe: incidentsWithTimeframe.map(item => ({
           incident_name: item.incident_name || 'Unknown',
-          time_frame: item.time_frame || ''
+          time_frame: item.time_frame || '',
+          function_name: item.function_name || 'Unknown'
         })),
         incidentsWithFinancialAndFunction: incidentsWithFinancialAndFunction.map(item => ({
           title: item.title || 'Unknown',
@@ -895,6 +904,7 @@ export class GrcIncidentsService {
       SELECT 
         i.code,
         i.title,
+        f.name AS function_name,
         CASE 
           WHEN i.acceptanceStatus = 'approved' THEN 'approved'
           WHEN i.reviewerStatus = 'sent' THEN 'sent'
@@ -903,6 +913,7 @@ export class GrcIncidentsService {
         END as status,
         i.createdAt
       FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
       ORDER BY i.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -949,9 +960,11 @@ export class GrcIncidentsService {
       SELECT 
         i.code,
         i.title,
+        f.name AS function_name,
         'Pending Preparer' as status,
         i.createdAt
       FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
       ORDER BY i.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1004,9 +1017,11 @@ export class GrcIncidentsService {
       SELECT 
         i.code,
         i.title,
+        f.name AS function_name,
         'Pending Checker' as status,
         i.createdAt
       FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
       ORDER BY i.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1059,9 +1074,11 @@ export class GrcIncidentsService {
       SELECT 
         i.code,
         i.title,
+        f.name AS function_name,
         'Pending Reviewer' as status,
         i.createdAt
       FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
       ORDER BY i.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1113,9 +1130,11 @@ export class GrcIncidentsService {
       SELECT 
         i.code,
         i.title,
+        f.name AS function_name,
         'Pending Acceptance' as status,
         i.createdAt
       FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
       ORDER BY i.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1192,10 +1211,12 @@ export class GrcIncidentsService {
         SELECT 
           i.code,
           i.title AS name,
+          f.name AS function_name,
           i.createdAt,
           i.net_loss,
           i.recovery_amount
         FROM Incidents i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         LEFT JOIN Categories c ON i.category_id = c.id
           AND c.isDeleted = 0
           AND c.deletedAt IS NULL
@@ -1223,6 +1244,7 @@ export class GrcIncidentsService {
         data: result.map((row: any) => ({
           code: row.code || 'N/A',
           name: row.name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.createdAt || null,
           netLoss: row.net_loss || null,
           recoveryAmount: row.recovery_amount || null
@@ -1287,10 +1309,12 @@ export class GrcIncidentsService {
         SELECT 
           i.code as incident_code,
           i.title as incident_title,
+          f.name AS function_name,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at,
           i.net_loss,
           i.recovery_amount
         FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         LEFT JOIN dbo.[IncidentEvents] ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           ${eventTypeFilter}
@@ -1325,6 +1349,7 @@ export class GrcIncidentsService {
         data: result.map((row: any) => ({
           code: row.incident_code || 'N/A',
           name: row.incident_title || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null,
           netLoss: row.net_loss || null,
           recoveryAmount: row.recovery_amount || null
@@ -1372,10 +1397,12 @@ export class GrcIncidentsService {
         SELECT 
           i.code as incident_code,
           i.title as incident_title,
+          f.name AS function_name,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at,
           ISNULL(i.net_loss, 0) as net_loss,
           ISNULL(i.recovery_amount, 0) as recovery_amount
         FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         LEFT JOIN dbo.[FinancialImpacts] fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           AND ISNULL(fi.name, 'Unknown') = @param0
@@ -1404,6 +1431,7 @@ export class GrcIncidentsService {
         data: result.map((row: any) => ({
           code: row.incident_code || 'N/A',
           name: row.incident_title || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null,
           netLoss: row.net_loss || 0,
           recoveryAmount: row.recovery_amount || 0
@@ -1496,8 +1524,10 @@ export class GrcIncidentsService {
         SELECT 
           i.code as incident_code,
           i.title as incident_title,
+          f.name AS function_name,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at
         FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           AND ${statusCondition}
           ${dateFilter}
@@ -1526,6 +1556,7 @@ export class GrcIncidentsService {
         data: result.map((row: any) => ({
           code: row.incident_code || 'N/A',
           name: row.incident_title || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -1605,8 +1636,10 @@ export class GrcIncidentsService {
         SELECT 
           i.code AS incident_code,
           i.title AS incident_title,
+          f.name AS function_name,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') AS created_at
         FROM Incidents i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         ${whereSql}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1628,6 +1661,7 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.incident_code || 'N/A',
           name: r.incident_title || 'N/A',
+          function_name: r.function_name || null,
           createdAt: r.created_at || null
         })),
         pagination: {
@@ -1695,6 +1729,7 @@ export class GrcIncidentsService {
         SELECT 
           i.code,
           i.title AS name,
+          f.name AS function_name,
           CASE 
             WHEN i.createdAt IS NOT NULL 
             THEN CONVERT(VARCHAR(23), i.createdAt, 126)
@@ -1703,6 +1738,7 @@ export class GrcIncidentsService {
           i.net_loss,
           i.recovery_amount
         FROM Incidents i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         INNER JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id
         ${whereSql}
         ORDER BY i.createdAt DESC
@@ -1727,6 +1763,7 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          function_name: r.function_name || null,
           createdAt: r.created_at || null,
           netLoss: r.net_loss || null,
           recoveryAmount: r.recovery_amount || null
@@ -1786,11 +1823,13 @@ export class GrcIncidentsService {
         SELECT 
           i.code,
           i.title AS name,
+          f.name AS function_name,
           i.occurrence_date,
           i.reported_date,
           DATEDIFF(DAY, i.occurrence_date, i.reported_date) AS recognition_days,
           CAST(DATEDIFF(DAY, i.occurrence_date, i.reported_date) AS FLOAT) / 30.44 AS recognition_months
         FROM Incidents i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         ${whereSql}
         ORDER BY recognition_months DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1813,6 +1852,7 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          function_name: r.function_name || null,
           occurrence_date: r.occurrence_date || null,
           reported_date: r.reported_date || null,
           recognition_time: r.recognition_days || null,
@@ -1885,10 +1925,12 @@ export class GrcIncidentsService {
         SELECT 
           i.code,
           i.title AS name,
+          f.name AS function_name,
           i.createdAt,
           i.net_loss,
           i.recovery_amount
         FROM Incidents i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         ${whereSql}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1911,6 +1953,7 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          function_name: r.function_name || null,
           createdAt: r.createdAt || null,
           netLoss: r.net_loss || null,
           recoveryAmount: r.recovery_amount || null
@@ -2014,6 +2057,7 @@ export class GrcIncidentsService {
       
       // Use LEFT JOINs on BOTH tables (matching chart query exactly)
       const joinClause = `
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id
           AND ie.deletedAt IS NULL
         LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id
@@ -2024,6 +2068,7 @@ export class GrcIncidentsService {
         SELECT 
           i.code,
           i.title AS name,
+          f.name AS function_name,
           i.createdAt,
           i.net_loss,
           i.recovery_amount
@@ -2052,6 +2097,7 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          function_name: r.function_name || null,
           createdAt: r.createdAt || null,
           netLoss: r.net_loss || null,
           recoveryAmount: r.recovery_amount || null
@@ -2141,10 +2187,12 @@ export class GrcIncidentsService {
         SELECT 
           i.code,
           i.title AS name,
+          f.name AS function_name,
           i.createdAt,
           i.net_loss,
           i.recovery_amount
         FROM Incidents i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         ${joinClause}
         ${whereSql}
         ORDER BY i.createdAt DESC
@@ -2169,6 +2217,7 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          function_name: r.function_name || null,
           createdAt: r.createdAt || null,
           netLoss: r.net_loss || null,
           recoveryAmount: r.recovery_amount || null

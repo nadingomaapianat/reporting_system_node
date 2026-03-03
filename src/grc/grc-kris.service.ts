@@ -528,10 +528,14 @@ export class GrcKrisService {
       const kriRiskRelationshipsQuery = `
         SELECT 
           k.code AS kri_code,
-          k.kriName AS kri_name, 
+          k.kriName AS kri_name,
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
           r.code AS risk_code,
           r.name AS risk_name
         FROM Kris k
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
         INNER JOIN KriRisks kr
           ON kr.kri_id = k.id
           AND kr.deletedAt IS NULL
@@ -558,8 +562,12 @@ export class GrcKrisService {
       const kriWithoutLinkedRisksQuery = `
         SELECT  
           k.kriName AS kriName, 
-          k.code    AS kriCode
+          k.code    AS kriCode,
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
         FROM Kris AS k
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
         WHERE  
           k.isDeleted = 0
           AND k.deletedAt IS NULL
@@ -749,12 +757,14 @@ export class GrcKrisService {
         kriRiskRelationships: kriRiskRelationships.map(item => ({
           kri_code: item.kri_code || null,
           kri_name: item.kri_name || 'Unknown',
+          function_name: item.function_name || 'Unknown',
           risk_code: item.risk_code || null,
           risk_name: item.risk_name || 'Unknown'
         })),
         kriWithoutLinkedRisks: kriWithoutLinkedRisks.map(item => ({
           kriName: item.kriName || 'Unknown',
-          kriCode: item.kriCode || null
+          kriCode: item.kriCode || null,
+          function_name: item.function_name || 'Unknown'
         })),
         kriStatus: kriStatusRows.map(item => ({
           code: item.code || null,
@@ -816,6 +826,7 @@ export class GrcKrisService {
     const dataQuery = `
       SELECT 
         k.kriName as title,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         CASE 
           WHEN k.acceptanceStatus = 'approved' THEN 'approved'
           WHEN k.reviewerStatus = 'sent' THEN 'sent'
@@ -824,6 +835,9 @@ export class GrcKrisService {
         END as status,
         k.createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY k.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -864,9 +878,13 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as title,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         'Pending Preparer' as status,
         k.createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY k.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -914,9 +932,13 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as title,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         'Pending Checker' as status,
         k.createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY k.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -964,9 +986,13 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as title,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         'Pending Reviewer' as status,
         k.createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY k.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1013,9 +1039,13 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as title,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         'Pending Acceptance' as status,
         k.createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY k.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1096,8 +1126,12 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY k.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1150,14 +1184,18 @@ export class GrcKrisService {
                k.kri_level,
                CAST(k.isAscending AS int) AS isAscending,
                TRY_CONVERT(float, k.medium_from) AS med_thr,
-               TRY_CONVERT(float, k.high_from)   AS high_thr
+               TRY_CONVERT(float, k.high_from)   AS high_thr,
+               ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
         FROM Kris k
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
           ${dateFilter}
           ${functionFilter}
       ),
       KL AS (
-        SELECT K.id, K.code, K.kriName, K.createdAt, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
+        SELECT K.id, K.code, K.kriName, K.createdAt, K.kri_level, K.function_name, K.isAscending, K.med_thr, K.high_thr,
                TRY_CONVERT(float, kv.value) AS val
         FROM K
         LEFT JOIN LatestKV kv ON kv.kriId = K.id AND kv.rn = 1
@@ -1167,6 +1205,7 @@ export class GrcKrisService {
           code,
           kriName AS name,
           createdAt,
+          function_name,
           CASE
             WHEN kri_level IS NOT NULL AND LTRIM(RTRIM(kri_level)) <> '' THEN kri_level
             WHEN val IS NULL OR med_thr IS NULL OR high_thr IS NULL THEN 'Unknown'
@@ -1182,6 +1221,7 @@ export class GrcKrisService {
       SELECT 
         code,
         name,
+        function_name,
         createdAt
       FROM Derived
       WHERE level_bucket = '${level === 'Unknown' ? 'Unknown' : level.replace(/'/g, "''")}'
@@ -1294,6 +1334,7 @@ export class GrcKrisService {
       SELECT DISTINCT
         k.code,
         k.kriName as name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
@@ -1357,6 +1398,7 @@ export class GrcKrisService {
       SELECT
         k.code,
         k.kriName as name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         kv.createdAt as createdAt
       FROM KriValues kv
       INNER JOIN Kris k ON kv.kriId = k.id
@@ -1446,8 +1488,12 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY k.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1547,6 +1593,7 @@ export class GrcKrisService {
       SELECT 
         r.code,
         r.name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         r.createdAt as createdAt
       FROM Risks r
       INNER JOIN KriRisks kr
@@ -1557,6 +1604,9 @@ export class GrcKrisService {
         AND k.isDeleted = 0
         AND k.deletedAt IS NULL
         ${functionFilter}
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       WHERE
         r.isDeleted = 0
         AND r.deletedAt IS NULL
@@ -1679,8 +1729,12 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ${monthFilter}
       ORDER BY k.createdAt DESC
@@ -1789,11 +1843,15 @@ export class GrcKrisService {
       SELECT
         k.code,
         k.kriName as name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         kv.createdAt as createdAt
       FROM Kris AS k
       INNER JOIN KriValues AS kv
         ON kv.kriId = k.id
         AND kv.deletedAt IS NULL
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       WHERE
         k.isDeleted = 0
         AND k.deletedAt IS NULL
@@ -1888,8 +1946,12 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ${statusFilter}
       ORDER BY k.createdAt DESC
