@@ -164,10 +164,24 @@ export class GrcRisksController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByQuarter(req.user, quarter, page, limit, startDate, endDate);
+      const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+      const q = norm(quarter);
+      if (!q) {
+        return { data: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+      }
+      return await this.grcRisksService.getRisksByQuarter(
+        req.user,
+        q,
+        page,
+        limit,
+        norm(startDate) || undefined,
+        norm(endDate) || undefined,
+        norm(functionId) && norm(functionId)!.length > 0 ? norm(functionId) : undefined
+      );
     } catch (error) {
       console.error('Error in getRisksByQuarter:', error);
       throw error;
@@ -203,7 +217,19 @@ export class GrcRisksController {
     @Query('functionId') functionId?: string
   ) {
     try {
-      return await this.grcRisksService.getRisksByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, functionId);
+      const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+      const impact = norm(financialImpact);
+      const normalized = impact ? impact.charAt(0).toUpperCase() + impact.slice(1).toLowerCase() : '';
+      const validImpact = ['Low', 'Medium', 'High', 'Unknown'].includes(normalized) ? normalized : '';
+      return await this.grcRisksService.getRisksByFinancialImpact(
+        req.user,
+        validImpact,
+        page,
+        limit,
+        norm(startDate) || undefined,
+        norm(endDate) || undefined,
+        norm(functionId) && norm(functionId)!.length > 0 ? norm(functionId) : undefined
+      );
     } catch (error) {
       console.error('Error in getRisksByFinancialImpact:', error);
       throw error;

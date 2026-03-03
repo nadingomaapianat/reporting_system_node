@@ -18,6 +18,11 @@ export class GrcDashboardService extends BaseDashboardService {
     return DashboardConfigService.getControlsConfig();
   }
 
+  /** Subquery for control function name(s) - used in control list queries. Uses dbo.[] to match outer query and bracket reserved word. */
+  private controlFunctionNameSubquery(): string {
+    return `(SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL)`;
+  }
+
   // Override specific methods if needed for custom logic
   async getControlsDashboard(user: any, startDate?: string, endDate?: string, functionId?: string) {
     // Use base class method which now accepts functionId
@@ -43,15 +48,19 @@ export class GrcDashboardService extends BaseDashboardService {
       // Create a proper data query based on the metric type
       let dataQuery: string;
       let countQuery = metric.query.replace('{dateFilter}', dateFilter);
+      // Function name subquery for control-based cards (Controls have many-to-many with Functions)
+      const functionNameSubquery = this.controlFunctionNameSubquery();
       
       if (cardType === 'total') {
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
         countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
       } else if (cardType === 'unmapped') {
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
         countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`;
       } else if (cardType.startsWith('pending') && !cardType.startsWith('testsPending')) {
         // Handle Controls pending status cards - use standardized staged workflow pattern
+        // Require control to have at least one ControlFunctions link (match Python/UI; exclude unassigned controls)
+        const baseControlFunctionExists = `AND EXISTS (SELECT 1 FROM ${fq('ControlFunctions')} cf WHERE cf.control_id = c.id AND cf.deletedAt IS NULL)`;
         let whereClause = '';
         if (cardType === 'pendingPreparer') {
           whereClause = "(ISNULL(c.preparerStatus, '') <> 'sent')";
@@ -67,8 +76,8 @@ export class GrcDashboardService extends BaseDashboardService {
           whereClause = `c.${statusField} != 'approved'`;
         }
         
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${functionFilter}`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${baseControlFunctionExists} ${functionFilter} ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${baseControlFunctionExists} ${functionFilter}`;
       } else if (cardType.startsWith('testsPending')) {
         // Map to control tests joins for details - use standardized staged workflow pattern
         let whereClause = '';
@@ -88,9 +97,10 @@ export class GrcDashboardService extends BaseDashboardService {
           cardType === 'testsPendingReviewer' ? 'reviewerStatus' :
           'acceptanceStatus';
 
-        dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus
+        dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus, f.name AS function_name
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+          LEFT JOIN ${fq('Functions')} AS f ON f.id = t.function_id
           WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}
           ORDER BY c.createdAt DESC`;
 
@@ -99,7 +109,7 @@ export class GrcDashboardService extends BaseDashboardService {
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
           WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}`;
       } else if (cardType === 'unmappedIcofrControls') {
-        dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
           'Not Mapped' as coso_point
           FROM ${fq('Controls')} c 
@@ -119,7 +129,7 @@ export class GrcDashboardService extends BaseDashboardService {
                AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
           AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}`;
       } else if (cardType === 'unmappedNonIcofrControls') {
-        dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
           'Not Mapped' as coso_point
           FROM ${fq('Controls')} c 
@@ -142,7 +152,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}`;
       } else {
         // Fallback to generic query
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
         countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter}`;
       }
       
@@ -262,6 +272,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -293,6 +304,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -334,6 +346,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          f.name AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         JOIN dbo.[ControlFunctions] cf ON c.id = cf.control_id
@@ -366,6 +379,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -410,6 +424,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -439,6 +454,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -483,6 +499,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -512,6 +529,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -553,6 +571,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -581,6 +600,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -629,6 +649,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -658,6 +679,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -700,6 +722,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -728,6 +751,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -770,6 +794,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         LEFT JOIN dbo.[Assertions] a ON c.icof_id = a.id AND a.isDeleted = 0
@@ -810,6 +835,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -950,6 +976,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -1066,6 +1093,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         LEFT JOIN dbo.[JobTitles] jt ON c.departmentId = jt.id
@@ -1099,6 +1127,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -1150,6 +1179,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         LEFT JOIN dbo.[ControlProcesses] cp ON c.id = cp.control_id
@@ -1185,6 +1215,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -1229,6 +1260,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[ControlFunctions] cf
         JOIN dbo.[Functions] f ON cf.function_id = f.id
@@ -1263,6 +1295,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -1311,6 +1344,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         LEFT JOIN dbo.[Assertions] a ON c.icof_id = a.id AND a.isDeleted = 0
@@ -1342,6 +1376,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -1416,6 +1451,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT DISTINCT
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         LEFT JOIN dbo.[Assertions] a ON c.icof_id = a.id AND (a.isDeleted = 0 OR a.id IS NULL)
@@ -1456,6 +1492,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -1517,12 +1554,13 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT DISTINCT
           c.code as control_code,
           c.name as control_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Functions] f
         JOIN dbo.[ControlFunctions] cf ON f.id = cf.function_id
         JOIN dbo.[Controls] c ON cf.control_id = c.id AND c.isDeleted = 0
-        LEFT JOIN dbo.[ControlDesignTests] cdt ON c.id = cdt.control_id 
-          AND cdt.function_id = f.id 
+        LEFT JOIN dbo.[ControlDesignTests] cdt ON c.id = cdt.control_id
+          AND cdt.function_id = f.id
           AND cdt.quarter = @param1
           AND cdt.year = @param2
           AND cdt.deletedAt IS NULL
@@ -1561,6 +1599,7 @@ export class GrcDashboardService extends BaseDashboardService {
         data: result.map((row: any) => ({
           code: row.control_code || 'N/A',
           name: row.control_name || 'N/A',
+          function_name: row.function_name || null,
           createdAt: row.created_at || null
         })),
         pagination: {

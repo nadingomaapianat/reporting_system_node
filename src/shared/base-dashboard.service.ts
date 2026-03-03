@@ -61,8 +61,7 @@ export abstract class BaseDashboardService {
   abstract getConfig(): DashboardConfig;
 
   async getDashboardData(user: any, startDate?: string, endDate?: string, functionId?: string) {
-    // console.log('[BaseDashboardService.getDashboardData] Received parameters:', { startDate, endDate, functionId, userId: user?.id, groupName: user?.groupName });
-    
+    // By default: no date filter (all data). Date filter is applied only when both startDate and endDate are provided.
     const config = this.getConfig();
     const dateFilter = this.buildDateFilter(startDate, endDate, config.dateField);
     // console.log('[BaseDashboardService.getDashboardData] Date filter:', dateFilter);
@@ -114,71 +113,39 @@ export abstract class BaseDashboardService {
 
   private async getMetricsData(metrics: MetricConfig[], dateFilter: string, functionFilter: string) {
     const results: any = {};
-    
-    for (const metric of metrics) {
+
+    const runOneMetric = async (metric: MetricConfig): Promise<{ id: string; total: number; change?: string }> => {
       try {
         let query = metric.query.replace('{dateFilter}', dateFilter || '');
-        // console.log(`[getMetricsData] Processing metric ${metric.id}, functionFilter:`, functionFilter);
-        // console.log(`[getMetricsData] Original query:`, query);
-        
-        // Replace functionFilter placeholder if it exists (even if empty, to remove the placeholder)
         if (query.includes('{functionFilter}')) {
           const replacedFilter = functionFilter || '';
           query = query.replace('{functionFilter}', replacedFilter);
-          // Clean up any double spaces that might result from empty replacements
           query = query.replace(/\s{2,}/g, ' ').trim();
-          // console.log(`[getMetricsData] Metric ${metric.id} - Replaced {functionFilter} placeholder with:`, replacedFilter || '(empty)', 'Filter length:', replacedFilter.length);
         } else if (functionFilter && functionFilter.trim() !== '' && query.includes('FROM') && (query.includes('Controls') || query.includes('[Controls]'))) {
-          // Auto-inject function filter for Control queries
-          // Check if query uses alias 'c' for Controls (in FROM or JOIN)
-          const hasAliasC = /\bFROM\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(query) || 
-                          /\bFROM\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(query) ||
-                          /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(query) ||
-                          /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(query);
+          const hasAliasC = /\bFROM\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(query) ||
+                            /\bFROM\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(query) ||
+                            /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(query) ||
+                            /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(query);
           let filterToInject = functionFilter;
-          
-          // If query doesn't use 'c' alias, we need to adapt the filter
           if (!hasAliasC) {
-            // Check if query has any alias for Controls table in FROM clause
             let aliasMatch = query.match(/FROM\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
-            if (!aliasMatch) {
-              // Check if Controls is in a JOIN clause
-              aliasMatch = query.match(/\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
-            }
-            if (aliasMatch && aliasMatch[1]) {
-              // Use the existing alias
-              filterToInject = functionFilter.replace(/c\./g, `${aliasMatch[1]}.`);
-            } else {
-              // Try to find Controls with alias 'c' in JOIN
-              if (query.includes('JOIN') && query.includes('Controls') && (query.includes(' AS c') || query.includes(' c '))) {
-                // Already has 'c' alias in JOIN, use it
-                filterToInject = functionFilter;
-              } else {
-                // No alias found, try to add alias 'c' to Controls
-                query = query.replace(/(FROM\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
-                if (!query.includes(' c ') && !query.includes(' AS c')) {
-                  // If still no 'c' alias, try to add it to JOIN
-                  query = query.replace(/(\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
-                }
-              }
+            if (!aliasMatch) aliasMatch = query.match(/\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
+            if (aliasMatch?.[1]) filterToInject = functionFilter.replace(/c\./g, `${aliasMatch[1]}.`);
+            else {
+              query = query.replace(/(FROM\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
+              if (!query.includes(' c ') && !query.includes(' AS c')) query = query.replace(/(\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
             }
           }
-          
-          // Find WHERE clause and inject filter
           const whereIndex = query.toUpperCase().indexOf(' WHERE ');
           if (whereIndex > -1) {
-            const beforeWhere = query.substring(0, whereIndex + 7); // includes "WHERE "
-            const afterWhere = query.substring(whereIndex + 7);      // existing predicates
-            // Keep the leading AND in filterToInject and wrap existing predicates
-            // Result: WHERE (existing predicates) AND EXISTS(...)
+            const beforeWhere = query.substring(0, whereIndex + 7);
+            const afterWhere = query.substring(whereIndex + 7);
             query = `${beforeWhere}(${afterWhere}) ${filterToInject}`;
           } else {
-            // No WHERE clause, add one
             const fromIndex = query.toUpperCase().lastIndexOf(' FROM ');
             if (fromIndex > -1) {
               const beforeFrom = query.substring(0, fromIndex);
               const fromClause = query.substring(fromIndex);
-              // Find end of FROM clause (before GROUP BY, ORDER BY, etc.)
               const groupByIndex = fromClause.toUpperCase().indexOf(' GROUP BY ');
               const orderByIndex = fromClause.toUpperCase().indexOf(' ORDER BY ');
               const endIndex = groupByIndex > -1 ? groupByIndex : (orderByIndex > -1 ? orderByIndex : fromClause.length);
@@ -188,153 +155,124 @@ export abstract class BaseDashboardService {
             }
           }
         }
-        // console.log(`[getMetricsData] Final query for ${metric.id}:`, query);
         const result = await this.databaseService.query(query);
-        results[metric.id] = result[0]?.total || result[0]?.count || 0;
-        // console.log(`[getMetricsData] Result for ${metric.id}:`, results[metric.id]);
-        
-        // Get change data if changeQuery is provided
-        if (metric.changeQuery) {
-          let changeQuery = metric.changeQuery.replace('{dateFilter}', dateFilter || '');
-          // Replace functionFilter placeholder if it exists (even if empty, to remove the placeholder)
-          if (changeQuery.includes('{functionFilter}')) {
-            changeQuery = changeQuery.replace('{functionFilter}', functionFilter || '');
-            // Clean up any double spaces that might result from empty replacements
-            changeQuery = changeQuery.replace(/\s{2,}/g, ' ').trim();
-          } else if (functionFilter && functionFilter.trim() !== '' && changeQuery.includes('FROM') && (changeQuery.includes('Controls') || changeQuery.includes('[Controls]'))) {
-            // Check if query uses alias 'c' for Controls (in FROM or JOIN)
-            const hasAliasC = /\bFROM\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(changeQuery) || 
+        const total = result[0]?.total ?? result[0]?.count ?? 0;
+
+        if (!metric.changeQuery) return { id: metric.id, total };
+
+        let changeQuery = metric.changeQuery.replace('{dateFilter}', dateFilter || '');
+        if (changeQuery.includes('{functionFilter}')) {
+          changeQuery = changeQuery.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
+        } else if (functionFilter && functionFilter.trim() !== '' && changeQuery.includes('FROM') && (changeQuery.includes('Controls') || changeQuery.includes('[Controls]'))) {
+          const hasAliasC = /\bFROM\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(changeQuery) ||
                             /\bFROM\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(changeQuery) ||
                             /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(changeQuery) ||
                             /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(changeQuery);
-            let filterToInject = functionFilter;
-            
-            if (!hasAliasC) {
-              // Check if query has any alias for Controls table in FROM clause
-              let aliasMatch = changeQuery.match(/FROM\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
-              if (!aliasMatch) {
-                // Check if Controls is in a JOIN clause
-                aliasMatch = changeQuery.match(/\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
-              }
-              if (aliasMatch && aliasMatch[1]) {
-                filterToInject = functionFilter.replace(/c\./g, `${aliasMatch[1]}.`);
-              } else {
-                // Try to find Controls with alias 'c' in JOIN
-                if (changeQuery.includes('JOIN') && changeQuery.includes('Controls') && (changeQuery.includes(' AS c') || changeQuery.includes(' c '))) {
-                  // Already has 'c' alias in JOIN, use it
-                  filterToInject = functionFilter;
-                } else {
-                  // No alias found, try to add alias 'c' to Controls
-                  changeQuery = changeQuery.replace(/(FROM\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
-                  if (!changeQuery.includes(' c ') && !changeQuery.includes(' AS c')) {
-                    // If still no 'c' alias, try to add it to JOIN
-                    changeQuery = changeQuery.replace(/(\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
-                  }
-                }
-              }
-            }
-            
-            const whereIndex = changeQuery.toUpperCase().indexOf(' WHERE ');
-            if (whereIndex > -1) {
-              const beforeWhere = changeQuery.substring(0, whereIndex + 7);
-              const afterWhere = changeQuery.substring(whereIndex + 7);
-              // Wrap existing predicates and append filter (with leading AND)
-              changeQuery = `${beforeWhere}(${afterWhere}) ${filterToInject}`;
-            } else {
-              const fromIndex = changeQuery.toUpperCase().lastIndexOf(' FROM ');
-              if (fromIndex > -1) {
-                const beforeFrom = changeQuery.substring(0, fromIndex);
-                const fromClause = changeQuery.substring(fromIndex);
-                const groupByIndex = fromClause.toUpperCase().indexOf(' GROUP BY ');
-                const orderByIndex = fromClause.toUpperCase().indexOf(' ORDER BY ');
-                const endIndex = groupByIndex > -1 ? groupByIndex : (orderByIndex > -1 ? orderByIndex : fromClause.length);
-                const fromPart = fromClause.substring(0, endIndex);
-                const restPart = fromClause.substring(endIndex);
-                changeQuery = beforeFrom + fromPart + ' WHERE 1=1 ' + filterToInject + restPart;
-              }
+          let filterToInject = functionFilter;
+          if (!hasAliasC) {
+            let aliasMatch = changeQuery.match(/FROM\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
+            if (!aliasMatch) aliasMatch = changeQuery.match(/\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
+            if (aliasMatch?.[1]) filterToInject = functionFilter.replace(/c\./g, `${aliasMatch[1]}.`);
+            else {
+              changeQuery = changeQuery.replace(/(FROM\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
+              if (!changeQuery.includes(' c ') && !changeQuery.includes(' AS c')) changeQuery = changeQuery.replace(/(\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
             }
           }
-          const changeResult = await this.databaseService.query(changeQuery);
-          results[`${metric.id}Change`] = this.calculateChange(
-            results[metric.id], 
-            changeResult[0]?.total || changeResult[0]?.count || 0
-          );
+          const whereIndex = changeQuery.toUpperCase().indexOf(' WHERE ');
+          if (whereIndex > -1) {
+            const beforeWhere = changeQuery.substring(0, whereIndex + 7);
+            const afterWhere = changeQuery.substring(whereIndex + 7);
+            changeQuery = `${beforeWhere}(${afterWhere}) ${filterToInject}`;
+          } else {
+            const fromIndex = changeQuery.toUpperCase().lastIndexOf(' FROM ');
+            if (fromIndex > -1) {
+              const beforeFrom = changeQuery.substring(0, fromIndex);
+              const fromClause = changeQuery.substring(fromIndex);
+              const groupByIndex = fromClause.toUpperCase().indexOf(' GROUP BY ');
+              const orderByIndex = fromClause.toUpperCase().indexOf(' ORDER BY ');
+              const endIndex = groupByIndex > -1 ? groupByIndex : (orderByIndex > -1 ? orderByIndex : fromClause.length);
+              const fromPart = fromClause.substring(0, endIndex);
+              const restPart = fromClause.substring(endIndex);
+              changeQuery = beforeFrom + fromPart + ' WHERE 1=1 ' + filterToInject + restPart;
+            }
+          }
         }
+        const changeResult = await this.databaseService.query(changeQuery);
+        const previous = changeResult[0]?.total ?? changeResult[0]?.count ?? 0;
+        const change = this.calculateChange(total, previous);
+        return { id: metric.id, total, change };
       } catch (error) {
         console.error(`Error fetching metric ${metric.id}:`, error);
-        results[metric.id] = 0;
-        results[`${metric.id}Change`] = '+0%';
+        return { id: metric.id, total: 0, change: '+0%' };
       }
+    };
+
+    const settled = await Promise.all(metrics.map((m) => runOneMetric(m)));
+    for (const { id, total, change } of settled) {
+      results[id] = total;
+      if (change !== undefined) results[`${id}Change`] = change;
     }
-    
     return results;
   }
 
   private async getChartsData(charts: ChartConfig[], dateFilter: string, functionFilter: string) {
     const results: any = {};
-    
-    for (const chart of charts) {
+
+    const runOneChart = async (chart: ChartConfig): Promise<{ id: string; data: any[] }> => {
       try {
         let query = chart.query.replace('{dateFilter}', dateFilter || '');
-        // Replace functionFilter placeholder if it exists (even if empty, to remove the placeholder)
         if (query.includes('{functionFilter}')) {
-          query = query.replace('{functionFilter}', functionFilter || '');
-          // Clean up any double spaces that might result from empty replacements
-          query = query.replace(/\s{2,}/g, ' ').trim();
+          query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
         }
         const result = await this.databaseService.query(query);
-        
-        results[chart.id] = result.map(row => ({
+        const data = result.map((row: any) => ({
           name: row[chart.xField],
           value: row[chart.yField],
           label: chart.labelField ? row[chart.labelField] : row[chart.xField]
         }));
+        return { id: chart.id, data };
       } catch (error) {
         console.error(`Error fetching chart ${chart.id}:`, error);
-        results[chart.id] = [];
+        return { id: chart.id, data: [] };
       }
-    }
-    
+    };
+
+    const settled = await Promise.all(charts.map((c) => runOneChart(c)));
+    for (const { id, data } of settled) results[id] = data;
     return results;
   }
 
   private async getTablesData(tables: TableConfig[], dateFilter: string, functionFilter: string) {
     const results: any = {};
-    
-    for (const table of tables) {
+    const tableLimit = this.getDefaultLimit();
+
+    const runOneTable = async (table: TableConfig): Promise<{ id: string; data: any[] }> => {
       try {
         let query = table.query.replace('{dateFilter}', dateFilter || '');
-        // Replace functionFilter placeholder if it exists (even if empty, to remove the placeholder)
         if (query.includes('{functionFilter}')) {
-          query = query.replace('{functionFilter}', functionFilter || '');
-          // Clean up any double spaces that might result from empty replacements
-          query = query.replace(/\s{2,}/g, ' ').trim();
+          query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
         }
         const result = await this.databaseService.query(query);
-        const tableLimit = this.getDefaultLimit();
         const limitedResult = result.slice(0, tableLimit);
-        
-        results[table.id] = limitedResult.map(row => {
+        const data = limitedResult.map((row: any) => {
           const processedRow: any = {};
           for (const column of table.columns) {
             let value = row[column.key];
-            
-            if (column.render) {
-              value = column.render(value);
-            } else {
-              value = this.formatValue(value, column.type);
-            }
-            
+            if (column.render) value = column.render(value);
+            else value = this.formatValue(value, column.type);
             processedRow[column.key] = value;
           }
           return processedRow;
         });
+        return { id: table.id, data };
       } catch (error) {
         console.error(`Error fetching table ${table.id}:`, error);
-        results[table.id] = [];
+        return { id: table.id, data: [] };
       }
-    }
-    
+    };
+
+    const settled = await Promise.all(tables.map((t) => runOneTable(t)));
+    for (const { id, data } of settled) results[id] = data;
     return results;
   }
 
