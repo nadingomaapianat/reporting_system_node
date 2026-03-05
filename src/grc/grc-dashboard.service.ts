@@ -349,9 +349,10 @@ export class GrcDashboardService extends BaseDashboardService {
           f.name AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
-        JOIN dbo.[ControlFunctions] cf ON c.id = cf.control_id
+        JOIN dbo.[ControlFunctions] cf ON c.id = cf.control_id AND cf.deletedAt IS NULL
         JOIN dbo.[Functions] f ON cf.function_id = f.id
         WHERE c.isDeleted = 0
+          AND c.deletedAt IS NULL
           AND f.name = @param0
           ${dateFilter}
           ${functionFilter}
@@ -365,9 +366,10 @@ export class GrcDashboardService extends BaseDashboardService {
       const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Controls] c
-        JOIN dbo.[ControlFunctions] cf ON c.id = cf.control_id
+        JOIN dbo.[ControlFunctions] cf ON c.id = cf.control_id AND cf.deletedAt IS NULL
         JOIN dbo.[Functions] f ON cf.function_id = f.id
         WHERE c.isDeleted = 0
+          AND c.deletedAt IS NULL
           AND f.name = @param0
           ${dateFilter}
           ${functionFilter}

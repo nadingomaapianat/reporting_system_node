@@ -904,16 +904,45 @@ export class GrcIncidentsService {
       SELECT 
         i.code,
         i.title,
-        f.name AS function_name,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
         CASE 
           WHEN i.acceptanceStatus = 'approved' THEN 'approved'
           WHEN i.reviewerStatus = 'sent' THEN 'sent'
           WHEN i.checkerStatus = 'approved' THEN 'approved'
           ELSE ISNULL(i.preparerStatus, i.acceptanceStatus)
         END as status,
-        i.createdAt
+        i.createdAt,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(f.name, '') as functionName,
+        i.occurrence_date as occurrenceDate,
+        i.reported_date as reportedDate,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(ie.name, '') as eventType,
+        ISNULL(i.importance, '') as importance,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
+        ISNULL(sc.name, '') as subCategoryName,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus
       FROM Incidents i
-      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN Functions f ON i.function_id = f.id AND f.isDeleted = 0 AND f.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
       ${whereSql}
       ORDER BY i.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
