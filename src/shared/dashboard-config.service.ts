@@ -242,9 +242,9 @@ export class DashboardConfigService {
             f.name as name,
             COUNT(c.id) as value
           FROM ${fq('Controls')} c
-          JOIN ${fq('ControlFunctions')} cf ON c.id = cf.control_id
+          JOIN ${fq('ControlFunctions')} cf ON c.id = cf.control_id AND cf.deletedAt IS NULL
           JOIN ${fq('Functions')} f ON cf.function_id = f.id
-          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}
           GROUP BY f.name
           ORDER BY COUNT(c.id) DESC, f.name`,
           xField: 'name',
