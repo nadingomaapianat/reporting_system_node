@@ -91,6 +91,7 @@ export class UserFunctionAccessService {
     access: UserFunctionAccess,
     selectedFunctionId?: string,
   ): string {
+    // Treat empty/whitespace as no selection so super admins get all data
     // If a specific function is selected, filter by that only (even for super admins)
     if (selectedFunctionId) {
       // For super admins, allow any functionId
@@ -101,7 +102,7 @@ export class UserFunctionAccessService {
       return ` AND ${tableAlias}.${column} = '${selectedFunctionId}'`;
     }
 
-    // If no specific function selected, super admins see everything
+    // If no specific function selected, super admins see everything (all functions)
     if (access.isSuperAdmin) return '';
 
     if (!access.functionIds.length) {
