@@ -64,7 +64,7 @@ export class UserFunctionAccessService {
       };
     } catch (e: any) {
       const msg = (e?.message || String(e)) as string;
-      // If the UserFunction table does not exist in this database (common in UAT where only NEWDCC-V4-UAT is present),
+      // If the UserFunction table does not exist in this database (common in UAT where only new_madinetmasr is present),
       // fall back to a configurable behaviour so the dashboards still work.
       if (msg.includes('Invalid object name') && msg.includes('UserFunction')) {
         const seeAll = process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true';

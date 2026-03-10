@@ -14,11 +14,11 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 
--- Dumping database structure for NEWDCC-V4-UAT
-CREATE DATABASE IF NOT EXISTS "NEWDCC-V4-UAT";
-USE "NEWDCC-V4-UAT";
+-- Dumping database structure for new_madinetmasr
+CREATE DATABASE IF NOT EXISTS "new_madinetmasr";
+USE "new_madinetmasr";
 
--- Dumping structure for table NEWDCC-V4-UAT.ab_permission
+-- Dumping structure for table new_madinetmasr.ab_permission
 CREATE TABLE IF NOT EXISTS "ab_permission" (
 	"id" INT NOT NULL,
 	"name" VARCHAR(100) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "ab_permission" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ab_permission_view
+-- Dumping structure for table new_madinetmasr.ab_permission_view
 CREATE TABLE IF NOT EXISTS "ab_permission_view" (
 	"id" INT NOT NULL,
 	"permission_id" INT NULL DEFAULT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS "ab_permission_view" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ab_permission_view_role
+-- Dumping structure for table new_madinetmasr.ab_permission_view_role
 CREATE TABLE IF NOT EXISTS "ab_permission_view_role" (
 	"id" INT NOT NULL,
 	"permission_view_id" INT NULL DEFAULT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS "ab_permission_view_role" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ab_register_user
+-- Dumping structure for table new_madinetmasr.ab_register_user
 CREATE TABLE IF NOT EXISTS "ab_register_user" (
 	"id" INT NOT NULL,
 	"first_name" VARCHAR(64) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS "ab_register_user" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ab_role
+-- Dumping structure for table new_madinetmasr.ab_role
 CREATE TABLE IF NOT EXISTS "ab_role" (
 	"id" INT NOT NULL,
 	"name" VARCHAR(64) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS "ab_role" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ab_user
+-- Dumping structure for table new_madinetmasr.ab_user
 CREATE TABLE IF NOT EXISTS "ab_user" (
 	"id" INT NOT NULL,
 	"first_name" VARCHAR(64) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS "ab_user" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ab_user_role
+-- Dumping structure for table new_madinetmasr.ab_user_role
 CREATE TABLE IF NOT EXISTS "ab_user_role" (
 	"id" INT NOT NULL,
 	"user_id" INT NULL DEFAULT NULL,
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS "ab_user_role" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ab_view_menu
+-- Dumping structure for table new_madinetmasr.ab_view_menu
 CREATE TABLE IF NOT EXISTS "ab_view_menu" (
 	"id" INT NOT NULL,
 	"name" VARCHAR(250) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS "ab_view_menu" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ActionplanFiles
+-- Dumping structure for table new_madinetmasr.ActionplanFiles
 CREATE TABLE IF NOT EXISTS "ActionplanFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"actionplan_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS "ActionplanFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Actionplans
+-- Dumping structure for table new_madinetmasr.Actionplans
 CREATE TABLE IF NOT EXISTS "Actionplans" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"controlDesignTest_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS "Actionplans" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Activities
+-- Dumping structure for table new_madinetmasr.Activities
 CREATE TABLE IF NOT EXISTS "Activities" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS "Activities" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.AdequateFiles
+-- Dumping structure for table new_madinetmasr.AdequateFiles
 CREATE TABLE IF NOT EXISTS "AdequateFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"test_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -266,7 +266,7 @@ CREATE TABLE IF NOT EXISTS "AdequateFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.AdequateFindings
+-- Dumping structure for table new_madinetmasr.AdequateFindings
 CREATE TABLE IF NOT EXISTS "AdequateFindings" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"controlDesignTest_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -285,7 +285,7 @@ CREATE TABLE IF NOT EXISTS "AdequateFindings" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Assertions
+-- Dumping structure for table new_madinetmasr.Assertions
 CREATE TABLE IF NOT EXISTS "Assertions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"coding" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -306,7 +306,7 @@ CREATE TABLE IF NOT EXISTS "Assertions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.BankQuestionControls
+-- Dumping structure for table new_madinetmasr.BankQuestionControls
 CREATE TABLE IF NOT EXISTS "BankQuestionControls" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"bank_question_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS "BankQuestionControls" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.BankQuestionRisks
+-- Dumping structure for table new_madinetmasr.BankQuestionRisks
 CREATE TABLE IF NOT EXISTS "BankQuestionRisks" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"bank_question_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -342,7 +342,7 @@ CREATE TABLE IF NOT EXISTS "BankQuestionRisks" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.BankQuestions
+-- Dumping structure for table new_madinetmasr.BankQuestions
 CREATE TABLE IF NOT EXISTS "BankQuestions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"code" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -373,7 +373,7 @@ CREATE TABLE IF NOT EXISTS "BankQuestions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.BankQuestionSurveys
+-- Dumping structure for table new_madinetmasr.BankQuestionSurveys
 CREATE TABLE IF NOT EXISTS "BankQuestionSurveys" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"publicSurveyId" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -390,7 +390,7 @@ CREATE TABLE IF NOT EXISTS "BankQuestionSurveys" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.blocked_tokens
+-- Dumping structure for table new_madinetmasr.blocked_tokens
 CREATE TABLE IF NOT EXISTS "blocked_tokens" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"token" NVARCHAR(max) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -404,7 +404,7 @@ CREATE TABLE IF NOT EXISTS "blocked_tokens" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.BusinessUnits
+-- Dumping structure for table new_madinetmasr.BusinessUnits
 CREATE TABLE IF NOT EXISTS "BusinessUnits" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -417,7 +417,7 @@ CREATE TABLE IF NOT EXISTS "BusinessUnits" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Catalogs
+-- Dumping structure for table new_madinetmasr.Catalogs
 CREATE TABLE IF NOT EXISTS "Catalogs" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"pagename" NVARCHAR(255) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -435,7 +435,7 @@ CREATE TABLE IF NOT EXISTS "Catalogs" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Categories
+-- Dumping structure for table new_madinetmasr.Categories
 CREATE TABLE IF NOT EXISTS "Categories" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -449,7 +449,7 @@ CREATE TABLE IF NOT EXISTS "Categories" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.CBEDomains
+-- Dumping structure for table new_madinetmasr.CBEDomains
 CREATE TABLE IF NOT EXISTS "CBEDomains" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -466,7 +466,7 @@ CREATE TABLE IF NOT EXISTS "CBEDomains" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.CBEFunctions
+-- Dumping structure for table new_madinetmasr.CBEFunctions
 CREATE TABLE IF NOT EXISTS "CBEFunctions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -478,7 +478,7 @@ CREATE TABLE IF NOT EXISTS "CBEFunctions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.CobitDomains
+-- Dumping structure for table new_madinetmasr.CobitDomains
 CREATE TABLE IF NOT EXISTS "CobitDomains" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -490,7 +490,7 @@ CREATE TABLE IF NOT EXISTS "CobitDomains" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.CobitPractices
+-- Dumping structure for table new_madinetmasr.CobitPractices
 CREATE TABLE IF NOT EXISTS "CobitPractices" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -505,7 +505,7 @@ CREATE TABLE IF NOT EXISTS "CobitPractices" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.CobitProcesses
+-- Dumping structure for table new_madinetmasr.CobitProcesses
 CREATE TABLE IF NOT EXISTS "CobitProcesses" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -522,7 +522,7 @@ CREATE TABLE IF NOT EXISTS "CobitProcesses" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ComplianceControlActionFiles
+-- Dumping structure for table new_madinetmasr.ComplianceControlActionFiles
 CREATE TABLE IF NOT EXISTS "ComplianceControlActionFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"compliance_control_action_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -549,7 +549,7 @@ CREATE TABLE IF NOT EXISTS "ComplianceControlActionFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ComplianceControlActionFolders
+-- Dumping structure for table new_madinetmasr.ComplianceControlActionFolders
 CREATE TABLE IF NOT EXISTS "ComplianceControlActionFolders" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"compliance_control_action_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -574,7 +574,7 @@ CREATE TABLE IF NOT EXISTS "ComplianceControlActionFolders" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ComplianceControlActions
+-- Dumping structure for table new_madinetmasr.ComplianceControlActions
 CREATE TABLE IF NOT EXISTS "ComplianceControlActions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"compliance_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -614,7 +614,7 @@ CREATE TABLE IF NOT EXISTS "ComplianceControlActions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ComplianceControlActionsComments
+-- Dumping structure for table new_madinetmasr.ComplianceControlActionsComments
 CREATE TABLE IF NOT EXISTS "ComplianceControlActionsComments" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"compliance_control_action_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -634,7 +634,7 @@ CREATE TABLE IF NOT EXISTS "ComplianceControlActionsComments" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.complianceReferences
+-- Dumping structure for table new_madinetmasr.complianceReferences
 CREATE TABLE IF NOT EXISTS "complianceReferences" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"compliance_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -653,7 +653,7 @@ CREATE TABLE IF NOT EXISTS "complianceReferences" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Compliances
+-- Dumping structure for table new_madinetmasr.Compliances
 CREATE TABLE IF NOT EXISTS "Compliances" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"code" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -683,7 +683,7 @@ CREATE TABLE IF NOT EXISTS "Compliances" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlCBEs
+-- Dumping structure for table new_madinetmasr.ControlCBEs
 CREATE TABLE IF NOT EXISTS "ControlCBEs" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"cbe_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -702,7 +702,7 @@ CREATE TABLE IF NOT EXISTS "ControlCBEs" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlCobits
+-- Dumping structure for table new_madinetmasr.ControlCobits
 CREATE TABLE IF NOT EXISTS "ControlCobits" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"cobit_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -721,7 +721,7 @@ CREATE TABLE IF NOT EXISTS "ControlCobits" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlControlReferences
+-- Dumping structure for table new_madinetmasr.ControlControlReferences
 CREATE TABLE IF NOT EXISTS "ControlControlReferences" (
 	"controlId" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"controlReferenceId" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -735,7 +735,7 @@ CREATE TABLE IF NOT EXISTS "ControlControlReferences" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlCosos
+-- Dumping structure for table new_madinetmasr.ControlCosos
 CREATE TABLE IF NOT EXISTS "ControlCosos" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"coso_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -754,7 +754,7 @@ CREATE TABLE IF NOT EXISTS "ControlCosos" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlDesignTests
+-- Dumping structure for table new_madinetmasr.ControlDesignTests
 CREATE TABLE IF NOT EXISTS "ControlDesignTests" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"procedure" NVARCHAR(4000) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -829,7 +829,7 @@ CREATE TABLE IF NOT EXISTS "ControlDesignTests" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlDesignTests_BRANCH
+-- Dumping structure for table new_madinetmasr.ControlDesignTests_BRANCH
 CREATE TABLE IF NOT EXISTS "ControlDesignTests_BRANCH" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"procedure" NVARCHAR(4000) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -865,7 +865,7 @@ CREATE TABLE IF NOT EXISTS "ControlDesignTests_BRANCH" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlDesignTests_BRANCH_test
+-- Dumping structure for table new_madinetmasr.ControlDesignTests_BRANCH_test
 CREATE TABLE IF NOT EXISTS "ControlDesignTests_BRANCH_test" (
 	"control_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -874,7 +874,7 @@ CREATE TABLE IF NOT EXISTS "ControlDesignTests_BRANCH_test" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlDesignTests_DEPT
+-- Dumping structure for table new_madinetmasr.ControlDesignTests_DEPT
 CREATE TABLE IF NOT EXISTS "ControlDesignTests_DEPT" (
 	"control_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -883,7 +883,7 @@ CREATE TABLE IF NOT EXISTS "ControlDesignTests_DEPT" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.controlDomains
+-- Dumping structure for table new_madinetmasr.controlDomains
 CREATE TABLE IF NOT EXISTS "controlDomains" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"control_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -902,7 +902,7 @@ CREATE TABLE IF NOT EXISTS "controlDomains" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlFunctions
+-- Dumping structure for table new_madinetmasr.ControlFunctions
 CREATE TABLE IF NOT EXISTS "ControlFunctions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"function_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -921,7 +921,7 @@ CREATE TABLE IF NOT EXISTS "ControlFunctions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlIsos
+-- Dumping structure for table new_madinetmasr.ControlIsos
 CREATE TABLE IF NOT EXISTS "ControlIsos" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"iso_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -940,7 +940,7 @@ CREATE TABLE IF NOT EXISTS "ControlIsos" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlNists
+-- Dumping structure for table new_madinetmasr.ControlNists
 CREATE TABLE IF NOT EXISTS "ControlNists" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"nist_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -959,7 +959,7 @@ CREATE TABLE IF NOT EXISTS "ControlNists" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlProcesses
+-- Dumping structure for table new_madinetmasr.ControlProcesses
 CREATE TABLE IF NOT EXISTS "ControlProcesses" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"control_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -976,7 +976,7 @@ CREATE TABLE IF NOT EXISTS "ControlProcesses" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ControlReferences
+-- Dumping structure for table new_madinetmasr.ControlReferences
 CREATE TABLE IF NOT EXISTS "ControlReferences" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -992,7 +992,7 @@ CREATE TABLE IF NOT EXISTS "ControlReferences" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Controls
+-- Dumping structure for table new_madinetmasr.Controls
 CREATE TABLE IF NOT EXISTS "Controls" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1088,7 +1088,7 @@ CREATE TABLE IF NOT EXISTS "Controls" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.CosoComponents
+-- Dumping structure for table new_madinetmasr.CosoComponents
 CREATE TABLE IF NOT EXISTS "CosoComponents" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1101,7 +1101,7 @@ CREATE TABLE IF NOT EXISTS "CosoComponents" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.CosoPoints
+-- Dumping structure for table new_madinetmasr.CosoPoints
 CREATE TABLE IF NOT EXISTS "CosoPoints" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1117,7 +1117,7 @@ CREATE TABLE IF NOT EXISTS "CosoPoints" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.CosoPrinciples
+-- Dumping structure for table new_madinetmasr.CosoPrinciples
 CREATE TABLE IF NOT EXISTS "CosoPrinciples" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1133,7 +1133,7 @@ CREATE TABLE IF NOT EXISTS "CosoPrinciples" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Currencies
+-- Dumping structure for table new_madinetmasr.Currencies
 CREATE TABLE IF NOT EXISTS "Currencies" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1147,7 +1147,7 @@ CREATE TABLE IF NOT EXISTS "Currencies" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.DiscoveredTypes
+-- Dumping structure for table new_madinetmasr.DiscoveredTypes
 CREATE TABLE IF NOT EXISTS "DiscoveredTypes" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1161,7 +1161,7 @@ CREATE TABLE IF NOT EXISTS "DiscoveredTypes" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Domains
+-- Dumping structure for table new_madinetmasr.Domains
 CREATE TABLE IF NOT EXISTS "Domains" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"standard_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1185,7 +1185,7 @@ CREATE TABLE IF NOT EXISTS "Domains" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.EffectiveFiles
+-- Dumping structure for table new_madinetmasr.EffectiveFiles
 CREATE TABLE IF NOT EXISTS "EffectiveFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"test_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1200,7 +1200,7 @@ CREATE TABLE IF NOT EXISTS "EffectiveFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.EffectiveFindings
+-- Dumping structure for table new_madinetmasr.EffectiveFindings
 CREATE TABLE IF NOT EXISTS "EffectiveFindings" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"population" INT NULL DEFAULT NULL,
@@ -1219,7 +1219,7 @@ CREATE TABLE IF NOT EXISTS "EffectiveFindings" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.EventTypes
+-- Dumping structure for table new_madinetmasr.EventTypes
 CREATE TABLE IF NOT EXISTS "EventTypes" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1235,7 +1235,7 @@ CREATE TABLE IF NOT EXISTS "EventTypes" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ExportedExcelReports
+-- Dumping structure for table new_madinetmasr.ExportedExcelReports
 CREATE TABLE IF NOT EXISTS "ExportedExcelReports" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"filename" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1249,7 +1249,7 @@ CREATE TABLE IF NOT EXISTS "ExportedExcelReports" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Fields
+-- Dumping structure for table new_madinetmasr.Fields
 CREATE TABLE IF NOT EXISTS "Fields" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1267,7 +1267,7 @@ CREATE TABLE IF NOT EXISTS "Fields" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.FileSupports
+-- Dumping structure for table new_madinetmasr.FileSupports
 CREATE TABLE IF NOT EXISTS "FileSupports" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1281,7 +1281,7 @@ CREATE TABLE IF NOT EXISTS "FileSupports" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.FinancialImpacts
+-- Dumping structure for table new_madinetmasr.FinancialImpacts
 CREATE TABLE IF NOT EXISTS "FinancialImpacts" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1295,7 +1295,7 @@ CREATE TABLE IF NOT EXISTS "FinancialImpacts" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.FinanicalFiles
+-- Dumping structure for table new_madinetmasr.FinanicalFiles
 CREATE TABLE IF NOT EXISTS "FinanicalFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1310,7 +1310,7 @@ CREATE TABLE IF NOT EXISTS "FinanicalFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.FrequencyFiles
+-- Dumping structure for table new_madinetmasr.FrequencyFiles
 CREATE TABLE IF NOT EXISTS "FrequencyFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1325,7 +1325,7 @@ CREATE TABLE IF NOT EXISTS "FrequencyFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Functions
+-- Dumping structure for table new_madinetmasr.Functions
 CREATE TABLE IF NOT EXISTS "Functions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1341,7 +1341,7 @@ CREATE TABLE IF NOT EXISTS "Functions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Groups
+-- Dumping structure for table new_madinetmasr.Groups
 CREATE TABLE IF NOT EXISTS "Groups" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1354,7 +1354,7 @@ CREATE TABLE IF NOT EXISTS "Groups" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ImpactedAreas
+-- Dumping structure for table new_madinetmasr.ImpactedAreas
 CREATE TABLE IF NOT EXISTS "ImpactedAreas" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1366,7 +1366,7 @@ CREATE TABLE IF NOT EXISTS "ImpactedAreas" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ImpactFiles
+-- Dumping structure for table new_madinetmasr.ImpactFiles
 CREATE TABLE IF NOT EXISTS "ImpactFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1386,7 +1386,7 @@ CREATE TABLE IF NOT EXISTS "ImpactFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.IncidentCategories
+-- Dumping structure for table new_madinetmasr.IncidentCategories
 CREATE TABLE IF NOT EXISTS "IncidentCategories" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1399,7 +1399,7 @@ CREATE TABLE IF NOT EXISTS "IncidentCategories" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.IncidentEvents
+-- Dumping structure for table new_madinetmasr.IncidentEvents
 CREATE TABLE IF NOT EXISTS "IncidentEvents" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1415,7 +1415,7 @@ CREATE TABLE IF NOT EXISTS "IncidentEvents" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.IncidentFiles
+-- Dumping structure for table new_madinetmasr.IncidentFiles
 CREATE TABLE IF NOT EXISTS "IncidentFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"incident_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1430,7 +1430,7 @@ CREATE TABLE IF NOT EXISTS "IncidentFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Incidents
+-- Dumping structure for table new_madinetmasr.Incidents
 CREATE TABLE IF NOT EXISTS "Incidents" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"title" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1545,7 +1545,7 @@ CREATE TABLE IF NOT EXISTS "Incidents" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.IncidentSubCategories
+-- Dumping structure for table new_madinetmasr.IncidentSubCategories
 CREATE TABLE IF NOT EXISTS "IncidentSubCategories" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1559,7 +1559,7 @@ CREATE TABLE IF NOT EXISTS "IncidentSubCategories" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Isos
+-- Dumping structure for table new_madinetmasr.Isos
 CREATE TABLE IF NOT EXISTS "Isos" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"code" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1572,7 +1572,7 @@ CREATE TABLE IF NOT EXISTS "Isos" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.JobTitles
+-- Dumping structure for table new_madinetmasr.JobTitles
 CREATE TABLE IF NOT EXISTS "JobTitles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1588,7 +1588,7 @@ CREATE TABLE IF NOT EXISTS "JobTitles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.KriFunctions
+-- Dumping structure for table new_madinetmasr.KriFunctions
 CREATE TABLE IF NOT EXISTS "KriFunctions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"function_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1607,7 +1607,7 @@ CREATE TABLE IF NOT EXISTS "KriFunctions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.KriProcesses
+-- Dumping structure for table new_madinetmasr.KriProcesses
 CREATE TABLE IF NOT EXISTS "KriProcesses" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"kri_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1628,7 +1628,7 @@ CREATE TABLE IF NOT EXISTS "KriProcesses" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.KriRisks
+-- Dumping structure for table new_madinetmasr.KriRisks
 CREATE TABLE IF NOT EXISTS "KriRisks" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1645,7 +1645,7 @@ CREATE TABLE IF NOT EXISTS "KriRisks" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Kris
+-- Dumping structure for table new_madinetmasr.Kris
 CREATE TABLE IF NOT EXISTS "Kris" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"kriName" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1731,7 +1731,7 @@ CREATE TABLE IF NOT EXISTS "Kris" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.KriUsers
+-- Dumping structure for table new_madinetmasr.KriUsers
 CREATE TABLE IF NOT EXISTS "KriUsers" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"user_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1752,7 +1752,7 @@ CREATE TABLE IF NOT EXISTS "KriUsers" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.KriValues
+-- Dumping structure for table new_madinetmasr.KriValues
 CREATE TABLE IF NOT EXISTS "KriValues" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"kriId" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1797,7 +1797,7 @@ CREATE TABLE IF NOT EXISTS "KriValues" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.NistCats
+-- Dumping structure for table new_madinetmasr.NistCats
 CREATE TABLE IF NOT EXISTS "NistCats" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1809,7 +1809,7 @@ CREATE TABLE IF NOT EXISTS "NistCats" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.NistSubs
+-- Dumping structure for table new_madinetmasr.NistSubs
 CREATE TABLE IF NOT EXISTS "NistSubs" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1825,7 +1825,7 @@ CREATE TABLE IF NOT EXISTS "NistSubs" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Notifications
+-- Dumping structure for table new_madinetmasr.Notifications
 CREATE TABLE IF NOT EXISTS "Notifications" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"message" NVARCHAR(255) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1857,7 +1857,7 @@ CREATE TABLE IF NOT EXISTS "Notifications" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Pages
+-- Dumping structure for table new_madinetmasr.Pages
 CREATE TABLE IF NOT EXISTS "Pages" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1869,7 +1869,7 @@ CREATE TABLE IF NOT EXISTS "Pages" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Processes
+-- Dumping structure for table new_madinetmasr.Processes
 CREATE TABLE IF NOT EXISTS "Processes" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(4000) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1885,7 +1885,7 @@ CREATE TABLE IF NOT EXISTS "Processes" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.PublicSurveys
+-- Dumping structure for table new_madinetmasr.PublicSurveys
 CREATE TABLE IF NOT EXISTS "PublicSurveys" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name_en" NVARCHAR(max) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1907,7 +1907,7 @@ CREATE TABLE IF NOT EXISTS "PublicSurveys" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.PublicSurveyUsers
+-- Dumping structure for table new_madinetmasr.PublicSurveyUsers
 CREATE TABLE IF NOT EXISTS "PublicSurveyUsers" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"publicSurveyId" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1926,7 +1926,7 @@ CREATE TABLE IF NOT EXISTS "PublicSurveyUsers" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.rcm-V2 - RCM 
+-- Dumping structure for table new_madinetmasr.rcm-V2 - RCM 
 CREATE TABLE IF NOT EXISTS "rcm-V2 - RCM " (
 	"Function" NVARCHAR(50) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"Account_Name" NVARCHAR(100) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -1999,7 +1999,7 @@ CREATE TABLE IF NOT EXISTS "rcm-V2 - RCM " (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RcmFiles
+-- Dumping structure for table new_madinetmasr.RcmFiles
 CREATE TABLE IF NOT EXISTS "RcmFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"rcm_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2014,7 +2014,7 @@ CREATE TABLE IF NOT EXISTS "RcmFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ResidualFiles
+-- Dumping structure for table new_madinetmasr.ResidualFiles
 CREATE TABLE IF NOT EXISTS "ResidualFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2034,7 +2034,7 @@ CREATE TABLE IF NOT EXISTS "ResidualFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ResidualFinanicalFiles
+-- Dumping structure for table new_madinetmasr.ResidualFinanicalFiles
 CREATE TABLE IF NOT EXISTS "ResidualFinanicalFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2054,7 +2054,7 @@ CREATE TABLE IF NOT EXISTS "ResidualFinanicalFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.ResidualFrequencyFiles
+-- Dumping structure for table new_madinetmasr.ResidualFrequencyFiles
 CREATE TABLE IF NOT EXISTS "ResidualFrequencyFiles" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2074,7 +2074,7 @@ CREATE TABLE IF NOT EXISTS "ResidualFrequencyFiles" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Residualrisks
+-- Dumping structure for table new_madinetmasr.Residualrisks
 CREATE TABLE IF NOT EXISTS "Residualrisks" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"riskId" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2142,7 +2142,7 @@ CREATE TABLE IF NOT EXISTS "Residualrisks" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RiskCategories
+-- Dumping structure for table new_madinetmasr.RiskCategories
 CREATE TABLE IF NOT EXISTS "RiskCategories" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"category_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2162,7 +2162,7 @@ CREATE TABLE IF NOT EXISTS "RiskCategories" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RiskControls
+-- Dumping structure for table new_madinetmasr.RiskControls
 CREATE TABLE IF NOT EXISTS "RiskControls" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2181,7 +2181,7 @@ CREATE TABLE IF NOT EXISTS "RiskControls" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RiskFunctions
+-- Dumping structure for table new_madinetmasr.RiskFunctions
 CREATE TABLE IF NOT EXISTS "RiskFunctions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"function_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2200,7 +2200,7 @@ CREATE TABLE IF NOT EXISTS "RiskFunctions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RiskIncidents
+-- Dumping structure for table new_madinetmasr.RiskIncidents
 CREATE TABLE IF NOT EXISTS "RiskIncidents" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2219,7 +2219,7 @@ CREATE TABLE IF NOT EXISTS "RiskIncidents" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RiskInherentImpacts
+-- Dumping structure for table new_madinetmasr.RiskInherentImpacts
 CREATE TABLE IF NOT EXISTS "RiskInherentImpacts" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"title" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2237,7 +2237,7 @@ CREATE TABLE IF NOT EXISTS "RiskInherentImpacts" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RiskProcesses
+-- Dumping structure for table new_madinetmasr.RiskProcesses
 CREATE TABLE IF NOT EXISTS "RiskProcesses" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"risk_id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2256,7 +2256,7 @@ CREATE TABLE IF NOT EXISTS "RiskProcesses" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RiskResidualAssessments
+-- Dumping structure for table new_madinetmasr.RiskResidualAssessments
 CREATE TABLE IF NOT EXISTS "RiskResidualAssessments" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"title" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2286,7 +2286,7 @@ CREATE TABLE IF NOT EXISTS "RiskResidualAssessments" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Risks
+-- Dumping structure for table new_madinetmasr.Risks
 CREATE TABLE IF NOT EXISTS "Risks" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(4000) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2322,7 +2322,7 @@ CREATE TABLE IF NOT EXISTS "Risks" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.RootCauses
+-- Dumping structure for table new_madinetmasr.RootCauses
 CREATE TABLE IF NOT EXISTS "RootCauses" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2336,7 +2336,7 @@ CREATE TABLE IF NOT EXISTS "RootCauses" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.SchemaAuditLog
+-- Dumping structure for table new_madinetmasr.SchemaAuditLog
 CREATE TABLE IF NOT EXISTS "SchemaAuditLog" (
 	"Id" INT NOT NULL,
 	"EventData" XML NULL DEFAULT NULL,
@@ -2347,7 +2347,7 @@ CREATE TABLE IF NOT EXISTS "SchemaAuditLog" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.sections
+-- Dumping structure for table new_madinetmasr.sections
 CREATE TABLE IF NOT EXISTS "sections" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"title" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2422,7 +2422,7 @@ CREATE TABLE IF NOT EXISTS "sections" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.SequelizeMeta
+-- Dumping structure for table new_madinetmasr.SequelizeMeta
 CREATE TABLE IF NOT EXISTS "SequelizeMeta" (
 	"name" NVARCHAR(255) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	UNIQUE INDEX "UQ__Sequeliz__72E12F1B1A6D521D" ("name"),
@@ -2431,7 +2431,7 @@ CREATE TABLE IF NOT EXISTS "SequelizeMeta" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.SubBusinessUnits
+-- Dumping structure for table new_madinetmasr.SubBusinessUnits
 CREATE TABLE IF NOT EXISTS "SubBusinessUnits" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2449,7 +2449,7 @@ CREATE TABLE IF NOT EXISTS "SubBusinessUnits" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.SubFunctions
+-- Dumping structure for table new_madinetmasr.SubFunctions
 CREATE TABLE IF NOT EXISTS "SubFunctions" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2468,7 +2468,7 @@ CREATE TABLE IF NOT EXISTS "SubFunctions" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.survey_assessment
+-- Dumping structure for table new_madinetmasr.survey_assessment
 CREATE TABLE IF NOT EXISTS "survey_assessment" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"quarter" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2491,7 +2491,7 @@ CREATE TABLE IF NOT EXISTS "survey_assessment" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.survey_impacted_area
+-- Dumping structure for table new_madinetmasr.survey_impacted_area
 CREATE TABLE IF NOT EXISTS "survey_impacted_area" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"complianceControlActionId" CHAR(36) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2503,7 +2503,7 @@ CREATE TABLE IF NOT EXISTS "survey_impacted_area" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Systems
+-- Dumping structure for table new_madinetmasr.Systems
 CREATE TABLE IF NOT EXISTS "Systems" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"name" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2519,7 +2519,7 @@ CREATE TABLE IF NOT EXISTS "Systems" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Targets
+-- Dumping structure for table new_madinetmasr.Targets
 CREATE TABLE IF NOT EXISTS "Targets" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"timestamp" DATETIMEOFFSET NOT NULL,
@@ -2538,7 +2538,7 @@ CREATE TABLE IF NOT EXISTS "Targets" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.templates
+-- Dumping structure for table new_madinetmasr.templates
 CREATE TABLE IF NOT EXISTS "templates" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"title" NVARCHAR(255) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2555,7 +2555,7 @@ CREATE TABLE IF NOT EXISTS "templates" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Updated_Incident
+-- Dumping structure for table new_madinetmasr.Updated_Incident
 CREATE TABLE IF NOT EXISTS "Updated_Incident" (
 	"id" NVARCHAR(50) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"Loss_Event_ID" NVARCHAR(50) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2590,7 +2590,7 @@ CREATE TABLE IF NOT EXISTS "Updated_Incident" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.UserFunction
+-- Dumping structure for table new_madinetmasr.UserFunction
 CREATE TABLE IF NOT EXISTS "UserFunction" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"userId" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
@@ -2607,7 +2607,7 @@ CREATE TABLE IF NOT EXISTS "UserFunction" (
 
 -- Data exporting was unselected.
 
--- Dumping structure for table NEWDCC-V4-UAT.Users
+-- Dumping structure for table new_madinetmasr.Users
 CREATE TABLE IF NOT EXISTS "Users" (
 	"id" CHAR(36) NOT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
 	"email" NVARCHAR(255) NULL DEFAULT NULL COLLATE 'SQL_Latin1_General_CP1_CI_AS',
