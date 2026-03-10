@@ -166,6 +166,19 @@ export class GrcIncidentsController {
     return this.grcIncidentsService.getIncidentsByStatus(req.user, status, page, limit, startDate, endDate, functionId);
   }
 
+  @Get('action-plans')
+  async getIncidentActionPlans(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('businessUnit') businessUnit?: string
+  ) {
+    return this.grcIncidentsService.getIncidentActionPlans(req.user, page, limit, startDate, endDate, functionId, businessUnit);
+  }
+
   @Get('by-month-year')
   async getIncidentsByMonthYear(
     @Req() req: any,
