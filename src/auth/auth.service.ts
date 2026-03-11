@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
 import * as https from 'https';
+import { getHttpsAgentWithCa, isAllowSelfSignedCerts } from '../common/utils/https-cert.util';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
@@ -16,6 +17,7 @@ export type CreateTokenFromIetResult =
 /**
  * Validate IET with main backend and create a JWT for reporting_system_node so the frontend can call our APIs.
  * Sends Origin = main app (IFRAME_MAIN_ORIGIN), not the reporting frontend origin, so main backend allows the request.
+ * Outbound HTTPS uses bank CA cert (certs.pem) when CERT_PATH/CERTS_PEM_PATH is set — same as new_adib_backend.
  */
 @Injectable()
 export class AuthService {
@@ -31,13 +33,20 @@ export class AuthService {
       timeout: 15000,
     };
 
-    // In development or when ALLOW_SELF_SIGNED_CERTS=true, allow self-signed certificates for HTTPS URLs
-    const allowSelfSigned = process.env.NODE_ENV === 'development' || process.env.ALLOW_SELF_SIGNED_CERTS === 'true';
     const isHttps = MAIN_BACKEND_URL.startsWith('https://');
-    
-    if (allowSelfSigned && isHttps && https && https.Agent) {
+    if (!isHttps) return config;
+
+    // Bank requirement: use same CA cert as new_adib_backend when configured (CERT_PATH / CERTS_PEM_PATH / certs.pem)
+    const agentWithCa = getHttpsAgentWithCa();
+    if (agentWithCa) {
+      config.httpsAgent = agentWithCa;
+      return config;
+    }
+
+    // Fallback: only allow self-signed in development and when explicitly enabled (never in production)
+    if (isAllowSelfSignedCerts() && https && https.Agent) {
       config.httpsAgent = new https.Agent({
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
       });
     }
 

@@ -16,6 +16,7 @@ import { CsrfModule } from './csrf/csrf.module';
 import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { FrameAncestorsMiddleware } from './middleware/frame-ancestors.middleware';
 import { JwtAuthMiddleware } from './auth/jwt-auth.middleware';
+import { RateLimitMiddleware } from './middleware/limitter.middleware';
 import * as cookieParser from 'cookie-parser';
 
 @Module({
@@ -49,7 +50,12 @@ import * as cookieParser from 'cookie-parser';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Cookie parser first so JwtAuthMiddleware can read token from cookies (reporting_node_token, iframe_d_c_c_t_p_*)
+    // Rate limiting first (bank requirement)
+    consumer
+      .apply(RateLimitMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+    // Cookie parser so JwtAuthMiddleware can read token from cookies (reporting_node_token, iframe_d_c_c_t_p_*)
     consumer
       .apply(cookieParser())
       .forRoutes({ path: '*', method: RequestMethod.ALL });
