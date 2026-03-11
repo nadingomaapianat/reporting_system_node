@@ -653,7 +653,65 @@ export class GrcIncidentsService {
       `;
       const lossByRiskCategory = await this.databaseService.query(lossByRiskCategoryQuery);
 
-      // 12. Comprehensive Operational Loss Dashboard (UNION ALL)
+      // 14. Incident Action Plans (from Actionplans linked to Incidents)
+      // For this table, function filter is applied on Actionplans.actionOwner (not incident.function_id)
+      const actionOwnerFunctionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'a',
+        'actionOwner',
+        access,
+        functionId,
+      );
+      const incidentActionPlanQuery = `
+        SELECT 
+          i.title AS incident_title,
+          f_inc.name AS incident_function_name,
+          a.control_procedure AS action_taken,
+          f_owner.name AS action_owner_name,
+          a.business_unit AS business_unit_status,
+          a.implementation_date AS expected_implementation_date
+        FROM dbo.[Actionplans] a
+        INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
+        LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id
+          AND f_inc.isDeleted = 0
+          AND f_inc.deletedAt IS NULL
+        LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
+          AND f_owner.isDeleted = 0
+          AND f_owner.deletedAt IS NULL
+        WHERE a.deletedAt IS NULL
+          AND a.[from] = 'incident'
+          AND i.isDeleted = 0
+          AND i.deletedAt IS NULL
+          ${dateFilter}
+          ${actionOwnerFunctionFilter}
+        ORDER BY a.createdAt DESC
+      `;
+      const incidentActionPlan = await this.databaseService.query(incidentActionPlanQuery);
+
+      // 14b. Incident Action Plans by Status (business_unit) - counts for pie chart
+      const incidentActionPlanByStatusQuery = `
+        SELECT 
+          ISNULL(a.business_unit, 'N/A') AS status_name,
+          COUNT(*) AS count
+        FROM dbo.[Actionplans] a
+        INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
+        LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id
+          AND f_inc.isDeleted = 0
+          AND f_inc.deletedAt IS NULL
+        LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
+          AND f_owner.isDeleted = 0
+          AND f_owner.deletedAt IS NULL
+        WHERE a.deletedAt IS NULL
+          AND a.[from] = 'incident'
+          AND i.isDeleted = 0
+          AND i.deletedAt IS NULL
+          ${dateFilter}
+          ${actionOwnerFunctionFilter}
+        GROUP BY ISNULL(a.business_unit, 'N/A')
+        ORDER BY count DESC
+      `;
+      const incidentActionPlanByStatus = await this.databaseService.query(incidentActionPlanByStatusQuery);
+
+      // 15. Comprehensive Operational Loss Dashboard (UNION ALL)
       const comprehensiveOperationalLossQuery = `
         SELECT 
           'Total Operational Loss Incidents' as Metric,
@@ -857,6 +915,20 @@ export class GrcIncidentsService {
           metric: item.Metric || 'Unknown',
           count: item.Count || 0,
           totalValue: item.TotalValue || 0
+        })),
+        // Incident Action Plans (tabular view)
+        incidentActionPlan: incidentActionPlan.map((row: any) => ({
+          incident_name: row.incident_title || 'N/A',
+          incident_department: row.incident_function_name || 'N/A',
+          action_taken: row.action_taken || row.control_procedure || '',
+          action_owner: row.action_owner_name || '',
+          status: row.business_unit_status || '',
+          expected_implementation_date: row.expected_implementation_date || null
+        })),
+        // Incident Action Plans by Status (business_unit) for pie chart
+        incidentActionPlanByStatus: (incidentActionPlanByStatus || []).map((row: any) => ({
+          status_name: row.status_name || 'N/A',
+          count: row.count || 0
         }))
       };
     } catch (error) {
@@ -1599,6 +1671,116 @@ export class GrcIncidentsService {
       };
     } catch (error) {
       console.error('Error fetching incidents by status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get incident action plans list with optional filter by business_unit (status).
+   * Used by the "Incident Action Plan by Status" pie chart detail view.
+   */
+  async getIncidentActionPlans(
+    user: any,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    businessUnit?: string
+  ) {
+    try {
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+      const actionOwnerFunctionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+        'a',
+        'actionOwner',
+        access,
+        functionId,
+      );
+      const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
+
+      const pageInt = Math.floor(Number(page)) || 1;
+      const limitInt = Math.floor(Number(limit)) || 10;
+      const offset = Math.floor((pageInt - 1) * limitInt);
+
+      let businessUnitFilter = '';
+      if (businessUnit && String(businessUnit).trim()) {
+        try {
+          const decoded = decodeURIComponent(String(businessUnit).trim());
+          const escaped = decoded.replace(/'/g, "''");
+          businessUnitFilter = ` AND ISNULL(a.business_unit, N'N/A') = N'${escaped}'`;
+        } catch {
+          businessUnitFilter = '';
+        }
+      }
+
+      const countQuery = `
+        SELECT COUNT(*) AS total
+        FROM dbo.[Actionplans] a
+        INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
+        LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id AND f_inc.isDeleted = 0 AND f_inc.deletedAt IS NULL
+        LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id AND f_owner.isDeleted = 0 AND f_owner.deletedAt IS NULL
+        WHERE a.deletedAt IS NULL
+          AND a.[from] = 'incident'
+          AND i.isDeleted = 0
+          AND i.deletedAt IS NULL
+          ${dateFilter}
+          ${actionOwnerFunctionFilter}
+          ${businessUnitFilter}
+      `;
+      const countResult = await this.databaseService.query(countQuery);
+      const total = countResult[0]?.total || 0;
+
+      const dataQuery = `
+        SELECT 
+          i.title AS incident_title,
+          f_inc.name AS incident_function_name,
+          a.control_procedure AS action_taken,
+          f_owner.name AS action_owner_name,
+          a.business_unit AS business_unit_status,
+          a.implementation_date AS expected_implementation_date
+        FROM dbo.[Actionplans] a
+        INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
+        LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id
+          AND f_inc.isDeleted = 0
+          AND f_inc.deletedAt IS NULL
+        LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
+          AND f_owner.isDeleted = 0
+          AND f_owner.deletedAt IS NULL
+        WHERE a.deletedAt IS NULL
+          AND a.[from] = 'incident'
+          AND i.isDeleted = 0
+          AND i.deletedAt IS NULL
+          ${dateFilter}
+          ${actionOwnerFunctionFilter}
+          ${businessUnitFilter}
+        ORDER BY a.createdAt DESC
+        OFFSET ${offset} ROWS
+        FETCH NEXT ${limitInt} ROWS ONLY
+      `;
+      const result = await this.databaseService.query(dataQuery);
+
+      return {
+        data: result.map((row: any) => ({
+          incident_name: row.incident_title || 'N/A',
+          name: row.incident_title || 'N/A',
+          incident_department: row.incident_function_name || 'N/A',
+          function_name: row.incident_function_name || null,
+          action_taken: row.action_taken || row.control_procedure || '',
+          action_owner: row.action_owner_name || '',
+          status: row.business_unit_status || '',
+          expected_implementation_date: row.expected_implementation_date || null
+        })),
+        pagination: {
+          page: pageInt,
+          limit: limitInt,
+          total,
+          totalPages: Math.ceil(total / limitInt),
+          hasNext: pageInt * limitInt < total,
+          hasPrev: pageInt > 1
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching incident action plans:', error);
       throw error;
     }
   }

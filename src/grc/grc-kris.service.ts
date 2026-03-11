@@ -52,11 +52,25 @@ export class GrcKrisService {
     return ` AND k.createdAt >= '${startDateObj.toISOString()}'`;
   }
 
+  /** Filter KriValues by period (year/month) within startDate..endDate. Used for KRI Details & Action Plans. */
+  private buildKriValueDateFilter(startDate?: string, endDate?: string): string {
+    if (!startDate && !endDate) return '';
+    let filter = '';
+    if (startDate) {
+      filter += ` AND CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')) >= '${startDate}'`;
+    }
+    if (endDate) {
+      filter += ` AND CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')) <= '${endDate}'`;
+    }
+    return filter;
+  }
+
   async getKrisDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string) {
     try {
       // console.log('[getKrisDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
       
       const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+      const kriValueDateFilter = this.buildKriValueDateFilter(startDate, endDate);
       // console.log('[getKrisDashboard] Date filter:', dateFilter);
 
       // Get user function access (super_admin_ sees everything)
@@ -671,6 +685,229 @@ export class GrcKrisService {
         console.error('Active KRIs details query failed:', e);
       }
 
+      // KRI Details & Action Plans: include every KRI that has at least one value (including value 0); action plan is optional.
+      // Source: Kris INNER JOIN KriValues (all KRI-value pairs) LEFT JOIN Actionplans (from='kri', a.kri_id = k.id).
+      // Do NOT filter action plans by actionOwner here: kris_heatmap shows all action plans for a KRI the user can see;
+      // we already filter KRIs by user function access (functionFilter). Same behavior for dashboard.
+      // Display function_name from k.related_function_id (frel) so it matches the function filter; do not use fkf (KriFunctions) which can be a different function.
+      const kriDetailsWithActionPlansQuery = `
+        SELECT
+          k.id AS kri_id,
+          k.code AS kri_code,
+          k.kriName AS kri_name,
+          k.createdAt AS kri_created_at,
+          ISNULL(frel.name, 'Unknown') AS function_name,
+          u_assigned.name AS assigned_person_name,
+          k.type AS kri_type,
+          u_added.name AS added_by_name,
+          k.status AS kri_status,
+          k.frequency AS kri_frequency,
+          CASE WHEN k.typePercentageOrFigure = '%' THEN 'percentage' ELSE ISNULL(k.typePercentageOrFigure, 'N/A') END AS measurable_unit,
+          k.low_from,
+          k.medium_from,
+          k.high_from,
+          k.threshold AS defining_threshold,
+          kv.[month] AS value_month,
+          kv.[year] AS value_year,
+          kv.value AS value_value,
+          kv.assessment AS value_assessment,
+          a.control_procedure AS action_taken,
+          f_owner.name AS action_owner_name,
+          a.business_unit AS action_plan_status,
+          a.implementation_date AS expected_implementation_date,
+          a.[year] AS action_year,
+          a.[month] AS action_month
+        FROM Kris k
+        INNER JOIN KriValues kv ON kv.kriId = k.id AND kv.deletedAt IS NULL
+        LEFT JOIN Actionplans a ON a.kri_id = k.id AND a.deletedAt IS NULL
+          AND LTRIM(RTRIM(ISNULL(a.[from], ''))) IN (N'kri', N'KRI', N'Kri')
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+        LEFT JOIN users u_assigned ON k.assignedPersonId = u_assigned.id AND u_assigned.deletedAt IS NULL
+        LEFT JOIN users u_added ON k.addedBy = u_added.id AND u_added.deletedAt IS NULL
+        LEFT JOIN Functions f_owner ON a.actionOwner = f_owner.id
+          AND f_owner.isDeleted = 0
+          AND f_owner.deletedAt IS NULL
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          ${kriValueDateFilter}
+          ${functionFilter}
+        ORDER BY k.id, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
+      `;
+      let kriDetailsWithActionPlansRows: any[] = [];
+      try {
+        kriDetailsWithActionPlansRows = await this.databaseService.query(kriDetailsWithActionPlansQuery);
+      } catch (e) {
+        console.error('KRI details with action plans query failed:', e);
+      }
+      // Fallback: if primary query returned no rows or no action plan data (e.g. different schema), re-run with same join (a.kri_id = k.id).
+      const hasAnyActionPlanInResult = (rows: any[]) =>
+        rows.some((r: any) => r?.action_taken != null && String(r.action_taken).trim() !== '');
+      if (
+        kriDetailsWithActionPlansRows.length === 0 ||
+        !hasAnyActionPlanInResult(kriDetailsWithActionPlansRows)
+      ) {
+        const kriDetailsFallbackQuery = `
+          SELECT
+            k.id AS kri_id,
+            k.code AS kri_code,
+            k.kriName AS kri_name,
+            k.createdAt AS kri_created_at,
+            ISNULL(frel.name, 'Unknown') AS function_name,
+            u_assigned.name AS assigned_person_name,
+            k.type AS kri_type,
+            u_added.name AS added_by_name,
+            k.status AS kri_status,
+            k.frequency AS kri_frequency,
+            CASE WHEN k.typePercentageOrFigure = '%' THEN 'percentage' ELSE ISNULL(k.typePercentageOrFigure, 'N/A') END AS measurable_unit,
+            k.low_from,
+            k.medium_from,
+            k.high_from,
+            k.threshold AS defining_threshold,
+            kv.[month] AS value_month,
+            kv.[year] AS value_year,
+            kv.value AS value_value,
+            kv.assessment AS value_assessment,
+            a.control_procedure AS action_taken,
+            f_owner.name AS action_owner_name,
+            a.business_unit AS action_plan_status,
+            a.implementation_date AS expected_implementation_date,
+            a.[year] AS action_year,
+            a.[month] AS action_month
+          FROM Kris k
+          INNER JOIN KriValues kv ON kv.kriId = k.id AND kv.deletedAt IS NULL
+          LEFT JOIN Actionplans a ON a.kri_id = k.id AND a.deletedAt IS NULL
+            AND LTRIM(RTRIM(ISNULL(a.[from], ''))) IN (N'kri', N'KRI', N'Kri')
+          LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+          LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+          LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+          LEFT JOIN users u_assigned ON k.assignedPersonId = u_assigned.id AND u_assigned.deletedAt IS NULL
+          LEFT JOIN users u_added ON k.addedBy = u_added.id AND u_added.deletedAt IS NULL
+          LEFT JOIN Functions f_owner ON a.actionOwner = f_owner.id
+            AND f_owner.isDeleted = 0
+            AND f_owner.deletedAt IS NULL
+          WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+            ${kriValueDateFilter}
+            ${functionFilter}
+          ORDER BY k.id, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
+        `;
+        try {
+          kriDetailsWithActionPlansRows = await this.databaseService.query(kriDetailsFallbackQuery);
+        } catch (e2) {
+          console.error('KRI details fallback query failed:', e2);
+        }
+      }
+
+      // Group flat rows into one row per KRI with valuesByPeriod (each period has value, assessment, actionPlans[])
+      const kriDetailsMap = new Map<string, {
+        kri_code: string;
+        kri_name: string;
+        kri_created_at: any;
+        function_name: string;
+        assigned_person_name: string;
+        kri_type: string;
+        added_by_name: string;
+        kri_status: string;
+        kri_frequency: string;
+        measurable_unit: string;
+        low_from: any;
+        medium_from: any;
+        high_from: any;
+        defining_threshold: string;
+        valuesByPeriod: Array<{
+          month: number;
+          year: number;
+          value: number | null;
+          assessment: string | null;
+          actionPlans: Array<{
+            control_procedure: string;
+            implementation_date: string | null;
+            business_unit: string;
+          }>;
+        }>;
+      }>();
+      for (const row of kriDetailsWithActionPlansRows || []) {
+        const kriId = String(row.kri_id ?? '');
+        if (!kriId) continue;
+        if (!kriDetailsMap.has(kriId)) {
+          kriDetailsMap.set(kriId, {
+            kri_code: row.kri_code ?? 'N/A',
+            kri_name: row.kri_name ?? 'N/A',
+            kri_created_at: row.kri_created_at ?? null,
+            function_name: row.function_name ?? 'N/A',
+            assigned_person_name: row.assigned_person_name ?? 'N/A',
+            kri_type: row.kri_type ?? 'N/A',
+            added_by_name: row.added_by_name ?? 'N/A',
+            kri_status: row.kri_status ?? 'N/A',
+            kri_frequency: row.kri_frequency ?? 'N/A',
+            measurable_unit: row.measurable_unit ?? 'N/A',
+            low_from: row.low_from ?? null,
+            medium_from: row.medium_from ?? null,
+            high_from: row.high_from ?? null,
+            defining_threshold: row.defining_threshold ?? 'N/A',
+            valuesByPeriod: []
+          });
+        }
+        const rec = kriDetailsMap.get(kriId)!;
+        const valueMonth = row.value_month != null ? Number(row.value_month) : 0;
+        const valueYear = row.value_year != null ? Number(row.value_year) : 0;
+        const actionMonth = row.action_month != null ? Number(row.action_month) : null;
+        const actionYear = row.action_year != null ? Number(row.action_year) : null;
+        // Ensure period for value exists (value comes from KriValues)
+        let valuePeriod = rec.valuesByPeriod.find(p => p.year === valueYear && p.month === valueMonth);
+        if (!valuePeriod) {
+          valuePeriod = {
+            month: valueMonth,
+            year: valueYear,
+            value: row.value_value != null ? Number(row.value_value) : null,
+            assessment: row.value_assessment ?? null,
+            actionPlans: []
+          };
+          rec.valuesByPeriod.push(valuePeriod);
+        } else {
+          if (row.value_value != null) valuePeriod.value = Number(row.value_value);
+          if (row.value_assessment != null) valuePeriod.assessment = row.value_assessment;
+        }
+        // If this row has an action plan, add it to the period that matches action's year/month (or value's period if action has no year/month)
+        const hasAction = row.action_taken != null && String(row.action_taken).trim() !== '';
+        if (hasAction) {
+          const targetYear = actionYear ?? valueYear;
+          const targetMonth = actionMonth ?? valueMonth;
+          let actionPeriod = rec.valuesByPeriod.find(p => p.year === targetYear && p.month === targetMonth);
+          if (!actionPeriod) {
+            actionPeriod = {
+              month: targetMonth,
+              year: targetYear,
+              value: targetYear === valueYear && targetMonth === valueMonth ? valuePeriod.value : null,
+              assessment: targetYear === valueYear && targetMonth === valueMonth ? valuePeriod.assessment : null,
+              actionPlans: []
+            };
+            rec.valuesByPeriod.push(actionPeriod);
+          }
+          actionPeriod.actionPlans.push({
+            control_procedure: row.action_taken ?? 'N/A',
+            implementation_date: row.expected_implementation_date ?? null,
+            business_unit: row.action_plan_status ?? 'N/A'
+          });
+        }
+      }
+      // Dedupe action plans (fallback query can produce same action plan in multiple rows per value)
+      for (const rec of kriDetailsMap.values()) {
+        for (const period of rec.valuesByPeriod) {
+          const seen = new Set<string>();
+          period.actionPlans = period.actionPlans.filter(ap => {
+            const key = `${ap.control_procedure}|${ap.implementation_date}|${ap.business_unit}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        }
+      }
+      const kriDetailsWithActionPlansGrouped = Array.from(kriDetailsMap.values()).map(rec => ({
+        ...rec,
+        valuesByPeriod: rec.valuesByPeriod.sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
+      }));
+
       // Calculate status counts from statusCountsRow (convert to integers)
       const pendingPreparer = Number(statusCountsRow?.pendingPreparer || 0);
       const pendingChecker = Number(statusCountsRow?.pendingChecker || 0);
@@ -772,6 +1009,7 @@ export class GrcKrisService {
           function_name: item.function_name || 'Unknown',
           status: item.status || 'Unknown'
         })),
+        kriDetailsWithActionPlans: kriDetailsWithActionPlansGrouped,
         activeKrisDetails: activeKrisDetailsRows.map(item => ({
           kriName: item.kriName || 'Unknown',
           combined_status: item.combined_status || 'Unknown',
