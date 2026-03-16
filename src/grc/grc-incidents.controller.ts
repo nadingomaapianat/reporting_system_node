@@ -1,4 +1,5 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
 import { GrcIncidentsService } from './grc-incidents.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -9,6 +10,24 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 @Permissions('Reporting', ['show'])
 export class GrcIncidentsController {
   constructor(private readonly grcIncidentsService: GrcIncidentsService) {}
+
+  @Get('export-pdf')
+  async proxyExportPdf(
+    @Req() req: any,
+    @Query() query: Record<string, any>,
+    @Res() res: Response,
+  ) {
+    return this.grcIncidentsService.proxyExportToPython(req.user, 'pdf', query, res);
+  }
+
+  @Get('export-excel')
+  async proxyExportExcel(
+    @Req() req: any,
+    @Query() query: Record<string, any>,
+    @Res() res: Response,
+  ) {
+    return this.grcIncidentsService.proxyExportToPython(req.user, 'excel', query, res);
+  }
 
   @Get()
   async getIncidentsDashboard(

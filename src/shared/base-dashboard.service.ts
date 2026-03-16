@@ -253,7 +253,8 @@ export abstract class BaseDashboardService {
           query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
         }
         const result = await this.databaseService.query(query);
-        const limitedResult = result.slice(0, tableLimit);
+        // When pagination is enabled, return full result so the frontend can show page numbers
+        const limitedResult = table.pagination ? result : result.slice(0, tableLimit);
         const data = limitedResult.map((row: any) => {
           const processedRow: any = {};
           for (const column of table.columns) {
