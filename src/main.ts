@@ -3,7 +3,12 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as bodyParser from 'body-parser';
+import * as path from 'path';
+import * as dotenv from 'dotenv';
 import helmet from 'helmet';
+
+// Load .env first so process.env is set before any module (e.g. AuthService) reads it
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 
 async function bootstrap() {
@@ -78,7 +83,7 @@ async function bootstrap() {
     },
     credentials: process.env.CORS_CREDENTIALS === 'true' || process.env.CORS_CREDENTIALS === undefined,
     methods: corsMethods,
-    allowedHeaders: [...corsAllowedHeaders, 'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'x-csrf-token'],
+    allowedHeaders: [...corsAllowedHeaders, 'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'x-csrf-token', 'X-Control-Name'],
     exposedHeaders: corsExposedHeaders,
     preflightContinue: false,
     optionsSuccessStatus: 204,

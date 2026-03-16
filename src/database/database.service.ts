@@ -159,6 +159,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             (typeof param === 'number' || !isNaN(Number(param)))
           ) {
             request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
+          } else if (typeof param === 'string') {
+            request.input(`param${index}`, sql.NVarChar(4000), param);
           } else {
             request.input(`param${index}`, param);
           }

@@ -295,11 +295,12 @@ export class GrcRisksService extends BaseDashboardService {
           GROUP BY r.id, r.name ORDER BY control_count DESC
         `),
         this.databaseService.query(`
-          SELECT c.name AS [Controls__name], (SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL) AS function_name, COUNT(DISTINCT rc.risk_id) AS [count]
+          SELECT c.name AS [Controls__name], (SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL) AS function_name, COUNT(DISTINCT r.id) AS [count]
           FROM dbo.[Controls] c
+          INNER JOIN (SELECT DISTINCT rc.control_id FROM dbo.[RiskControls] rc INNER JOIN dbo.[Risks] r0 ON rc.risk_id = r0.id AND r0.isDeleted = 0 AND r0.deletedAt IS NULL ${dateFilter.replace('r.', 'r0.')}) rc0 ON c.id = rc0.control_id
           LEFT JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
-          LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0
-          WHERE c.isDeleted = 0 ${dateFilter}
+          LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
           GROUP BY c.id, c.name ORDER BY [count] DESC, c.name ASC
         `),
         this.databaseService.query(`
@@ -436,16 +437,8 @@ export class GrcRisksService extends BaseDashboardService {
         break;
       }
       case 'reduction': {
-        // Calculate current quarter and year for Residualrisks table
-        const currentDate = new Date();
-        const currentYear = currentDate.getFullYear();
-        const currentMonth = currentDate.getMonth() + 1;
-        const currentQuarter = Math.ceil(currentMonth / 3);
-        const quarterNames = ['quarterOne', 'quarterTwo', 'quarterThree', 'quarterFour'];
-        const currentQuarterName = quarterNames[currentQuarter - 1];
-
-        // Build date filter for Residualrisks table (only use valid YYYY-MM-DD to avoid SQL date conversion errors)
-        let residualDateFilter = `AND rr.quarter = '${currentQuarterName}' AND rr.year = ${currentYear}`;
+        // Match dashboard: when no date range is selected, use no residual date filter so detail count matches card count (942)
+        let residualDateFilter = '';
         const validStart2 = startDate && /^\d{4}-\d{2}-\d{2}/.test(String(startDate).trim());
         const validEnd2 = endDate && /^\d{4}-\d{2}-\d{2}/.test(String(endDate).trim());
         if (validStart2 && validEnd2) {
@@ -707,34 +700,60 @@ export class GrcRisksService extends BaseDashboardService {
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
-    const dateFilter = this.buildDateFilter(startDate, endDate);
-    // Ensure page and limit are integers
+    // Match dashboard count: use ResidualRisks join and same date logic (no residual date filter when no range)
+    let residualDateFilter = '';
+    const validStart = startDate && /^\d{4}-\d{2}-\d{2}/.test(String(startDate).trim());
+    const validEnd = endDate && /^\d{4}-\d{2}-\d{2}/.test(String(endDate).trim());
+    if (validStart && validEnd) {
+      const start = String(startDate).trim().slice(0, 10);
+      const end = String(endDate).trim().slice(0, 10);
+      residualDateFilter = `AND rr.createdAt >= '${start}' AND rr.createdAt <= '${end} 23:59:59'`;
+    }
+
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
     const offset = Math.floor((pageInt - 1) * limitInt);
-    
+
     const query = `
       SELECT 
         r.id as risk_id,
+        r.code as code,
         r.name as risk_name,
         ${this.riskFunctionNameSubquery()} AS function_name,
-        CAST(r.inherent_value as INT) as inherent_value,
-        CAST(r.residual_value as INT) as residual_value,
-        (CAST(r.inherent_value as INT) - CAST(r.residual_value as INT)) as reduction,
-        r.createdAt as created_at
+        r.inherent_value as inherent_level,
+        rr.residual_value as residual_level,
+        (CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END) as inherent_value,
+        (CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END) as residual_value,
+        ((CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END)
+         - (CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END)) as reduction,
+        rr.createdAt as created_at
       FROM dbo.[Risks] r
-      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
-      ORDER BY r.createdAt DESC
-      OFFSET @param0 ROWS
-      FETCH NEXT @param1 ROWS ONLY
+      INNER JOIN dbo.[Residualrisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
+      WHERE r.isDeleted = 0
+        ${residualDateFilter}
+        ${functionFilter}
+        AND (
+          (CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END)
+          - (CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END)
+        ) > 0
+      ORDER BY (CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END)
+             - (CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END) DESC
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
     `;
-    
+
     const countQuery = `
       SELECT COUNT(*) as total
       FROM dbo.[Risks] r
-      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
+      INNER JOIN dbo.[Residualrisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
+      WHERE r.isDeleted = 0
+        ${residualDateFilter}
+        ${functionFilter}
+        AND (
+          (CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END)
+          - (CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END)
+        ) > 0
     `;
-    
+
     const [data, countResult] = await Promise.all([
       this.databaseService.query(query, [offset, limitInt]),
       this.databaseService.query(countQuery)
@@ -1561,16 +1580,21 @@ export class GrcRisksService extends BaseDashboardService {
   }
 
   async getRisksByControlName(user: any, controlName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    const rawName = (controlName != null && controlName !== '') ? String(controlName).replace(/\s+/g, ' ').trim() : '';
+    if (!rawName) {
+      return { data: [], pagination: { page: 1, limit: Math.floor(Number(limit)) || 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+    }
+
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
     const offset = Math.floor((pageInt - 1) * limitInt);
-    
+
+    // Use distinct risk IDs so modal row count matches summary (no duplicate rows when RiskControls has duplicate links)
     const dataQuery = `
       SELECT 
         r.code,
@@ -1581,18 +1605,17 @@ export class GrcRisksService extends BaseDashboardService {
         r.residual_value,
         r.createdAt AS createdAt
       FROM dbo.[Controls] c
-      LEFT JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
-      LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL
+      INNER JOIN (SELECT DISTINCT rc.control_id, rc.risk_id FROM dbo.[RiskControls] rc) rc ON c.id = rc.control_id
+      INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL
       WHERE c.isDeleted = 0 
         AND c.deletedAt IS NULL
-        AND c.name = @param2
+        AND LTRIM(RTRIM(REPLACE(REPLACE(c.name, CHAR(10), ' '), CHAR(13), ' '))) = @param2
         ${dateFilter}
         ${functionFilter}
       ORDER BY r.name ASC
       OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
     `;
-    
-    // For count query, use @param0 since only 1 parameter is passed
+
     const countQuery = `
       SELECT COUNT(DISTINCT rc.risk_id) as total
       FROM dbo.[Controls] c
@@ -1600,15 +1623,15 @@ export class GrcRisksService extends BaseDashboardService {
       LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL
       WHERE c.isDeleted = 0 
         AND c.deletedAt IS NULL
-        AND c.name = @param0
+        AND LTRIM(RTRIM(REPLACE(REPLACE(c.name, CHAR(10), ' '), CHAR(13), ' '))) = @param0
         ${dateFilter}
         ${functionFilter}
     `;
-    
+
     try {
       const [data, count] = await Promise.all([
-        this.databaseService.query(dataQuery, [offset, limitInt, controlName]),
-        this.databaseService.query(countQuery, [controlName])
+        this.databaseService.query(dataQuery, [offset, limitInt, rawName]),
+        this.databaseService.query(countQuery, [rawName])
       ]);
       
       return {

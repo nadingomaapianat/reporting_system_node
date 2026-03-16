@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import axios from 'axios';
+import { Response } from 'express';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
+
+const PYTHON_API_URL = process.env.PYTHON_API_URL || process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
 
 @Injectable()
 export class GrcIncidentsService {
@@ -938,13 +942,55 @@ export class GrcIncidentsService {
   }
 
   async exportIncidents(user: any, format: string, timeframe?: string) {
-    // This would integrate with the Python export service
-    // For now, return a placeholder response
+    // Legacy placeholder; use proxyExportToPython (export-pdf / export-excel) for real export
     return {
       message: `Exporting incidents data in ${format} format`,
       timeframe: timeframe || 'all',
       status: 'success'
     };
+  }
+
+  /**
+   * Proxy incident export to Python so user context (X-User-Id, X-Group-Name) is sent
+   * and export applies the same function filter as the UI (same row count).
+   */
+  async proxyExportToPython(
+    user: any,
+    format: 'pdf' | 'excel',
+    query: Record<string, any>,
+    res: Response,
+  ): Promise<void> {
+    const base = PYTHON_API_URL.replace(/\/$/, '');
+    const path = `/api/grc/incidents/export-${format}`;
+    const qs = new URLSearchParams();
+    Object.entries(query || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') {
+        qs.append(k, String(v));
+      }
+    });
+    const url = qs.toString() ? `${base}${path}?${qs.toString()}` : `${base}${path}`;
+    const headers: Record<string, string> = {};
+    if (user?.id) headers['X-User-Id'] = String(user.id);
+    if (user?.groupName) headers['X-Group-Name'] = String(user.groupName);
+    else if (user?.group) headers['X-Group-Name'] = String(user.group);
+
+    try {
+      const ax = await axios({
+        method: 'GET',
+        url,
+        headers,
+        responseType: 'stream',
+        validateStatus: () => true,
+      });
+      const contentType = ax.headers['content-type'];
+      const contentDisposition = ax.headers['content-disposition'];
+      if (contentType) res.setHeader('Content-Type', contentType);
+      if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
+      res.status(ax.status);
+      ax.data.pipe(res);
+    } catch (err: any) {
+      res.status(500).json({ detail: err?.message || 'Export proxy failed' });
+    }
   }
 
   async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
