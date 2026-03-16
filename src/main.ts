@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -13,7 +14,7 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Behind reverse proxies/load balancers we must trust X-Forwarded-* headers
   // so that rate limiting and IP-based logic work correctly.
