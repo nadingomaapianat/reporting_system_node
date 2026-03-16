@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query, Body, Headers, Param, Req, UseGuards } from '@nestjs/common';
 import { GrcRisksService } from './grc-risks.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -292,17 +292,52 @@ export class GrcRisksController {
   @Get('by-control-name')
   async getRisksByControlName(
     @Req() req: any,
-    @Query('controlName') controlName: string,
+    @Query('controlName') controlNameQuery: string,
+    @Headers('x-control-name') controlNameHeader: string | undefined,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
+    // Prefer header so control names with &, ?, = are not broken by query string parsing. Decode base64 when present (UTF-8 / non-ASCII).
+    let controlName = controlNameQuery;
+    if (controlNameHeader != null && controlNameHeader.trim() !== '') {
+      const raw = controlNameHeader.trim();
+      if (raw.startsWith('base64:')) {
+        try {
+          controlName = Buffer.from(raw.slice(7), 'base64').toString('utf-8');
+        } catch {
+          controlName = raw;
+        }
+      } else {
+        controlName = raw;
+      }
+    }
     try {
       return await this.grcRisksService.getRisksByControlName(req.user, controlName, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByControlName:', error);
+      throw error;
+    }
+  }
+
+  /** POST variant: control name in body to avoid query-string truncation for names containing &, ?, etc. */
+  @Post('by-control-name')
+  async getRisksByControlNamePost(
+    @Req() req: any,
+    @Body() body: { controlName?: string; page?: number; limit?: number; startDate?: string; endDate?: string; functionId?: string }
+  ) {
+    const controlName = body?.controlName ?? (req.query?.controlName as string);
+    const page = body?.page ?? (Number(req.query?.page) || 1);
+    const limit = body?.limit ?? (Number(req.query?.limit) || 10);
+    const startDate = body?.startDate ?? req.query?.startDate;
+    const endDate = body?.endDate ?? req.query?.endDate;
+    const functionId = body?.functionId ?? req.query?.functionId;
+    try {
+      return await this.grcRisksService.getRisksByControlName(req.user, controlName, page, limit, startDate, endDate, functionId);
+    } catch (error) {
+      console.error('Error in getRisksByControlName (POST):', error);
       throw error;
     }
   }
