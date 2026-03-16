@@ -3,11 +3,16 @@ import * as path from 'path';
 import * as https from 'https';
 
 /**
- * Bank security: use same CA cert as new_adib_backend for outbound HTTPS.
- * Set CERT_PATH or CERTS_PEM_PATH in .env to path to certs.pem (e.g. ./certs.pem).
- * When set, outbound axios/HTTPS calls verify the server using this CA.
+ * When VERIFY_SSL=false (e.g. self-signed or custom CA in dev), outbound HTTPS skips cert verification.
+ * VERIFY_SSL=true or unset = verify (use CA when CERT_PATH set, else default).
  */
+export function isVerifySsl(): boolean {
+  const v = (process.env.VERIFY_SSL || '').toLowerCase();
+  return v !== 'false' && v !== '0';
+}
+
 let cachedAgent: https.Agent | null = null;
+let cachedNoVerifyAgent: https.Agent | null = null;
 
 function getCertPath(): string | null {
   const envPath = process.env.CERT_PATH || process.env.CERTS_PEM_PATH;
@@ -47,6 +52,21 @@ export function getHttpsAgentWithCa(): https.Agent | null {
     );
     return null;
   }
+}
+
+/**
+ * Single agent for outbound HTTPS: respects VERIFY_SSL.
+ * VERIFY_SSL=false → agent with rejectUnauthorized: false.
+ * VERIFY_SSL=true or unset → getHttpsAgentWithCa() or null (default verify).
+ */
+export function getHttpsAgentForOutbound(): https.Agent | null {
+  if (!isVerifySsl()) {
+    if (!cachedNoVerifyAgent) {
+      cachedNoVerifyAgent = new https.Agent({ rejectUnauthorized: false });
+    }
+    return cachedNoVerifyAgent;
+  }
+  return getHttpsAgentWithCa();
 }
 
 /**

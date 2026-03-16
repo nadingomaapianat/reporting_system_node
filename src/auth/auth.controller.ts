@@ -168,14 +168,18 @@ export class AuthController {
     }
 
     // Bank-grade: HttpOnly (no JS access), Secure in production, SameSite for same-site/cross-site POST
+    // COOKIE_DOMAIN (e.g. .adib.co.eg) allows the cookie to be sent to the frontend origin so API proxies can forward auth to Python
+    const cookieOpts: Record<string, any> = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: result.expiresIn * 1000,
+      path: '/',
+    };
+    const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
+    if (cookieDomain) cookieOpts.domain = cookieDomain;
     res
-      .cookie(COOKIE_NAME, result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: result.expiresIn * 1000,
-        path: '/',
-      })
+      .cookie(COOKIE_NAME, result.token, cookieOpts)
       .status(302)
       .redirect(redirectTo);
   }
@@ -260,13 +264,15 @@ export class AuthController {
 
   /** Clear reporting auth cookies (same path/domain/options as when set). */
   private clearReportingCookies(res: Response): void {
-    const opts = {
+    const opts: Record<string, any> = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       maxAge: 0,
       path: '/',
     };
+    const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
+    if (cookieDomain) opts.domain = cookieDomain;
     res.cookie(COOKIE_NAME, '', opts);
     res.cookie('iframe_d_c_c_t_p_1', '', opts);
     res.cookie('iframe_d_c_c_t_p_2', '', opts);

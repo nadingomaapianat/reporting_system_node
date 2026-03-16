@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
 import * as https from 'https';
-import { getHttpsAgentWithCa, isAllowSelfSignedCerts } from '../common/utils/https-cert.util';
+import { getHttpsAgentForOutbound, getHttpsAgentWithCa, isAllowSelfSignedCerts } from '../common/utils/https-cert.util';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
@@ -36,10 +36,10 @@ export class AuthService {
     const isHttps = MAIN_BACKEND_URL.startsWith('https://');
     if (!isHttps) return config;
 
-    // Bank requirement: use same CA cert as new_adib_backend when configured (CERT_PATH / CERTS_PEM_PATH / certs.pem)
-    const agentWithCa = getHttpsAgentWithCa();
-    if (agentWithCa) {
-      config.httpsAgent = agentWithCa;
+    // VERIFY_SSL=false → skip verification; VERIFY_SSL=true or unset → use CA or default
+    const agent = getHttpsAgentForOutbound();
+    if (agent) {
+      config.httpsAgent = agent;
       return config;
     }
 

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Response } from 'express';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
+import { getHttpsAgentForOutbound } from '../common/utils/https-cert.util';
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL || process.env.NEXT_PUBLIC_PYTHON_API_URL || 'https://grc-reporting-py-uat.adib.co.eg';
 
@@ -975,12 +976,14 @@ export class GrcIncidentsService {
     else if (user?.group) headers['X-Group-Name'] = String(user.group);
 
     try {
+      const httpsAgent = getHttpsAgentForOutbound();
       const ax = await axios({
         method: 'GET',
         url,
         headers,
         responseType: 'stream',
         validateStatus: () => true,
+        ...(httpsAgent && url.startsWith('https') ? { httpsAgent } : {}),
       });
       const contentType = ax.headers['content-type'];
       const contentDisposition = ax.headers['content-disposition'];
