@@ -1,6 +1,5 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
-import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -9,10 +8,7 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Permissions('Reporting', ['show'])
 export class DashboardController {
-  constructor(
-    private readonly dashboardService: DashboardService,
-    private readonly realtimeGateway: RealtimeGateway,
-  ) {}
+  constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('status')
   getDashboardStatus() {
@@ -60,16 +56,7 @@ export class DashboardController {
 
   @Post('widgets/:widgetId/refresh')
   refreshWidget(@Param('widgetId') widgetId: string) {
-    const data = this.dashboardService.refreshWidget(widgetId);
-    
-    // Broadcast update to all connected clients
-    this.realtimeGateway.broadcastToClients([], 'widget_refresh', {
-      widgetId,
-      data,
-      timestamp: new Date().toISOString(),
-    });
-    
-    return data;
+    return this.dashboardService.refreshWidget(widgetId);
   }
 
   // Dashboard Activity endpoints

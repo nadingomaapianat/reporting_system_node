@@ -2,7 +2,6 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
-import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as bodyParser from 'body-parser';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
@@ -112,9 +111,6 @@ async function bootstrap() {
     forbidNonWhitelisted: false,
     transformOptions: { enableImplicitConversion: true },
   }));
-
-  // WebSocket adapter
-  app.useWebSocketAdapter(new IoAdapter(app));
 
   const port = process.env.PORT || 3002;
   await app.listen(port, '0.0.0.0');
