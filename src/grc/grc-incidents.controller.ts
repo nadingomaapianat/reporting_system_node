@@ -1,5 +1,4 @@
-import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { Response } from 'express';
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { GrcIncidentsService } from './grc-incidents.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -11,24 +10,6 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 export class GrcIncidentsController {
   constructor(private readonly grcIncidentsService: GrcIncidentsService) {}
 
-  @Get('export-pdf')
-  async proxyExportPdf(
-    @Req() req: any,
-    @Query() query: Record<string, any>,
-    @Res() res: Response,
-  ) {
-    return this.grcIncidentsService.proxyExportToPython(req.user, 'pdf', query, res);
-  }
-
-  @Get('export-excel')
-  async proxyExportExcel(
-    @Req() req: any,
-    @Query() query: Record<string, any>,
-    @Res() res: Response,
-  ) {
-    return this.grcIncidentsService.proxyExportToPython(req.user, 'excel', query, res);
-  }
-
   @Get()
   async getIncidentsDashboard(
     @Req() req: any, 
@@ -38,15 +19,6 @@ export class GrcIncidentsController {
     @Query('functionId') functionId?: string
   ) {
     return this.grcIncidentsService.getIncidentsDashboard(req.user, timeframe, startDate, endDate, functionId);
-  }
-
-  @Get('export')
-  async exportIncidents(
-    @Req() req: any,
-    @Query('format') format: string,
-    @Query('timeframe') timeframe?: string
-  ) {
-    return this.grcIncidentsService.exportIncidents(req.user, format, timeframe);
   }
 
   @Get('list')
