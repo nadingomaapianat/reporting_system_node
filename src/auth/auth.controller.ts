@@ -119,6 +119,9 @@ function isAllowedRedirectUri(uri: string): boolean {
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
+  /** Log once: without COOKIE_DOMAIN, JWT cookie is host-only on Node — Next.js on another subdomain gets no cookie → Python 401. */
+  private static warnedMissingCookieDomain = false;
+
   constructor(private readonly authService: AuthService) {}
 
   /**
@@ -195,6 +198,15 @@ export class AuthController {
     const cookieOpts = getReportingCookieBaseOpts(result.expiresIn * 1000) as Record<string, unknown>;
     const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
     if (cookieDomain) cookieOpts.domain = cookieDomain;
+    else if (!AuthController.warnedMissingCookieDomain) {
+      AuthController.warnedMissingCookieDomain = true;
+      this.logger.warn(
+        'COOKIE_DOMAIN is not set: auth cookie is scoped to this API host only. ' +
+          'If the reporting UI / Next.js runs on another subdomain (e.g. grc-reporting-uat vs grc-reporting-node-uat), ' +
+          'browsers will not send the cookie there → Python/charts/export return 401. ' +
+          'Set COOKIE_DOMAIN to your shared parent domain (e.g. .adib.co.eg for *.adib.co.eg — confirm with your DNS/registrable domain).',
+      );
+    }
     res
       .cookie(COOKIE_NAME, result.token, cookieOpts)
       .status(302)
