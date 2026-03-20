@@ -7,6 +7,31 @@ import * as jwt from 'jsonwebtoken';
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://grc-reporting-uat.adib.co.eg';
 const COOKIE_NAME = 'reporting_node_token';
 
+/**
+ * Shared cookie options for reporting JWT.
+ * Env: COOKIE_DOMAIN=.adib.co.eg (required for frontend + Next proxy on another subdomain).
+ * COOKIE_SAMESITE=lax|strict|none — use "none" only if you need cross-site embeds + set Secure (forced when none).
+ * COOKIE_SECURE=true forces Secure outside production (e.g. HTTPS dev).
+ */
+function getReportingCookieBaseOpts(maxAgeMs: number): Record<string, unknown> {
+  const sameSiteRaw = (process.env.COOKIE_SAMESITE || 'lax').toLowerCase().trim();
+  const sameSite = (['lax', 'strict', 'none'].includes(sameSiteRaw) ? sameSiteRaw : 'lax') as
+    | 'lax'
+    | 'strict'
+    | 'none';
+  const secure =
+    process.env.NODE_ENV === 'production' ||
+    process.env.COOKIE_SECURE === 'true' ||
+    sameSite === 'none';
+  return {
+    httpOnly: true,
+    secure,
+    sameSite,
+    maxAge: maxAgeMs,
+    path: '/',
+  };
+}
+
 /** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */
 function getAllowedEntryOrigins(): string[] {
   const base = REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase();
@@ -167,15 +192,7 @@ export class AuthController {
       }
     }
 
-    // Bank-grade: HttpOnly (no JS access), Secure in production, SameSite for same-site/cross-site POST
-    // COOKIE_DOMAIN (e.g. .adib.co.eg) allows the cookie to be sent to the frontend origin so API proxies can forward auth to Python
-    const cookieOpts: Record<string, any> = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: result.expiresIn * 1000,
-      path: '/',
-    };
+    const cookieOpts = getReportingCookieBaseOpts(result.expiresIn * 1000) as Record<string, unknown>;
     const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
     if (cookieDomain) cookieOpts.domain = cookieDomain;
     res
@@ -264,13 +281,7 @@ export class AuthController {
 
   /** Clear reporting auth cookies (same path/domain/options as when set). */
   private clearReportingCookies(res: Response): void {
-    const opts: Record<string, any> = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
-      maxAge: 0,
-      path: '/',
-    };
+    const opts = getReportingCookieBaseOpts(0) as Record<string, unknown>;
     const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
     if (cookieDomain) opts.domain = cookieDomain;
     res.cookie(COOKIE_NAME, '', opts);
