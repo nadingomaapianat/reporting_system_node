@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { fq } from './db-config';
+import { applyOrderByFunctionDeep } from './order-by-function';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from './user-function-access.service';
 
@@ -60,7 +61,13 @@ export abstract class BaseDashboardService {
 
   abstract getConfig(): DashboardConfig;
 
-  async getDashboardData(user: any, startDate?: string, endDate?: string, functionId?: string) {
+  async getDashboardData(
+    user: any,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    orderByFunctionAsc?: boolean,
+  ) {
     // By default: no date filter (all data). Date filter is applied only when both startDate and endDate are provided.
     const config = this.getConfig();
     const dateFilter = this.buildDateFilter(startDate, endDate, config.dateField);
@@ -100,11 +107,12 @@ export abstract class BaseDashboardService {
         this.getTablesData(config.tables, dateFilter, functionFilter)
       ]);
 
-      return {
+      const payload = {
         ...metricsResults,
         ...chartsResults,
         ...tablesResults
       };
+      return orderByFunctionAsc ? applyOrderByFunctionDeep(payload) : payload;
     } catch (error) {
       console.error(`Error fetching ${config.name} dashboard data:`, error);
       throw error;
