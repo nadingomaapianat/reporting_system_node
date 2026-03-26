@@ -410,11 +410,7 @@ export class GrcRisksController {
     const endDate = body?.endDate ?? req.query?.endDate;
     const functionId = body?.functionId ?? req.query?.functionId;
     try {
-      const ob = orderByFunctionFromRequest(req);
-      return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksByControlName(req.user, controlName, page, limit, startDate, endDate, functionId),
-        ob,
-      );
+      return await this.grcRisksService.getRisksByControlName(req.user, controlName, page, limit, startDate, endDate, functionId);
     } catch (error) {
       console.error('Error in getRisksByControlName (POST):', error);
       throw error;
