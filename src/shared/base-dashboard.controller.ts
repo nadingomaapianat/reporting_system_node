@@ -1,5 +1,6 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import { BaseDashboardService } from './base-dashboard.service';
+import { orderByFunctionFromRequest } from './order-by-function';
 
 @Controller()
 export abstract class BaseDashboardController {
@@ -12,7 +13,8 @@ export abstract class BaseDashboardController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.dashboardService.getDashboardData(req.user, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return this.dashboardService.getDashboardData(req.user, startDate, endDate, functionId, ob);
   }
 
   @Get('card/:cardType')

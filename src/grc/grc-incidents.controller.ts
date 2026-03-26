@@ -4,6 +4,11 @@ import { GrcIncidentsService } from './grc-incidents.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
+import {
+  applyOrderByFunctionDeep,
+  orderByFunctionFromRequest,
+  sortPaginatedResponseIfNeeded,
+} from '../shared/order-by-function';
 
 @Controller('api/grc/incidents')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -31,13 +36,15 @@ export class GrcIncidentsController {
 
   @Get()
   async getIncidentsDashboard(
-    @Req() req: any, 
+    @Req() req: any,
     @Query('timeframe') timeframe?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getIncidentsDashboard(req.user, timeframe, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    const raw = await this.grcIncidentsService.getIncidentsDashboard(req.user, timeframe, startDate, endDate, functionId);
+    return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
   @Get('export')
@@ -58,7 +65,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('total')
@@ -70,7 +81,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, functionId)
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('pending-preparer')
@@ -82,7 +97,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getPendingPreparerIncidents(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getPendingPreparerIncidents(req.user, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('pending-checker')
@@ -94,7 +113,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getPendingCheckerIncidents(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getPendingCheckerIncidents(req.user, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('pending-reviewer')
@@ -106,7 +129,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getPendingReviewerIncidents(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getPendingReviewerIncidents(req.user, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('pending-acceptance')
@@ -118,7 +145,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getPendingAcceptanceIncidents(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getPendingAcceptanceIncidents(req.user, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-category')
@@ -134,7 +165,11 @@ export class GrcIncidentsController {
     if (!category) {
       throw new Error('category parameter is required');
     }
-    return this.grcIncidentsService.getIncidentsByCategory(req.user, category, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByCategory(req.user, category, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-event-type')
@@ -150,7 +185,11 @@ export class GrcIncidentsController {
     if (!eventType) {
       throw new Error('eventType parameter is required');
     }
-    return this.grcIncidentsService.getIncidentsByEventType(req.user, eventType, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, eventType, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-financial-impact')
@@ -166,7 +205,11 @@ export class GrcIncidentsController {
     if (!financialImpact) {
       throw new Error('financialImpact parameter is required');
     }
-    return this.grcIncidentsService.getIncidentsByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-status')
@@ -182,7 +225,11 @@ export class GrcIncidentsController {
     if (!status) {
       throw new Error('status parameter is required');
     }
-    return this.grcIncidentsService.getIncidentsByStatus(req.user, status, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByStatus(req.user, status, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('action-plans')
@@ -195,7 +242,11 @@ export class GrcIncidentsController {
     @Query('functionId') functionId?: string,
     @Query('businessUnit') businessUnit?: string
   ) {
-    return this.grcIncidentsService.getIncidentActionPlans(req.user, page, limit, startDate, endDate, functionId, businessUnit);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentActionPlans(req.user, page, limit, startDate, endDate, functionId, businessUnit),
+      ob
+    );
   }
 
   @Get('by-month-year')
@@ -211,7 +262,11 @@ export class GrcIncidentsController {
     if (!monthYear) {
       throw new Error('monthYear parameter is required')
     }
-    return this.grcIncidentsService.getIncidentsByMonthYear(req.user, monthYear, page, limit, startDate, endDate, functionId)
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByMonthYear(req.user, monthYear, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-sub-category')
@@ -227,7 +282,11 @@ export class GrcIncidentsController {
     if (!subCategory) {
       throw new Error('subCategory parameter is required');
     }
-    return this.grcIncidentsService.getIncidentsBySubCategory(req.user, subCategory, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, subCategory, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-period')
@@ -243,7 +302,11 @@ export class GrcIncidentsController {
     if (!period) {
       throw new Error('period parameter is required. Expected format: MM/YYYY');
     }
-    return this.grcIncidentsService.getIncidentsByPeriod(req.user, period, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByPeriod(req.user, period, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-internal-fraud')
@@ -255,7 +318,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getIncidentsByEventType(req.user, 'Internal Fraud', page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Internal Fraud', page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-external-fraud')
@@ -267,7 +334,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getIncidentsByEventType(req.user, 'External Fraud', page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'External Fraud', page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-physical-asset-damage')
@@ -279,7 +350,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getIncidentsByEventType(req.user, 'Damage to Physical Assets', page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Damage to Physical Assets', page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-atm-issue')
@@ -291,7 +366,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'ATM issue', page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'ATM issue', page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-people-error')
@@ -303,7 +382,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'Human Mistake', page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'Human Mistake', page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('recognition-time')
@@ -315,7 +398,11 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcIncidentsService.getIncidentsWithRecognitionTime(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsWithRecognitionTime(req.user, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-period-and-type')
@@ -335,7 +422,11 @@ export class GrcIncidentsController {
     if (!incidentType) {
       throw new Error('incidentType parameter is required');
     }
-    return this.grcIncidentsService.getIncidentsByPeriodAndType(req.user, period, incidentType, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByPeriodAndType(req.user, period, incidentType, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 
   @Get('by-comprehensive-metric')
@@ -351,6 +442,10 @@ export class GrcIncidentsController {
     if (!metric) {
       throw new Error('metric parameter is required');
     }
-    return this.grcIncidentsService.getIncidentsByComprehensiveMetric(req.user, metric, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcIncidentsService.getIncidentsByComprehensiveMetric(req.user, metric, page, limit, startDate, endDate, functionId),
+      ob
+    );
   }
 }

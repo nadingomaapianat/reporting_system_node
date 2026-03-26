@@ -669,6 +669,8 @@ export class GrcIncidentsService {
         SELECT 
           i.title AS incident_title,
           f_inc.name AS incident_function_name,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
+          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
           a.control_procedure AS action_taken,
           f_owner.name AS action_owner_name,
           a.business_unit AS business_unit_status,
@@ -924,6 +926,8 @@ export class GrcIncidentsService {
         incidentActionPlan: incidentActionPlan.map((row: any) => ({
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
+          root_cause: row.incident_root_cause || '',
+          description: row.incident_description || '',
           action_taken: row.action_taken || row.control_procedure || '',
           action_owner: row.action_owner_name || '',
           status: row.business_unit_status || '',
