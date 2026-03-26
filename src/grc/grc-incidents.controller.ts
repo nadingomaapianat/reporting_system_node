@@ -28,6 +28,15 @@ export class GrcIncidentsController {
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
+  @Get('export')
+  async exportIncidents(
+    @Req() req: any,
+    @Query('format') format: string,
+    @Query('timeframe') timeframe?: string
+  ) {
+    return this.grcIncidentsService.exportIncidents(req.user, format, timeframe);
+  }
+
   @Get('list')
   async getIncidentsList(
     @Req() req: any,
