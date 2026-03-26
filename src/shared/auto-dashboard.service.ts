@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { ChartRegistryService, SimpleChartConfig } from './chart-registry.service';
-import { UserFunctionAccessService, UserFunctionAccess, GrcSelectedFunctionIds } from './user-function-access.service';
+import { UserFunctionAccessService, UserFunctionAccess } from './user-function-access.service';
 import { applyOrderByFunctionDeep } from './order-by-function';
 
 @Injectable()
@@ -16,7 +16,7 @@ export class AutoDashboardService {
     user: any,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[],
+    functionId?: string,
     orderByFunctionAsc?: boolean,
   ) {
     const charts = ChartRegistryService.getChartsForDashboard('main');
@@ -26,7 +26,7 @@ export class AutoDashboardService {
     let functionFilter = '';
     if (user && this.userFunctionAccess) {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
     }
 
     // Execute all chart queries in parallel
@@ -63,7 +63,7 @@ export class AutoDashboardService {
   }
 
   // Get specific chart data
-  async getChartData(user: any, chartId: string, startDate?: string, endDate?: string, selectedFunctionIds?: GrcSelectedFunctionIds) {
+  async getChartData(user: any, chartId: string, startDate?: string, endDate?: string, functionId?: string) {
     const chart = ChartRegistryService.getChart(chartId);
     if (!chart) {
       throw new Error(`Chart ${chartId} not found`);
@@ -73,7 +73,7 @@ export class AutoDashboardService {
     let functionFilter = '';
     if (user && this.userFunctionAccess) {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
     }
 
     const query = this.buildQuery(chart.sql, startDate, endDate, functionFilter);

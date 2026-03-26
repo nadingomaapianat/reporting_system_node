@@ -5,7 +5,6 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { orderByFunctionFromRequest } from './order-by-function';
-import { parseGrcFunctionIdsFromQueries } from './grc-function-ids';
 
 @Controller('charts')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -19,11 +18,10 @@ export class SimpleChartController {
     @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionId') functionId?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return this.autoDashboardService.getDashboardData(req.user, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+    return this.autoDashboardService.getDashboardData(req.user, startDate, endDate, functionId, ob);
   }
 
   // Get specific chart data
@@ -33,10 +31,9 @@ export class SimpleChartController {
     @Param('chartId') chartId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionId') functionId?: string
   ) {
-    return this.autoDashboardService.getChartData(req.user, chartId, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds));
+    return this.autoDashboardService.getChartData(req.user, chartId, startDate, endDate, functionId);
   }
 
   // Add new chart (for admin/development)
