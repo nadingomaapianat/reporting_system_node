@@ -1,7 +1,6 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import { BaseDashboardService } from './base-dashboard.service';
 import { orderByFunctionFromRequest } from './order-by-function';
-import { parseGrcFunctionIdsFromQueries } from './grc-function-ids';
 
 @Controller()
 export abstract class BaseDashboardController {
@@ -12,11 +11,10 @@ export abstract class BaseDashboardController {
     @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionId') functionId?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return this.dashboardService.getDashboardData(req.user, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+    return this.dashboardService.getDashboardData(req.user, startDate, endDate, functionId, ob);
   }
 
   @Get('card/:cardType')
@@ -27,9 +25,8 @@ export abstract class BaseDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionId') functionId?: string
   ) {
-    return this.dashboardService.getCardData(req.user, cardType, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds));
+    return this.dashboardService.getCardData(req.user, cardType, page, limit, startDate, endDate, functionId);
   }
 }

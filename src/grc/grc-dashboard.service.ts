@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseDashboardService, DashboardConfig, DashboardDateFilters } from '../shared/base-dashboard.service';
+import { BaseDashboardService, DashboardConfig } from '../shared/base-dashboard.service';
 import { DashboardConfigService } from '../shared/dashboard-config.service';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
@@ -23,46 +23,20 @@ export class GrcDashboardService extends BaseDashboardService {
     return `(SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL)`;
   }
 
-  /** Scope displayed function names to selected/allowed functions when function filter is active. */
-  private controlFunctionNameSubqueryScoped(access: UserFunctionAccess, selectedFunctionIds?: string[]): string {
-    const base = `SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL`;
-    const sel = selectedFunctionIds?.length
-      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
-      : [];
-    if (sel.length) {
-      const ids = sel.map((id) => `'${id.replace(/'/g, "''")}'`).join(', ');
-      return `(${base} AND cf.function_id IN (${ids}))`;
-    }
-    if (access.isSuperAdmin) return `(${base})`;
-    if (!access.functionIds.length) return 'NULL';
-    const ids = access.functionIds.map((id) => `'${String(id).replace(/'/g, "''")}'`).join(', ');
-    return `(${base} AND cf.function_id IN (${ids}))`;
-  }
-
   // Override specific methods if needed for custom logic
-  async getControlsDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc?: boolean) {
+  async getControlsDashboard(user: any, startDate?: string, endDate?: string, functionId?: string, orderByFunctionAsc?: boolean) {
     // Use base class method which now accepts functionId
-    return this.getDashboardData(user, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    return this.getDashboardData(user, startDate, endDate, functionId, orderByFunctionAsc);
   }
 
   // Control-specific card data with function filtering
-  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-    const functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, selectedFunctionIds);
-    const functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, selectedFunctionIds);
-    const functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, selectedFunctionIds);
+    const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
     const config = this.getConfig();
-    const dateFilters: DashboardDateFilters = {
-      dateFilter: this.buildDateFilter(startDate, endDate, config.dateField),
-      dateFilterC: this.buildDateFilter(startDate, endDate, 'c.createdAt'),
-      dateFilterA: this.buildDateFilter(startDate, endDate, 'a.createdAt'),
-      dateFilterAp: this.buildDateFilter(startDate, endDate, 'ap.createdAt'),
-      dateFilterCdt: this.buildDateFilter(startDate, endDate, 'cdt.createdAt'),
-      dateFilterT: this.buildDateFilter(startDate, endDate, 't.createdAt'),
-    };
+    const dateFilter = this.buildDateFilter(startDate, endDate, config.dateField);
     
     // Find the metric configuration
     const metric = config.metrics.find(m => m.id === cardType);
@@ -73,25 +47,16 @@ export class GrcDashboardService extends BaseDashboardService {
     try {
       // Create a proper data query based on the metric type
       let dataQuery: string;
-      let countQuery = this.applyDateFilterPlaceholders(metric.query, dateFilters);
-      if (/\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.query)) {
-        countQuery = this.applyFunctionFilterPlaceholders(
-          countQuery,
-          functionFilter,
-          functionFilterControlDesignTest,
-          functionFilterCdt,
-          functionJoinFilter,
-        ).replace(/\s{2,}/g, ' ').trim();
-      }
+      let countQuery = metric.query.replace('{dateFilter}', dateFilter);
       // Function name subquery for control-based cards (Controls have many-to-many with Functions)
       const functionNameSubquery = this.controlFunctionNameSubquery();
       
       if (cardType === 'total') {
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter}`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
       } else if (cardType === 'unmapped') {
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`;
       } else if (cardType.startsWith('pending') && !cardType.startsWith('testsPending')) {
         // Handle Controls pending status cards - use standardized staged workflow pattern
         // Require control to have at least one ControlFunctions link (match Python/UI; exclude unassigned controls)
@@ -111,8 +76,8 @@ export class GrcDashboardService extends BaseDashboardService {
           whereClause = `c.${statusField} != 'approved'`;
         }
         
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilters.dateFilterC} ${baseControlFunctionExists} ${functionFilter} ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilters.dateFilterC} ${baseControlFunctionExists} ${functionFilter}`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${baseControlFunctionExists} ${functionFilter} ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${baseControlFunctionExists} ${functionFilter}`;
       } else if (cardType.startsWith('testsPending')) {
         // Map to control tests joins for details - use standardized staged workflow pattern
         let whereClause = '';
@@ -136,13 +101,13 @@ export class GrcDashboardService extends BaseDashboardService {
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
           LEFT JOIN ${fq('Functions')} AS f ON f.id = t.function_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}
           ORDER BY c.createdAt DESC`;
 
         countQuery = `SELECT COUNT(DISTINCT t.id) as total
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}`;
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
@@ -153,7 +118,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
           AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
                AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
-          AND a.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter}
+          AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}
           ORDER BY c.createdAt DESC`;
         countQuery = `SELECT COUNT(*) as total
           FROM ${fq('Controls')} c 
@@ -162,7 +127,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
           AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
                AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
-          AND a.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter}`;
+          AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}`;
       } else if (cardType === 'unmappedNonIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
@@ -174,7 +139,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
                AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) 
                OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
-          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilters.dateFilterC} ${functionFilter}
+          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}
           ORDER BY c.createdAt DESC`;
         countQuery = `SELECT COUNT(*) as total
           FROM ${fq('Controls')} c 
@@ -184,11 +149,11 @@ export class GrcDashboardService extends BaseDashboardService {
           AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
                AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) 
                OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
-          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilters.dateFilterC} ${functionFilter}`;
+          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}`;
       } else {
         // Fallback to generic query
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter}`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter}`;
       }
       
       // Add pagination (ensure ORDER BY exists for SQL Server OFFSET)
@@ -230,62 +195,61 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   // Individual card data methods (for modals)
-  async getTotalControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTotalControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, functionId);
   }
 
-  async getUnmappedControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'unmapped', page, limit, startDate, endDate, selectedFunctionIds);
+  async getUnmappedControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'unmapped', page, limit, startDate, endDate, functionId);
   }
 
-  async getPendingPreparerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'pendingPreparer', page, limit, startDate, endDate, selectedFunctionIds);
+  async getPendingPreparerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'pendingPreparer', page, limit, startDate, endDate, functionId);
   }
 
-  async getPendingCheckerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'pendingChecker', page, limit, startDate, endDate, selectedFunctionIds);
+  async getPendingCheckerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'pendingChecker', page, limit, startDate, endDate, functionId);
   }
 
-  async getPendingReviewerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'pendingReviewer', page, limit, startDate, endDate, selectedFunctionIds);
+  async getPendingReviewerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'pendingReviewer', page, limit, startDate, endDate, functionId);
   }
 
-  async getPendingAcceptanceControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'pendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds);
+  async getPendingAcceptanceControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'pendingAcceptance', page, limit, startDate, endDate, functionId);
   }
 
   // Control Tests pending methods
-  async getTestsPendingPreparer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'testsPendingPreparer', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTestsPendingPreparer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'testsPendingPreparer', page, limit, startDate, endDate, functionId);
   }
 
-  async getTestsPendingChecker(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'testsPendingChecker', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTestsPendingChecker(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'testsPendingChecker', page, limit, startDate, endDate, functionId);
   }
 
-  async getTestsPendingReviewer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'testsPendingReviewer', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTestsPendingReviewer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'testsPendingReviewer', page, limit, startDate, endDate, functionId);
   }
 
-  async getTestsPendingAcceptance(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'testsPendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTestsPendingAcceptance(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'testsPendingAcceptance', page, limit, startDate, endDate, functionId);
   }
 
-  async getUnmappedIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'unmappedIcofrControls', page, limit, startDate, endDate, selectedFunctionIds);
+  async getUnmappedIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'unmappedIcofrControls', page, limit, startDate, endDate, functionId);
   }
 
-  async getUnmappedNonIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'unmappedNonIcofrControls', page, limit, startDate, endDate, selectedFunctionIds);
+  async getUnmappedNonIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+    return this.getFilteredCardData(user, 'unmappedNonIcofrControls', page, limit, startDate, endDate, functionId);
   }
 
   // Get controls by quarter for detail modal
-  async getControlsByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getControlsByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
@@ -302,13 +266,13 @@ export class GrcDashboardService extends BaseDashboardService {
       const year = parseInt(match[2]);
 
       // Build date filter using the base class method if available
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       
       let query = `
         SELECT 
           c.code as control_code,
           c.name as control_name,
-          ${functionNameSubquery} AS function_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -365,14 +329,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -391,7 +355,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND c.deletedAt IS NULL
           AND f.name = @param0
           ${dateFilter}
-          ${functionJoinFilter}
+          ${functionFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
@@ -408,7 +372,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND c.deletedAt IS NULL
           AND f.name = @param0
           ${dateFilter}
-          ${functionJoinFilter}
+          ${functionFilter}
       `;
       const countResult = await this.databaseService.query(countQuery, [department]);
       const total = countResult[0]?.total || 0;
@@ -442,15 +406,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -463,7 +426,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
-          ${functionNameSubquery} AS function_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -518,15 +481,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -539,7 +501,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
-          ${functionNameSubquery} AS function_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
@@ -594,15 +556,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -666,15 +627,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -695,7 +655,6 @@ export class GrcDashboardService extends BaseDashboardService {
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
           AND ${riskResponseCondition}
           ${dateFilter}
           ${functionFilter}
@@ -710,7 +669,6 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT COUNT(*) as total
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
           AND ${riskResponseCondition}
           ${dateFilter}
           ${functionFilter}
@@ -748,15 +706,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -821,14 +778,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -899,37 +856,29 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   async getFocusPointsByPrinciple(
-    user: any,
     principle: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[]
+    endDate?: string
   ) {
     try {
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'point.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
-        SELECT DISTINCT
+        SELECT 
           NULL as focus_point_code,
           point.name as focus_point_name,
           point.createdAt as created_at
-        FROM dbo.[Controls] c
-        JOIN dbo.[ControlCosos] ccx ON c.id = ccx.control_id AND ccx.deletedAt IS NULL
-        JOIN dbo.[CosoPoints] point ON ccx.coso_id = point.id AND point.deletedAt IS NULL
+        FROM dbo.[CosoPoints] point
         JOIN dbo.[CosoPrinciples] prin ON point.principle_id = prin.id AND prin.deletedAt IS NULL
-        WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
-          AND prin.name = @param0
+        WHERE prin.name = @param0
+          AND point.deletedAt IS NULL
           ${dateFilter}
-          ${functionFilter}
         ORDER BY point.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
@@ -938,16 +887,12 @@ export class GrcDashboardService extends BaseDashboardService {
       const result = await this.databaseService.query(query, [principle, offset, limitInt]);
 
       const countQuery = `
-        SELECT COUNT(DISTINCT point.id) as total
-        FROM dbo.[Controls] c
-        JOIN dbo.[ControlCosos] ccx ON c.id = ccx.control_id AND ccx.deletedAt IS NULL
-        JOIN dbo.[CosoPoints] point ON ccx.coso_id = point.id AND point.deletedAt IS NULL
+        SELECT COUNT(point.id) as total
+        FROM dbo.[CosoPoints] point
         JOIN dbo.[CosoPrinciples] prin ON point.principle_id = prin.id AND prin.deletedAt IS NULL
-        WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
-          AND prin.name = @param0
+        WHERE prin.name = @param0
+          AND point.deletedAt IS NULL
           ${dateFilter}
-          ${functionFilter}
       `;
       const countResult = await this.databaseService.query(countQuery, [principle]);
       const total = countResult[0]?.total || 0;
@@ -980,15 +925,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -998,7 +942,6 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT DISTINCT
           c.code as control_code,
           c.name as control_name,
-          ${functionNameSubquery} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         JOIN dbo.[ControlCosos] ccx ON c.id = ccx.control_id AND ccx.deletedAt IS NULL
@@ -1006,7 +949,6 @@ export class GrcDashboardService extends BaseDashboardService {
         JOIN dbo.[CosoPrinciples] pr ON point.principle_id = pr.id AND pr.deletedAt IS NULL
         JOIN dbo.[CosoComponents] cc ON pr.component_id = cc.id AND cc.deletedAt IS NULL
         WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
           AND cc.name = @param0
           ${dateFilter}
           ${functionFilter}
@@ -1025,7 +967,6 @@ export class GrcDashboardService extends BaseDashboardService {
         JOIN dbo.[CosoPrinciples] pr ON point.principle_id = pr.id AND pr.deletedAt IS NULL
         JOIN dbo.[CosoComponents] cc ON pr.component_id = cc.id AND cc.deletedAt IS NULL
         WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
           AND cc.name = @param0
           ${dateFilter}
           ${functionFilter}
@@ -1056,38 +997,30 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   async getFocusPointsByComponent(
-    user: any,
     component: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[]
+    endDate?: string
   ) {
     try {
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'point.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
-        SELECT DISTINCT
+        SELECT 
           NULL as focus_point_code,
           point.name as focus_point_name,
           point.createdAt as created_at
-        FROM dbo.[Controls] c
-        JOIN dbo.[ControlCosos] ccx ON c.id = ccx.control_id AND ccx.deletedAt IS NULL
-        JOIN dbo.[CosoPoints] point ON ccx.coso_id = point.id AND point.deletedAt IS NULL
+        FROM dbo.[CosoPoints] point
         JOIN dbo.[CosoPrinciples] prin ON point.principle_id = prin.id AND prin.deletedAt IS NULL
         JOIN dbo.[CosoComponents] comp ON prin.component_id = comp.id AND comp.deletedAt IS NULL
-        WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
+        WHERE point.deletedAt IS NULL
           AND comp.name = @param0
           ${dateFilter}
-          ${functionFilter}
         ORDER BY point.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
@@ -1096,17 +1029,13 @@ export class GrcDashboardService extends BaseDashboardService {
       const result = await this.databaseService.query(query, [component, offset, limitInt]);
 
       const countQuery = `
-        SELECT COUNT(DISTINCT point.id) as total
+        SELECT COUNT(point.id) as total
         FROM dbo.[CosoPoints] point
-        JOIN dbo.[ControlCosos] ccx ON ccx.coso_id = point.id AND ccx.deletedAt IS NULL
-        JOIN dbo.[Controls] c ON c.id = ccx.control_id
         JOIN dbo.[CosoPrinciples] prin ON point.principle_id = prin.id AND prin.deletedAt IS NULL
         JOIN dbo.[CosoComponents] comp ON prin.component_id = comp.id AND comp.deletedAt IS NULL
-        WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
+        WHERE point.deletedAt IS NULL
           AND comp.name = @param0
           ${dateFilter}
-          ${functionFilter}
       `;
       const countResult = await this.databaseService.query(countQuery, [component]);
       const total = countResult[0]?.total || 0;
@@ -1140,15 +1069,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -1167,7 +1095,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
-          ${functionNameSubquery} AS function_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         LEFT JOIN dbo.[JobTitles] jt ON c.departmentId = jt.id
@@ -1227,15 +1155,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -1254,7 +1181,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
-          ${functionNameSubquery} AS function_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         LEFT JOIN dbo.[ControlProcesses] cp ON c.id = cp.control_id
@@ -1316,15 +1243,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -1336,7 +1262,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
-          ${functionNameSubquery} AS function_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[ControlFunctions] cf
         JOIN dbo.[Functions] f ON cf.function_id = f.id
@@ -1396,15 +1322,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -1421,7 +1346,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT 
           c.code as control_code,
           c.name as control_name,
-          ${functionNameSubquery} AS function_name,
+          ${this.controlFunctionNameSubquery()} AS function_name,
           c.createdAt as created_at
         FROM dbo.[Controls] c
         LEFT JOIN dbo.[Assertions] a ON c.icof_id = a.id AND a.isDeleted = 0
@@ -1479,14 +1404,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -1597,14 +1522,14 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -1695,38 +1620,32 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   async getActionPlansByStatus(
-    user: any,
     status: string,
     page: number = 1,
     limit: number = 10,
     startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[]
+    endDate?: string
   ) {
     try {
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
-      const dateFilter = this.buildDateFilter(startDate, endDate, 'a.createdAt');
+      const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'a.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
-
+      const isOverdue = status === 'Overdue';
+      
       const query = `
         SELECT 
           NULL as action_plan_code,
           a.control_procedure as action_plan_name,
           a.createdAt as created_at
         FROM dbo.[Actionplans] a
-        LEFT JOIN dbo.[ControlDesignTests] cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
-        LEFT JOIN dbo.[Controls] c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
         WHERE a.deletedAt IS NULL
           AND (CASE 
             WHEN a.done = 0 AND a.implementation_date < GETDATE() THEN 'Overdue'
             ELSE 'Not Overdue'
           END) = @param0
           ${dateFilter}
-          ${functionFilter}
         ORDER BY a.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
@@ -1737,15 +1656,12 @@ export class GrcDashboardService extends BaseDashboardService {
       const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Actionplans] a
-        LEFT JOIN dbo.[ControlDesignTests] cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
-        LEFT JOIN dbo.[Controls] c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
         WHERE a.deletedAt IS NULL
           AND (CASE 
             WHEN a.done = 0 AND a.implementation_date < GETDATE() THEN 'Overdue'
             ELSE 'Not Overdue'
           END) = @param0
           ${dateFilter}
-          ${functionFilter}
       `;
       const countResult = await this.databaseService.query(countQuery, [status]);
       const total = countResult[0]?.total || 0;
@@ -1769,5 +1685,20 @@ export class GrcDashboardService extends BaseDashboardService {
       console.error('Error fetching action plans by status:', error);
       throw error;
     }
+  }
+
+  private buildDateFilterForQuery(startDate?: string, endDate?: string, field: string = 'createdAt'): string {
+    let filter = '';
+    if (startDate && startDate.trim()) {
+      // Escape single quotes and ensure proper date format
+      const escapedStartDate = startDate.replace(/'/g, "''");
+      filter += ` AND ${field} >= '${escapedStartDate}'`;
+    }
+    if (endDate && endDate.trim()) {
+      // Escape single quotes and ensure proper date format
+      const escapedEndDate = endDate.replace(/'/g, "''");
+      filter += ` AND ${field} <= '${escapedEndDate}'`;
+    }
+    return filter;
   }
 }
