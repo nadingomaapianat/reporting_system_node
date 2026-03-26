@@ -24,9 +24,9 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   // Override specific methods if needed for custom logic
-  async getControlsDashboard(user: any, startDate?: string, endDate?: string, functionId?: string) {
+  async getControlsDashboard(user: any, startDate?: string, endDate?: string, functionId?: string, orderByFunctionAsc?: boolean) {
     // Use base class method which now accepts functionId
-    return this.getDashboardData(user, startDate, endDate, functionId);
+    return this.getDashboardData(user, startDate, endDate, functionId, orderByFunctionAsc);
   }
 
   // Control-specific card data with function filtering

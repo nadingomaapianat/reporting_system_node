@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { ChartRegistryService, SimpleChartConfig } from './chart-registry.service';
 import { UserFunctionAccessService, UserFunctionAccess } from './user-function-access.service';
+import { applyOrderByFunctionDeep } from './order-by-function';
 
 @Injectable()
 export class AutoDashboardService {
@@ -11,7 +12,13 @@ export class AutoDashboardService {
   ) {}
 
   // Get dashboard data with ALL registered charts automatically
-  async getDashboardData(user: any, startDate?: string, endDate?: string, functionId?: string) {
+  async getDashboardData(
+    user: any,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    orderByFunctionAsc?: boolean,
+  ) {
     const charts = ChartRegistryService.getChartsForDashboard('main');
     const results: any = {};
 
@@ -52,7 +59,7 @@ export class AutoDashboardService {
       results[result.id] = result.data;
     });
 
-    return results;
+    return orderByFunctionAsc ? applyOrderByFunctionDeep(results) : results;
   }
 
   // Get specific chart data

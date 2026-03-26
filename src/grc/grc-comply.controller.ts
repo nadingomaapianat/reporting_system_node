@@ -3,6 +3,11 @@ import { GrcComplyService, GrcComplyReportKey } from './grc-comply.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
+import {
+  applyOrderByFunctionDeep,
+  orderByFunctionFromRequest,
+  sortPaginatedResponseIfNeeded,
+} from '../shared/order-by-function';
 
 @Controller('api/grc/comply')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -34,12 +39,16 @@ export class GrcComplyController {
     // If report query param is provided, return single report (backward compatibility)
     if (report) {
       const reportKey = report as GrcComplyReportKey;
-      return this.grcComplyService.runReport(reportKey, startDate, endDate, functionId);
+      const ob = orderByFunctionFromRequest(req);
+      const raw = await this.grcComplyService.runReport(reportKey, startDate, endDate, functionId);
+      return ob ? applyOrderByFunctionDeep(raw) : raw;
     }
-    
+
     // Otherwise, return dashboard data
     // console.log('[GrcComplyController.getDashboardOrReport] Calling getComplyDashboard with filters:', { startDate, endDate, functionId });
-    return this.grcComplyService.getComplyDashboard(req.user, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    const raw = await this.grcComplyService.getComplyDashboard(req.user, startDate, endDate, functionId);
+    return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
   /**
@@ -53,6 +62,7 @@ export class GrcComplyController {
    */
   @Get('all')
   async getAllReports(
+    @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
@@ -61,11 +71,13 @@ export class GrcComplyController {
     const start = norm(startDate);
     const end = norm(endDate);
     const id = norm(functionId);
-    return this.grcComplyService.runAllReports(
+    const ob = orderByFunctionFromRequest(req);
+    const raw = await this.grcComplyService.runAllReports(
       start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
       end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
       id && id.length > 0 ? id : undefined
     );
+    return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
   /**
@@ -80,7 +92,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getSurveys(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getSurveys(req.user, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('compliance-details')
@@ -92,7 +108,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getComplianceDetails(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getComplianceDetails(req.user, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('survey-completion-rate')
@@ -104,7 +124,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getSurveyCompletionRate(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getSurveyCompletionRate(req.user, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('compliance-without-evidence')
@@ -116,7 +140,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getComplianceWithoutEvidence(req.user, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getComplianceWithoutEvidence(req.user, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   /**
@@ -133,14 +161,18 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getPaginatedReport(
-      reportId as GrcComplyReportKey,
-      req.user,
-      page || 1,
-      limit || 10,
-      startDate,
-      endDate,
-      functionId
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getPaginatedReport(
+        reportId as GrcComplyReportKey,
+        req.user,
+        page || 1,
+        limit || 10,
+        startDate,
+        endDate,
+        functionId
+      ),
+      ob,
     );
   }
 
@@ -157,7 +189,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getSurveysByStatus(req.user, status, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getSurveysByStatus(req.user, status, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('compliance-by-status')
@@ -170,7 +206,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getComplianceByStatus(req.user, status, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getComplianceByStatus(req.user, status, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('compliance-by-progress')
@@ -196,7 +236,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getComplianceByApproval(req.user, approvalStatus, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getComplianceByApproval(req.user, approvalStatus, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('avg-score-by-survey')
@@ -209,7 +253,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getAvgScoreBySurvey(req.user, surveyName, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getAvgScoreBySurvey(req.user, surveyName, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('compliance-by-category')
@@ -222,7 +270,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getComplianceByCategory(req.user, category, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getComplianceByCategory(req.user, category, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('top-failed-controls')
@@ -235,7 +287,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getTopFailedControls(req.user, controlName, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getTopFailedControls(req.user, controlName, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('controls-by-category')
@@ -261,7 +317,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getRisksByCategory(req.user, category, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getRisksByCategory(req.user, category, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('impacted-areas-by-month')
@@ -274,7 +334,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getImpactedAreasByMonth(req.user, month, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getImpactedAreasByMonth(req.user, month, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('questions-by-type')
@@ -287,7 +351,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getQuestionsByType(req.user, questionType, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getQuestionsByType(req.user, questionType, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('questions-by-reference')
@@ -300,7 +368,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getQuestionsByReference(req.user, referenceName, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getQuestionsByReference(req.user, referenceName, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('controls-by-domain')
@@ -326,7 +398,11 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getAnswersByFunction(req.user, functionName, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getAnswersByFunction(req.user, functionName, page, limit, startDate, endDate, functionId),
+      ob,
+    );
   }
 
   @Get('questions-by-survey-category')
@@ -340,7 +416,20 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getQuestionsBySurveyAndCategory(req.user, surveyName, categoryName, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getQuestionsBySurveyAndCategory(
+        req.user,
+        surveyName,
+        categoryName,
+        page,
+        limit,
+        startDate,
+        endDate,
+        functionId,
+      ),
+      ob,
+    );
   }
 
   @Get('questions-by-category-only')
@@ -366,7 +455,19 @@ export class GrcComplyController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.grcComplyService.getControlsByImpactedArea(req.user, impactedAreaName, page, limit, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return sortPaginatedResponseIfNeeded(
+      await this.grcComplyService.getControlsByImpactedArea(
+        req.user,
+        impactedAreaName,
+        page,
+        limit,
+        startDate,
+        endDate,
+        functionId,
+      ),
+      ob,
+    );
   }
 }
 

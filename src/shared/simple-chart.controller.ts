@@ -4,6 +4,7 @@ import { AutoDashboardService } from './auto-dashboard.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
+import { orderByFunctionFromRequest } from './order-by-function';
 
 @Controller('charts')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -19,7 +20,8 @@ export class SimpleChartController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
-    return this.autoDashboardService.getDashboardData(req.user, startDate, endDate, functionId);
+    const ob = orderByFunctionFromRequest(req);
+    return this.autoDashboardService.getDashboardData(req.user, startDate, endDate, functionId, ob);
   }
 
   // Get specific chart data
