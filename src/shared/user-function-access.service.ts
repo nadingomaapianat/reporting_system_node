@@ -11,6 +11,21 @@ export interface UserFunctionAccess {
 export class UserFunctionAccessService {
   constructor(private readonly db: DatabaseService) {}
 
+  private sqlQuoteId(id: string): string {
+    return `'${String(id).replace(/'/g, "''")}'`;
+  }
+
+  private sqlInSelectedIds(ids: string[]): string {
+    return ids.map((id) => this.sqlQuoteId(id)).join(', ');
+  }
+
+  /** Non-super users must have access to every selected function id. */
+  private canUseSelectedIds(access: UserFunctionAccess, selected: string[]): boolean {
+    if (!selected.length) return true;
+    if (access.isSuperAdmin) return true;
+    return selected.every((id) => access.functionIds.includes(id));
+  }
+
   /**
    * Whether the user is admin (sees all functions and all data when no filter selected).
    * Admin: groupName === 'super_admin_' from main backend, or userId in REPORTING_SUPER_ADMIN_USER_IDS, or role === 'admin' / isAdmin.
@@ -89,17 +104,16 @@ export class UserFunctionAccessService {
     tableAlias: string,
     column: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: string[],
   ): string {
-    // Treat empty/whitespace as no selection so super admins get all data
-    // If a specific function is selected, filter by that only (even for super admins)
-    if (selectedFunctionId) {
-      // For super admins, allow any functionId
-      // For regular users, verify they have access to this function
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
+    const sel = selectedFunctionIds?.length
+      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+    if (sel.length) {
+      if (!this.canUseSelectedIds(access, sel)) {
         return ' AND 1 = 0';
       }
-      return ` AND ${tableAlias}.${column} = '${selectedFunctionId}'`;
+      return ` AND ${tableAlias}.${column} IN (${this.sqlInSelectedIds(sel)})`;
     }
 
     // If no specific function selected, super admins see everything (all functions)
@@ -124,16 +138,16 @@ export class UserFunctionAccessService {
   buildKriFunctionFilter(
     tableAlias: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: string[],
   ): string {
-    // If a specific function is selected, filter by that only (even for super admins)
-    if (selectedFunctionId) {
-      // For super admins, allow any functionId
-      // For regular users, verify they have access to this function
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
+    const sel = selectedFunctionIds?.length
+      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+    if (sel.length) {
+      if (!this.canUseSelectedIds(access, sel)) {
         return ' AND 1 = 0';
       }
-      return ` AND ${tableAlias}.related_function_id = '${selectedFunctionId}'`;
+      return ` AND ${tableAlias}.related_function_id IN (${this.sqlInSelectedIds(sel)})`;
     }
 
     // If no specific function selected, super admins see everything
@@ -162,20 +176,20 @@ export class UserFunctionAccessService {
   buildRiskFunctionFilter(
     tableAlias: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: string[],
   ): string {
-    // If a specific function is selected, filter by that only (even for super admins)
-    if (selectedFunctionId) {
-      // For super admins, allow any functionId
-      // For regular users, verify they have access to this function
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
+    const sel = selectedFunctionIds?.length
+      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+    if (sel.length) {
+      if (!this.canUseSelectedIds(access, sel)) {
         return ' AND 1 = 0';
       }
       return ` AND EXISTS (
         SELECT 1
         FROM ${fq('RiskFunctions')} rf
         WHERE rf.risk_id = ${tableAlias}.id
-          AND rf.function_id = '${selectedFunctionId}'
+          AND rf.function_id IN (${this.sqlInSelectedIds(sel)})
           AND rf.deletedAt IS NULL
       )`;
     }
@@ -208,23 +222,20 @@ export class UserFunctionAccessService {
   buildControlFunctionFilter(
     tableAlias: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: string[],
   ): string {
-    // console.log('[buildControlFunctionFilter] Called with:', { tableAlias, isSuperAdmin: access.isSuperAdmin, selectedFunctionId, hasFunctionIds: access.functionIds.length });
-    
-    // If a specific function is selected, filter by that only (even for super admins)
-    // Treat empty string as no selection
-    if (selectedFunctionId && selectedFunctionId.trim() !== '') {
-      // For super admins, allow any functionId
-      // For regular users, verify they have access to this function
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
+    const sel = selectedFunctionIds?.length
+      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+    if (sel.length) {
+      if (!this.canUseSelectedIds(access, sel)) {
         return ' AND 1 = 0';
       }
       return ` AND EXISTS (
         SELECT 1
         FROM ${fq('ControlFunctions')} cf
         WHERE cf.control_id = ${tableAlias}.id
-          AND cf.function_id = '${selectedFunctionId}'
+          AND cf.function_id IN (${this.sqlInSelectedIds(sel)})
           AND cf.deletedAt IS NULL
       )`;
     }
@@ -255,13 +266,16 @@ export class UserFunctionAccessService {
   buildControlFunctionJoinFilter(
     cfAlias: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: string[],
   ): string {
-    if (selectedFunctionId && selectedFunctionId.trim() !== '') {
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
+    const sel = selectedFunctionIds?.length
+      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+    if (sel.length) {
+      if (!this.canUseSelectedIds(access, sel)) {
         return ' AND 1 = 0';
       }
-      return ` AND ${cfAlias}.function_id = '${selectedFunctionId}'`;
+      return ` AND ${cfAlias}.function_id IN (${this.sqlInSelectedIds(sel)})`;
     }
     if (access.isSuperAdmin) return '';
     if (!access.functionIds.length) {
