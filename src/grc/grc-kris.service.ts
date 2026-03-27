@@ -309,6 +309,7 @@ export class GrcKrisService {
         WHERE
           k.isDeleted = 0
           AND k.deletedAt IS NULL
+          ${dateFilter}
           ${functionFilter}
         GROUP BY
           CAST(DATEFROMPARTS(YEAR(k.createdAt), MONTH(k.createdAt), 1) AS datetime2)

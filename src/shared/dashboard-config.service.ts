@@ -10,7 +10,7 @@ export class DashboardConfigService {
       id: 'departmentDistribution',
       name: 'Distribution by Department',
       type: 'bar' as const,
-      query: `SELECT 'All Controls' as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} GROUP BY 'All Controls' ORDER BY COUNT(*) DESC`,
+      query: `SELECT 'All Controls' as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} {functionFilter} GROUP BY 'All Controls' ORDER BY COUNT(*) DESC`,
       xField: 'name',
       yField: 'value',
       labelField: 'name'
@@ -20,7 +20,7 @@ export class DashboardConfigService {
       id: 'statusDistribution', 
       name: 'Distribution by Status',
       type: 'pie' as const,
-      query: `SELECT ${statusField} as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} GROUP BY ${statusField}`,
+      query: `SELECT ${statusField} as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} {functionFilter} GROUP BY ${statusField}`,
       xField: 'name',
       yField: 'value',
       labelField: 'name'
@@ -30,7 +30,7 @@ export class DashboardConfigService {
       id: 'monthlyTrend',
       name: 'Monthly Trend',
       type: 'line' as const,
-      query: `SELECT FORMAT(${dateField}, 'yyyy-MM') as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} GROUP BY FORMAT(${dateField}, 'yyyy-MM') ORDER BY name`,
+      query: `SELECT FORMAT(${dateField}, 'yyyy-MM') as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} {functionFilter} GROUP BY FORMAT(${dateField}, 'yyyy-MM') ORDER BY name`,
       xField: 'name',
       yField: 'value',
       labelField: 'name'
@@ -40,7 +40,7 @@ export class DashboardConfigService {
       id: 'riskDistribution',
       name: 'Risk Level Distribution', 
       type: 'bar' as const,
-      query: `SELECT ${riskField} as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} GROUP BY ${riskField} ORDER BY value DESC`,
+      query: `SELECT ${riskField} as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} {functionFilter} GROUP BY ${riskField} ORDER BY value DESC`,
       xField: 'name',
       yField: 'value',
       labelField: 'name'
@@ -50,7 +50,7 @@ export class DashboardConfigService {
       id: 'categoryDistribution',
       name: 'Category Distribution',
       type: 'pie' as const,
-      query: `SELECT ${categoryField} as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} GROUP BY ${categoryField}`,
+      query: `SELECT ${categoryField} as name, COUNT(*) as value FROM ${tableName} WHERE 1=1 {dateFilter} {functionFilter} GROUP BY ${categoryField}`,
       xField: 'name', 
       yField: 'value',
       labelField: 'name'
@@ -62,7 +62,7 @@ export class DashboardConfigService {
     totalCount: (tableName: string, label: string, color: string = 'blue') => ({
       id: 'total',
       name: `Total ${label}`,
-      query: `SELECT COUNT(*) as total FROM ${tableName} WHERE isDeleted = 0 AND deletedAt IS NULL AND 1=1 {dateFilter}`,
+      query: `SELECT COUNT(*) as total FROM ${tableName} WHERE isDeleted = 0 AND deletedAt IS NULL AND 1=1 {dateFilter} {functionFilter}`,
       color,
       icon: 'chart-bar'
     }),
@@ -70,7 +70,7 @@ export class DashboardConfigService {
     pendingCount: (tableName: string, statusField: string, label: string, color: string = 'yellow') => ({
       id: 'pending',
       name: `Pending ${label}`,
-      query: `SELECT COUNT(*) as total FROM ${tableName} WHERE ${statusField} != 'approved' AND 1=1 {dateFilter}`,
+      query: `SELECT COUNT(*) as total FROM ${tableName} WHERE ${statusField} != 'approved' AND 1=1 {dateFilter} {functionFilter}`,
       color,
       icon: 'clock'
     }),
@@ -78,7 +78,7 @@ export class DashboardConfigService {
     approvedCount: (tableName: string, statusField: string, label: string, color: string = 'green') => ({
       id: 'approved',
       name: `Approved ${label}`,
-      query: `SELECT COUNT(*) as total FROM ${tableName} WHERE ${statusField} = 'approved' AND 1=1 {dateFilter}`,
+      query: `SELECT COUNT(*) as total FROM ${tableName} WHERE ${statusField} = 'approved' AND 1=1 {dateFilter} {functionFilter}`,
       color,
       icon: 'check-circle'
     }),
@@ -86,7 +86,7 @@ export class DashboardConfigService {
     financialImpact: (tableName: string, amountField: string, label: string, color: string = 'purple') => ({
       id: 'financialImpact',
       name: `Total ${label} Impact`,
-      query: `SELECT SUM(${amountField}) as total FROM ${tableName} WHERE 1=1 {dateFilter}`,
+      query: `SELECT SUM(${amountField}) as total FROM ${tableName} WHERE 1=1 {dateFilter} {functionFilter}`,
       color,
       icon: 'currency-dollar'
     })
@@ -97,7 +97,7 @@ export class DashboardConfigService {
     statusOverview: (tableName: string, idField: string, nameField: string, statusFields: string[]) => ({
       id: 'statusOverview',
       name: 'Status Overview',
-      query: `SELECT ${idField} as id, ${nameField} as name, code, ${statusFields.join(', ')} FROM ${tableName} WHERE 1=1 {dateFilter}`,
+      query: `SELECT ${idField} as id, ${nameField} as name, code, ${statusFields.join(', ')} FROM ${tableName} WHERE 1=1 {dateFilter} {functionFilter}`,
       columns: [
         { key: 'id', label: 'ID', type: 'text' as const },
         { key: 'name', label: 'Name', type: 'text' as const },
@@ -118,7 +118,7 @@ export class DashboardConfigService {
     financialSummary: (tableName: string, idField: string, nameField: string, amountField: string) => ({
       id: 'financialSummary',
       name: 'Financial Summary',
-      query: `SELECT ${idField} as id, ${nameField} as name, ${amountField} as amount FROM ${tableName} WHERE 1=1 {dateFilter} ORDER BY ${amountField} DESC`,
+      query: `SELECT ${idField} as id, ${nameField} as name, ${amountField} as amount FROM ${tableName} WHERE 1=1 {dateFilter} {functionFilter} ORDER BY ${amountField} DESC`,
       columns: [
         { key: 'id', label: 'ID', type: 'text' as const },
         { key: 'name', label: 'Name', type: 'text' as const },
@@ -902,20 +902,20 @@ export class DashboardConfigService {
       tableName: 'dbo.[Incidents]',
       dateField: 'createdAt',
       metrics: [
-        this.METRIC_TEMPLATES.totalCount('dbo.[Incidents]', 'Incidents', 'red'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents]', 'preparerStatus', 'Preparer', 'orange'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents]', 'checkerStatus', 'Checker', 'yellow'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents]', 'reviewerStatus', 'Reviewer', 'purple'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents]', 'acceptanceStatus', 'Acceptance', 'indigo'),
-        this.METRIC_TEMPLATES.financialImpact('dbo.[Incidents]', 'net_loss', 'Financial', 'green')
+        this.METRIC_TEMPLATES.totalCount('dbo.[Incidents] i', 'Incidents', 'red'),
+        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents] i', 'preparerStatus', 'Preparer', 'orange'),
+        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents] i', 'checkerStatus', 'Checker', 'yellow'),
+        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents] i', 'reviewerStatus', 'Reviewer', 'purple'),
+        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents] i', 'acceptanceStatus', 'Acceptance', 'indigo'),
+        this.METRIC_TEMPLATES.financialImpact('dbo.[Incidents] i', 'net_loss', 'Financial', 'green')
       ],
       charts: [
-        this.CHART_TEMPLATES.categoryDistribution('dbo.[Incidents]', 'category_name'),
-        this.CHART_TEMPLATES.statusDistribution('dbo.[Incidents]', 'status'),
-        this.CHART_TEMPLATES.monthlyTrend('dbo.[Incidents]')
+        this.CHART_TEMPLATES.categoryDistribution('dbo.[Incidents] i', 'category_name'),
+        this.CHART_TEMPLATES.statusDistribution('dbo.[Incidents] i', 'status'),
+        this.CHART_TEMPLATES.monthlyTrend('dbo.[Incidents] i')
       ],
       tables: [
-        this.TABLE_TEMPLATES.financialSummary('dbo.[Incidents]', 'id', 'title', 'net_loss')
+        this.TABLE_TEMPLATES.financialSummary('dbo.[Incidents] i', 'id', 'title', 'net_loss')
       ]
     };
   }
@@ -930,7 +930,7 @@ export class DashboardConfigService {
         {
           id: 'total',
           name: 'Total Risks',
-          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND 1=1 {dateFilter}`,
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] r WHERE r.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
           color: 'red',
           icon: 'chart-bar'
         },
@@ -938,7 +938,7 @@ export class DashboardConfigService {
         {
           id: 'high',
           name: 'High Risks',
-          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND inherent_value = 'High' AND 1=1 {dateFilter}`,
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] r WHERE r.isDeleted = 0 AND r.inherent_value = 'High' AND 1=1 {dateFilter} {functionFilter}`,
           color: 'orange',
           icon: 'exclamation-triangle'
         },
@@ -946,7 +946,7 @@ export class DashboardConfigService {
         {
           id: 'medium',
           name: 'Medium Risks',
-          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND inherent_value = 'Medium' AND 1=1 {dateFilter}`,
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] r WHERE r.isDeleted = 0 AND r.inherent_value = 'Medium' AND 1=1 {dateFilter} {functionFilter}`,
           color: 'yellow',
           icon: 'exclamation-circle'
         },
@@ -954,7 +954,7 @@ export class DashboardConfigService {
         {
           id: 'low',
           name: 'Low Risks',
-          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND inherent_value = 'Low' AND 1=1 {dateFilter}`,
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] r WHERE r.isDeleted = 0 AND r.inherent_value = 'Low' AND 1=1 {dateFilter} {functionFilter}`,
           color: 'green',
           icon: 'shield-check'
         },
@@ -985,7 +985,7 @@ export class DashboardConfigService {
         END
       ) 
       AND r.inherent_value IS NOT NULL  -- Exclude NULL values
-      AND rr.residual_value IS NOT NULL {dateFilter}`,
+      AND rr.residual_value IS NOT NULL {dateFilter} {functionFilter}`,
           color: 'purple',
           icon: 'arrow-trending-down'
         },
@@ -993,7 +993,7 @@ export class DashboardConfigService {
         {
           id: 'newRisks',
           name: 'New Risks (This Month)',
-          query: `SELECT COUNT(*) as total FROM dbo.[Risks] WHERE isDeleted = 0 AND DATEDIFF(month, createdAt, GETDATE()) = 0 {dateFilter}`,
+          query: `SELECT COUNT(*) as total FROM dbo.[Risks] r WHERE r.isDeleted = 0 AND DATEDIFF(month, r.createdAt, GETDATE()) = 0 {dateFilter} {functionFilter}`,
           color: 'indigo',
           icon: 'sparkles'
         }
@@ -1010,7 +1010,7 @@ export class DashboardConfigService {
           FROM dbo.[Risks] r
           LEFT JOIN dbo.RiskCategories rc ON r.id = rc.risk_id AND rc.isDeleted = 0
           LEFT JOIN dbo.Categories c ON rc.category_id = c.id AND c.isDeleted = 0
-          WHERE r.isDeleted = 0 {dateFilter}
+          WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY c.name
           ORDER BY value DESC`,
           xField: 'name',
@@ -1027,7 +1027,7 @@ export class DashboardConfigService {
             COUNT(r.id) as value
           FROM dbo.[Risks] r
           LEFT JOIN dbo.[EventTypes] et ON r.event = et.id
-          WHERE r.isDeleted = 0 {dateFilter}
+          WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY et.name`,
           xField: 'name',
           yField: 'value',
@@ -1051,7 +1051,7 @@ export class DashboardConfigService {
               SUM(CASE WHEN r.isDeleted = 0 AND (r.deletedAt IS NULL OR r.deletedAt = '') THEN 1 ELSE 0 END) AS created,
               SUM(CASE WHEN r.isDeleted = 1 OR r.deletedAt IS NOT NULL THEN 1 ELSE 0 END) AS deleted
             FROM dbo.[Risks] r
-            WHERE YEAR(r.createdAt) = YEAR(GETDATE()) {dateFilter}
+            WHERE YEAR(r.createdAt) = YEAR(GETDATE()) {dateFilter} {functionFilter}
             GROUP BY DATEPART(quarter, r.createdAt), 
                      'Q' + CAST(DATEPART(quarter, r.createdAt) AS VARCHAR(1)) + ' 2025'
           )
@@ -1079,7 +1079,7 @@ export class DashboardConfigService {
               CONCAT(YEAR(r.createdAt), '-Q', DATEPART(QUARTER, r.createdAt)) AS creation_quarter, 
               COUNT(r.id) AS risk_count 
             FROM dbo.[Risks] r 
-            WHERE r.isDeleted = 0 {dateFilter}
+            WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
             GROUP BY YEAR(r.createdAt), DATEPART(QUARTER, r.createdAt) 
           ) AS virtual_table 
           GROUP BY creation_quarter 
@@ -1101,7 +1101,7 @@ export class DashboardConfigService {
             COUNT(*) AS count
           FROM dbo.[Risks] r
           INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId
-          WHERE r.isDeleted = 0 {dateFilter}
+          WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY 
             CASE 
               WHEN rr.preparerResidualStatus = 'sent' AND rr.acceptanceResidualStatus = 'approved' THEN 'Approved'
@@ -1126,7 +1126,7 @@ export class DashboardConfigService {
             END AS [Financial Status],
             COUNT(*) AS count
           FROM dbo.[Risks] r
-          WHERE r.isDeleted = 0 {dateFilter}
+          WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY 
             CASE 
               WHEN r.inherent_financial_value <= 2 THEN 'Low' 
@@ -1151,7 +1151,7 @@ export class DashboardConfigService {
           FROM dbo.[Risks] r
           LEFT JOIN dbo.[RiskFunctions] rf ON r.id = rf.risk_id
           LEFT JOIN dbo.[Functions] f ON rf.function_id = f.id
-          WHERE r.isDeleted = 0 {dateFilter}
+          WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY f.name
           ORDER BY [count] DESC, f.name ASC`,
           columns: [
@@ -1170,7 +1170,7 @@ export class DashboardConfigService {
           FROM dbo.[RiskProcesses] rp 
           JOIN dbo.[Processes] p ON rp.process_id = p.id 
           JOIN dbo.[Risks] r ON rp.risk_id = r.id
-          WHERE r.isDeleted = 0 {dateFilter}
+          WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY p.name 
           ORDER BY risk_count DESC, p.name ASC`,
           columns: [
@@ -1191,7 +1191,7 @@ export class DashboardConfigService {
           FROM dbo.[Risks] r
           JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id 
           LEFT JOIN dbo.[Departments] d ON r.departmentId = d.id 
-          WHERE r.isDeleted = 0 AND rr.isDeleted = 0 {dateFilter}
+          WHERE r.isDeleted = 0 AND rr.isDeleted = 0 {dateFilter} {functionFilter}
           ORDER BY r.createdAt DESC`,
           columns: [
             { key: 'Risk Name', label: 'Risk Name', type: 'text' as const },
@@ -1264,7 +1264,7 @@ export class DashboardConfigService {
               END AS residual_financial_label
             FROM dbo.[ResidualRisks] rr 
             JOIN dbo.[Risks] r ON rr.riskId = r.id 
-            WHERE r.isDeleted = 0 AND rr.residual_value = 'High' {dateFilter}
+            WHERE r.isDeleted = 0 AND rr.residual_value = 'High' {dateFilter} {functionFilter}
           ) AS virtual_table
           ORDER BY year DESC, quarter DESC, inherent_value DESC`,
           columns: [
@@ -1290,7 +1290,7 @@ export class DashboardConfigService {
           FROM dbo.[Risks] r 
           LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id 
           LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id 
-          WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}
+          WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}
           GROUP BY r.name 
           ORDER BY control_count DESC`,
           columns: [
@@ -1337,7 +1337,7 @@ export class DashboardConfigService {
           FROM dbo.[Risks] r 
           INNER JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id AND rr.isDeleted = 0 
           INNER JOIN dbo.[EventTypes] et ON et.id = r.event 
-          WHERE r.isDeleted = 0 {dateFilter}
+          WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
           ORDER BY r.createdAt DESC`,
           columns: [
             { key: 'RiskName', label: 'Risk Name', type: 'text' as const },
