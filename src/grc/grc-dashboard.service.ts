@@ -34,6 +34,9 @@ export class GrcDashboardService extends BaseDashboardService {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+    const functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, functionId);
+    const functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, functionId);
+    const functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, functionId);
 
     const config = this.getConfig();
     const dateFilters: DashboardDateFilters = {
@@ -55,6 +58,15 @@ export class GrcDashboardService extends BaseDashboardService {
       // Create a proper data query based on the metric type
       let dataQuery: string;
       let countQuery = this.applyDateFilterPlaceholders(metric.query, dateFilters);
+      if (/\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.query)) {
+        countQuery = this.applyFunctionFilterPlaceholders(
+          countQuery,
+          functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
+        ).replace(/\s{2,}/g, ' ').trim();
+      }
       // Function name subquery for control-based cards (Controls have many-to-many with Functions)
       const functionNameSubquery = this.controlFunctionNameSubquery();
       
@@ -108,13 +120,13 @@ export class GrcDashboardService extends BaseDashboardService {
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
           LEFT JOIN ${fq('Functions')} AS f ON f.id = t.function_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilter}
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
           ORDER BY c.createdAt DESC`;
 
         countQuery = `SELECT COUNT(DISTINCT t.id) as total
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilter}`;
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
@@ -341,7 +353,7 @@ export class GrcDashboardService extends BaseDashboardService {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      const functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, functionId);
 
       const dateFilter = this.buildDateFilterForQuery(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -362,7 +374,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND c.deletedAt IS NULL
           AND f.name = @param0
           ${dateFilter}
-          ${functionFilter}
+          ${functionJoinFilter}
         ORDER BY c.createdAt DESC
         OFFSET @param1 ROWS
         FETCH NEXT @param2 ROWS ONLY
@@ -379,7 +391,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND c.deletedAt IS NULL
           AND f.name = @param0
           ${dateFilter}
-          ${functionFilter}
+          ${functionJoinFilter}
       `;
       const countResult = await this.databaseService.query(countQuery, [department]);
       const total = countResult[0]?.total || 0;

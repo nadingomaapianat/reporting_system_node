@@ -91,6 +91,12 @@ export abstract class BaseDashboardService {
     
     // Get function filter if user is provided and service is available
     let functionFilter = '';
+    /** For ControlDesignTests rows: filter by test's function_id (alias t), not ControlFunctions on control */
+    let functionFilterControlDesignTest = '';
+    /** Same for queries that alias tests as cdt */
+    let functionFilterCdt = '';
+    /** Restrict outer ControlFunctions join (cf) for GROUP BY department charts */
+    let functionJoinFilter = '';
     if (user && this.userFunctionAccess) {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       // console.log('[BaseDashboardService.getDashboardData] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionId: functionId });
@@ -100,6 +106,9 @@ export abstract class BaseDashboardService {
         const tableNameLower = config.tableName.toLowerCase();
         if (tableNameLower.includes('controls')) {
           functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+          functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, functionId);
+          functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, functionId);
+          functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, functionId);
         } else if (tableNameLower.includes('risks')) {
           functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
         } else if (tableNameLower.includes('incidents')) {
@@ -122,18 +131,27 @@ export abstract class BaseDashboardService {
           config.metrics,
           dateFilters,
           functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
           config.tableName?.toLowerCase().includes('controls') ?? false,
         ),
         this.getChartsData(
           config.charts,
           dateFilters,
           functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
           config.tableName?.toLowerCase().includes('controls') ?? false,
         ),
         this.getTablesData(
           config.tables,
           dateFilters,
           functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
           config.tableName?.toLowerCase().includes('controls') ?? false,
         ),
       ]);
@@ -160,10 +178,33 @@ export abstract class BaseDashboardService {
       .replace(/\{dateFilter\}/g, df.dateFilter || '');
   }
 
+  /**
+   * Replace function filter placeholders. Order matters: longer tokens first.
+   * Use {functionFilterControlDesignTest} for ControlDesignTests alias t.function_id;
+   * {functionFilterCdt} for alias cdt; {functionFilter} for control-scoped EXISTS (ControlFunctions).
+   * {functionJoinFilter} restricts outer ControlFunctions alias cf (department-by-function charts).
+   */
+  protected applyFunctionFilterPlaceholders(
+    query: string,
+    functionFilter: string,
+    functionFilterControlDesignTest: string,
+    functionFilterCdt: string,
+    functionJoinFilter: string,
+  ): string {
+    return query
+      .replace(/\{functionFilterControlDesignTest\}/g, functionFilterControlDesignTest || '')
+      .replace(/\{functionFilterCdt\}/g, functionFilterCdt || '')
+      .replace(/\{functionJoinFilter\}/g, functionJoinFilter || '')
+      .replace(/\{functionFilter\}/g, functionFilter || '');
+  }
+
   private async getMetricsData(
     metrics: MetricConfig[],
     dateFilters: DashboardDateFilters,
     functionFilter: string,
+    functionFilterControlDesignTest: string,
+    functionFilterCdt: string,
+    functionJoinFilter: string,
     applyControlsFunctionFallback: boolean,
   ) {
     const results: any = {};
@@ -171,8 +212,16 @@ export abstract class BaseDashboardService {
     const runOneMetric = async (metric: MetricConfig): Promise<{ id: string; total: number; change?: string }> => {
       try {
         let query = this.applyDateFilterPlaceholders(metric.query, dateFilters);
-        if (query.includes('{functionFilter}')) {
-          query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
+        const hasExplicitFunctionTokens =
+          /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.query);
+        if (hasExplicitFunctionTokens) {
+          query = this.applyFunctionFilterPlaceholders(
+            query,
+            functionFilter,
+            functionFilterControlDesignTest,
+            functionFilterCdt,
+            functionJoinFilter,
+          ).replace(/\s{2,}/g, ' ').trim();
         } else if (applyControlsFunctionFallback) {
           query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
         }
@@ -182,8 +231,16 @@ export abstract class BaseDashboardService {
         if (!metric.changeQuery) return { id: metric.id, total };
 
         let changeQuery = this.applyDateFilterPlaceholders(metric.changeQuery, dateFilters);
-        if (changeQuery.includes('{functionFilter}')) {
-          changeQuery = changeQuery.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
+        const hasExplicitChange =
+          /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.changeQuery);
+        if (hasExplicitChange) {
+          changeQuery = this.applyFunctionFilterPlaceholders(
+            changeQuery,
+            functionFilter,
+            functionFilterControlDesignTest,
+            functionFilterCdt,
+            functionJoinFilter,
+          ).replace(/\s{2,}/g, ' ').trim();
         } else if (applyControlsFunctionFallback) {
           changeQuery = this.injectControlsFunctionFilterIntoQuery(changeQuery, functionFilter);
         }
@@ -209,6 +266,9 @@ export abstract class BaseDashboardService {
     charts: ChartConfig[],
     dateFilters: DashboardDateFilters,
     functionFilter: string,
+    functionFilterControlDesignTest: string,
+    functionFilterCdt: string,
+    functionJoinFilter: string,
     applyControlsFunctionFallback: boolean,
   ) {
     const results: any = {};
@@ -216,8 +276,16 @@ export abstract class BaseDashboardService {
     const runOneChart = async (chart: ChartConfig): Promise<{ id: string; data: any[] }> => {
       try {
         let query = this.applyDateFilterPlaceholders(chart.query, dateFilters);
-        if (query.includes('{functionFilter}')) {
-          query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
+        const hasExplicitFunctionTokens =
+          /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(chart.query);
+        if (hasExplicitFunctionTokens) {
+          query = this.applyFunctionFilterPlaceholders(
+            query,
+            functionFilter,
+            functionFilterControlDesignTest,
+            functionFilterCdt,
+            functionJoinFilter,
+          ).replace(/\s{2,}/g, ' ').trim();
         } else if (applyControlsFunctionFallback) {
           query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
         }
@@ -243,6 +311,9 @@ export abstract class BaseDashboardService {
     tables: TableConfig[],
     dateFilters: DashboardDateFilters,
     functionFilter: string,
+    functionFilterControlDesignTest: string,
+    functionFilterCdt: string,
+    functionJoinFilter: string,
     applyControlsFunctionFallback: boolean,
   ) {
     const results: any = {};
@@ -251,8 +322,16 @@ export abstract class BaseDashboardService {
     const runOneTable = async (table: TableConfig): Promise<{ id: string; data: any[] }> => {
       try {
         let query = this.applyDateFilterPlaceholders(table.query, dateFilters);
-        if (query.includes('{functionFilter}')) {
-          query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
+        const hasExplicitFunctionTokens =
+          /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(table.query);
+        if (hasExplicitFunctionTokens) {
+          query = this.applyFunctionFilterPlaceholders(
+            query,
+            functionFilter,
+            functionFilterControlDesignTest,
+            functionFilterCdt,
+            functionJoinFilter,
+          ).replace(/\s{2,}/g, ' ').trim();
         } else if (applyControlsFunctionFallback) {
           query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
         }
@@ -385,11 +464,17 @@ export abstract class BaseDashboardService {
     
     // Get function filter if user is provided and service is available
     let functionFilter = '';
+    let functionFilterControlDesignTest = '';
+    let functionFilterCdt = '';
+    let functionJoinFilter = '';
     if (user && this.userFunctionAccess) {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       // Only apply Control function filter if this is Controls dashboard
       if (config.tableName && config.tableName.includes('Controls')) {
         functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+        functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, functionId);
+        functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, functionId);
+        functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, functionId);
       }
     }
     
@@ -403,8 +488,16 @@ export abstract class BaseDashboardService {
       // Create a proper data query based on the metric type
       let dataQuery: string;
       let countQuery = this.applyDateFilterPlaceholders(metric.query, dateFilters);
-      if (functionFilter && countQuery.includes('{functionFilter}')) {
-        countQuery = countQuery.replace('{functionFilter}', functionFilter);
+      const hasExplicitFunctionTokens =
+        /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.query);
+      if (hasExplicitFunctionTokens) {
+        countQuery = this.applyFunctionFilterPlaceholders(
+          countQuery,
+          functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
+        ).replace(/\s{2,}/g, ' ').trim();
       } else if (functionFilter && countQuery.includes('FROM') && countQuery.includes('Controls')) {
         const whereIndex = countQuery.toUpperCase().indexOf(' WHERE ');
         if (whereIndex > -1) {
@@ -458,7 +551,7 @@ export abstract class BaseDashboardService {
         dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilter}
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
           ORDER BY c.createdAt DESC`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
