@@ -149,7 +149,7 @@ export class DashboardConfigService {
           query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${fq('ControlDesignTests')} AS t
             INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.preparerStatus, '') <> 'sent') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
+            WHERE (ISNULL(t.preparerStatus, '') <> 'sent') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}`,
           color: 'orange',
           icon: 'clock'
         },
@@ -159,7 +159,7 @@ export class DashboardConfigService {
           query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${fq('ControlDesignTests')} AS t
             INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
+            WHERE (ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}`,
           color: 'purple',
           icon: 'check-circle'
         },
@@ -169,7 +169,7 @@ export class DashboardConfigService {
           query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${fq('ControlDesignTests')} AS t
             INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
+            WHERE (ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}`,
           color: 'indigo',
           icon: 'document-check'
         },
@@ -179,7 +179,7 @@ export class DashboardConfigService {
           query: `SELECT COUNT(DISTINCT t.id) AS total
             FROM ${fq('ControlDesignTests')} AS t
             INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter}`,
+            WHERE (ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}`,
           color: 'red',
           icon: 'exclamation-triangle'
         },
@@ -396,12 +396,14 @@ export class DashboardConfigService {
           type: 'bar' as const,
           query: `SELECT 
             prin.name AS name,
-            COUNT(point.id) AS value
-          FROM ${fq('CosoPrinciples')} prin
-          LEFT JOIN ${fq('CosoPoints')} point ON prin.id = point.principle_id
-          WHERE prin.deletedAt IS NULL {dateFilter}
+            COUNT(DISTINCT point.id) AS value
+          FROM ${fq('Controls')} c
+          INNER JOIN ${fq('ControlCosos')} ccx ON c.id = ccx.control_id AND ccx.deletedAt IS NULL
+          INNER JOIN ${fq('CosoPoints')} point ON ccx.coso_id = point.id AND point.deletedAt IS NULL
+          INNER JOIN ${fq('CosoPrinciples')} prin ON prin.id = point.principle_id AND prin.deletedAt IS NULL
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}
           GROUP BY prin.name
-          ORDER BY COUNT(point.id) DESC, prin.name`,
+          ORDER BY COUNT(DISTINCT point.id) DESC, prin.name`,
           xField: 'name',
           yField: 'value',
           labelField: 'name'
@@ -412,13 +414,15 @@ export class DashboardConfigService {
           type: 'pie' as const,
           query: `SELECT 
             comp.name AS name,
-            COUNT(point.id) AS value
-          FROM ${fq('CosoComponents')} comp
-          JOIN ${fq('CosoPrinciples')} prin ON prin.component_id = comp.id
-          LEFT JOIN ${fq('CosoPoints')} point ON point.principle_id = prin.id
-          WHERE comp.deletedAt IS NULL AND prin.deletedAt IS NULL {dateFilter}
+            COUNT(DISTINCT point.id) AS value
+          FROM ${fq('Controls')} c
+          INNER JOIN ${fq('ControlCosos')} ccx ON c.id = ccx.control_id AND ccx.deletedAt IS NULL
+          INNER JOIN ${fq('CosoPoints')} point ON ccx.coso_id = point.id AND point.deletedAt IS NULL
+          INNER JOIN ${fq('CosoPrinciples')} prin ON prin.id = point.principle_id AND prin.deletedAt IS NULL
+          INNER JOIN ${fq('CosoComponents')} comp ON prin.component_id = comp.id AND comp.deletedAt IS NULL
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}
           GROUP BY comp.name
-          ORDER BY COUNT(point.id) DESC`,
+          ORDER BY COUNT(DISTINCT point.id) DESC`,
           xField: 'name',
           yField: 'value',
           labelField: 'name'
@@ -434,7 +438,9 @@ export class DashboardConfigService {
             END AS name,
             COUNT(a.id) AS value
           FROM ${fq('Actionplans')} a
-          WHERE a.deletedAt IS NULL {dateFilter}
+          LEFT JOIN ${fq('ControlDesignTests')} cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
+          LEFT JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+          WHERE a.deletedAt IS NULL {dateFilter} {functionFilter}
           GROUP BY 
             CASE 
               WHEN a.done = 0 AND a.implementation_date < GETDATE() THEN 'Overdue'
@@ -733,7 +739,7 @@ export class DashboardConfigService {
           LEFT JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0
           LEFT JOIN ${fq('Functions')} f ON cdt.function_id = f.id AND f.deletedAt IS NULL
           WHERE ap.[from] = 'adequacy' 
-            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilter}
+            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilter} {functionFilter}
           ORDER BY ap.createdAt DESC`,
           columns: [
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
@@ -812,7 +818,7 @@ export class DashboardConfigService {
           FROM ${fq('ControlDesignTests')} cdt 
           JOIN ${fq('Controls')} c ON cdt.control_id = c.id 
           JOIN ${fq('Functions')} f ON cdt.function_id = f.id 
-          WHERE c.isDeleted = 0 AND cdt.deletedAt IS NULL {dateFilter}
+          WHERE c.isDeleted = 0 AND cdt.deletedAt IS NULL {dateFilter} {functionFilter}
           ORDER BY c.createdAt DESC`,
           columns: [
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
@@ -844,7 +850,7 @@ export class DashboardConfigService {
           LEFT JOIN ${fq('ControlDesignTests')} AS cdt ON cdt.control_id = c.id 
             AND cdt.function_id = f.id 
             AND cdt.deletedAt IS NULL 
-          WHERE cdt.id IS NOT NULL {dateFilter}
+          WHERE cdt.id IS NOT NULL {dateFilter} {functionFilter}
           GROUP BY f.name, cdt.quarter, cdt.year
           ORDER BY f.name, cdt.year, cdt.quarter`,
           columns: [
@@ -884,7 +890,7 @@ export class DashboardConfigService {
           LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id 
           LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id 
           LEFT JOIN ${fq('ControlCosos')} ccx ON ccx.control_id = c.id AND ccx.deletedAt IS NULL 
-          WHERE ccx.control_id IS NULL AND c.isDeleted = 0 {dateFilter}
+          WHERE ccx.control_id IS NULL AND c.isDeleted = 0 {dateFilter} {functionFilter}
           ORDER BY c.createdAt DESC`,
           columns: [
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
