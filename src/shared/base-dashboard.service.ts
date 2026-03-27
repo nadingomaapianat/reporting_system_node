@@ -102,9 +102,24 @@ export abstract class BaseDashboardService {
         chartsResults,
         tablesResults
       ] = await Promise.all([
-        this.getMetricsData(config.metrics, dateFilter, functionFilter),
-        this.getChartsData(config.charts, dateFilter, functionFilter),
-        this.getTablesData(config.tables, dateFilter, functionFilter)
+        this.getMetricsData(
+          config.metrics,
+          dateFilter,
+          functionFilter,
+          config.tableName?.toLowerCase().includes('controls') ?? false,
+        ),
+        this.getChartsData(
+          config.charts,
+          dateFilter,
+          functionFilter,
+          config.tableName?.toLowerCase().includes('controls') ?? false,
+        ),
+        this.getTablesData(
+          config.tables,
+          dateFilter,
+          functionFilter,
+          config.tableName?.toLowerCase().includes('controls') ?? false,
+        ),
       ]);
 
       const payload = {
@@ -119,49 +134,21 @@ export abstract class BaseDashboardService {
     }
   }
 
-  private async getMetricsData(metrics: MetricConfig[], dateFilter: string, functionFilter: string) {
+  private async getMetricsData(
+    metrics: MetricConfig[],
+    dateFilter: string,
+    functionFilter: string,
+    applyControlsFunctionFallback: boolean,
+  ) {
     const results: any = {};
 
     const runOneMetric = async (metric: MetricConfig): Promise<{ id: string; total: number; change?: string }> => {
       try {
         let query = metric.query.replace('{dateFilter}', dateFilter || '');
         if (query.includes('{functionFilter}')) {
-          const replacedFilter = functionFilter || '';
-          query = query.replace('{functionFilter}', replacedFilter);
-          query = query.replace(/\s{2,}/g, ' ').trim();
-        } else if (functionFilter && functionFilter.trim() !== '' && query.includes('FROM') && (query.includes('Controls') || query.includes('[Controls]'))) {
-          const hasAliasC = /\bFROM\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(query) ||
-                            /\bFROM\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(query) ||
-                            /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(query) ||
-                            /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(query);
-          let filterToInject = functionFilter;
-          if (!hasAliasC) {
-            let aliasMatch = query.match(/FROM\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
-            if (!aliasMatch) aliasMatch = query.match(/\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
-            if (aliasMatch?.[1]) filterToInject = functionFilter.replace(/c\./g, `${aliasMatch[1]}.`);
-            else {
-              query = query.replace(/(FROM\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
-              if (!query.includes(' c ') && !query.includes(' AS c')) query = query.replace(/(\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
-            }
-          }
-          const whereIndex = query.toUpperCase().indexOf(' WHERE ');
-          if (whereIndex > -1) {
-            const beforeWhere = query.substring(0, whereIndex + 7);
-            const afterWhere = query.substring(whereIndex + 7);
-            query = `${beforeWhere}(${afterWhere}) ${filterToInject}`;
-          } else {
-            const fromIndex = query.toUpperCase().lastIndexOf(' FROM ');
-            if (fromIndex > -1) {
-              const beforeFrom = query.substring(0, fromIndex);
-              const fromClause = query.substring(fromIndex);
-              const groupByIndex = fromClause.toUpperCase().indexOf(' GROUP BY ');
-              const orderByIndex = fromClause.toUpperCase().indexOf(' ORDER BY ');
-              const endIndex = groupByIndex > -1 ? groupByIndex : (orderByIndex > -1 ? orderByIndex : fromClause.length);
-              const fromPart = fromClause.substring(0, endIndex);
-              const restPart = fromClause.substring(endIndex);
-              query = beforeFrom + fromPart + ' WHERE 1=1 ' + filterToInject + restPart;
-            }
-          }
+          query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
+        } else if (applyControlsFunctionFallback) {
+          query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
         }
         const result = await this.databaseService.query(query);
         const total = result[0]?.total ?? result[0]?.count ?? 0;
@@ -171,39 +158,8 @@ export abstract class BaseDashboardService {
         let changeQuery = metric.changeQuery.replace('{dateFilter}', dateFilter || '');
         if (changeQuery.includes('{functionFilter}')) {
           changeQuery = changeQuery.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
-        } else if (functionFilter && functionFilter.trim() !== '' && changeQuery.includes('FROM') && (changeQuery.includes('Controls') || changeQuery.includes('[Controls]'))) {
-          const hasAliasC = /\bFROM\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(changeQuery) ||
-                            /\bFROM\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(changeQuery) ||
-                            /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(changeQuery) ||
-                            /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(changeQuery);
-          let filterToInject = functionFilter;
-          if (!hasAliasC) {
-            let aliasMatch = changeQuery.match(/FROM\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
-            if (!aliasMatch) aliasMatch = changeQuery.match(/\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
-            if (aliasMatch?.[1]) filterToInject = functionFilter.replace(/c\./g, `${aliasMatch[1]}.`);
-            else {
-              changeQuery = changeQuery.replace(/(FROM\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
-              if (!changeQuery.includes(' c ') && !changeQuery.includes(' AS c')) changeQuery = changeQuery.replace(/(\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
-            }
-          }
-          const whereIndex = changeQuery.toUpperCase().indexOf(' WHERE ');
-          if (whereIndex > -1) {
-            const beforeWhere = changeQuery.substring(0, whereIndex + 7);
-            const afterWhere = changeQuery.substring(whereIndex + 7);
-            changeQuery = `${beforeWhere}(${afterWhere}) ${filterToInject}`;
-          } else {
-            const fromIndex = changeQuery.toUpperCase().lastIndexOf(' FROM ');
-            if (fromIndex > -1) {
-              const beforeFrom = changeQuery.substring(0, fromIndex);
-              const fromClause = changeQuery.substring(fromIndex);
-              const groupByIndex = fromClause.toUpperCase().indexOf(' GROUP BY ');
-              const orderByIndex = fromClause.toUpperCase().indexOf(' ORDER BY ');
-              const endIndex = groupByIndex > -1 ? groupByIndex : (orderByIndex > -1 ? orderByIndex : fromClause.length);
-              const fromPart = fromClause.substring(0, endIndex);
-              const restPart = fromClause.substring(endIndex);
-              changeQuery = beforeFrom + fromPart + ' WHERE 1=1 ' + filterToInject + restPart;
-            }
-          }
+        } else if (applyControlsFunctionFallback) {
+          changeQuery = this.injectControlsFunctionFilterIntoQuery(changeQuery, functionFilter);
         }
         const changeResult = await this.databaseService.query(changeQuery);
         const previous = changeResult[0]?.total ?? changeResult[0]?.count ?? 0;
@@ -223,7 +179,12 @@ export abstract class BaseDashboardService {
     return results;
   }
 
-  private async getChartsData(charts: ChartConfig[], dateFilter: string, functionFilter: string) {
+  private async getChartsData(
+    charts: ChartConfig[],
+    dateFilter: string,
+    functionFilter: string,
+    applyControlsFunctionFallback: boolean,
+  ) {
     const results: any = {};
 
     const runOneChart = async (chart: ChartConfig): Promise<{ id: string; data: any[] }> => {
@@ -231,6 +192,8 @@ export abstract class BaseDashboardService {
         let query = chart.query.replace('{dateFilter}', dateFilter || '');
         if (query.includes('{functionFilter}')) {
           query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
+        } else if (applyControlsFunctionFallback) {
+          query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
         }
         const result = await this.databaseService.query(query);
         const data = result.map((row: any) => ({
@@ -250,7 +213,12 @@ export abstract class BaseDashboardService {
     return results;
   }
 
-  private async getTablesData(tables: TableConfig[], dateFilter: string, functionFilter: string) {
+  private async getTablesData(
+    tables: TableConfig[],
+    dateFilter: string,
+    functionFilter: string,
+    applyControlsFunctionFallback: boolean,
+  ) {
     const results: any = {};
     const tableLimit = this.getDefaultLimit();
 
@@ -259,6 +227,8 @@ export abstract class BaseDashboardService {
         let query = table.query.replace('{dateFilter}', dateFilter || '');
         if (query.includes('{functionFilter}')) {
           query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
+        } else if (applyControlsFunctionFallback) {
+          query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
         }
         const result = await this.databaseService.query(query);
         // When pagination is enabled, return full result so the frontend can show page numbers
@@ -302,6 +272,55 @@ export abstract class BaseDashboardService {
     if (start) filter += ` AND ${field} >= '${start}'`;
     if (end) filter += ` AND ${field} <= '${end} 23:59:59'`;
     return filter;
+  }
+
+  /**
+   * When a SQL template omits {functionFilter}, inject control function scope for queries that touch Controls (alias c).
+   * Same rules as metric queries so cards, charts, and tables stay consistent.
+   */
+  private injectControlsFunctionFilterIntoQuery(query: string, functionFilter: string): string {
+    if (
+      !functionFilter ||
+      functionFilter.trim() === '' ||
+      !query.includes('FROM') ||
+      (!query.includes('Controls') && !query.includes('[Controls]'))
+    ) {
+      return query;
+    }
+    const hasAliasC =
+      /\bFROM\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(query) ||
+      /\bFROM\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(query) ||
+      /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*Controls.*\s+(?:AS\s+)?c\b/i.test(query) ||
+      /\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+.*\s+(?:AS\s+)?c\s+.*Controls/i.test(query);
+    let filterToInject = functionFilter;
+    if (!hasAliasC) {
+      let aliasMatch = query.match(/FROM\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
+      if (!aliasMatch) aliasMatch = query.match(/\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?\s+(?:AS\s+)?(\w+)/i);
+      if (aliasMatch?.[1]) filterToInject = functionFilter.replace(/c\./g, `${aliasMatch[1]}.`);
+      else {
+        query = query.replace(/(FROM\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
+        if (!query.includes(' c ') && !query.includes(' AS c'))
+          query = query.replace(/(\b(?:INNER|LEFT|RIGHT|FULL)?\s+JOIN\s+(?:dbo\.)?\[?Controls\]?)(\s|$)/i, '$1 c$2');
+      }
+    }
+    const whereIndex = query.toUpperCase().indexOf(' WHERE ');
+    if (whereIndex > -1) {
+      const beforeWhere = query.substring(0, whereIndex + 7);
+      const afterWhere = query.substring(whereIndex + 7);
+      return `${beforeWhere}(${afterWhere}) ${filterToInject}`;
+    }
+    const fromIndex = query.toUpperCase().lastIndexOf(' FROM ');
+    if (fromIndex > -1) {
+      const beforeFrom = query.substring(0, fromIndex);
+      const fromClause = query.substring(fromIndex);
+      const groupByIndex = fromClause.toUpperCase().indexOf(' GROUP BY ');
+      const orderByIndex = fromClause.toUpperCase().indexOf(' ORDER BY ');
+      const endIndex = groupByIndex > -1 ? groupByIndex : orderByIndex > -1 ? orderByIndex : fromClause.length;
+      const fromPart = fromClause.substring(0, endIndex);
+      const restPart = fromClause.substring(endIndex);
+      return beforeFrom + fromPart + ' WHERE 1=1 ' + filterToInject + restPart;
+    }
+    return query;
   }
 
   private calculateChange(current: number, previous: number): string {
