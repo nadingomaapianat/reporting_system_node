@@ -524,13 +524,18 @@ export class GrcDashboardController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
       if (!assertionName) {
         throw new Error('assertionName parameter is required');
       }
-      return await this.grcDashboardService.getControlsByAssertion(req.user, assertionName, page, limit, startDate, endDate);
+      const ob = orderByFunctionFromRequest(req);
+      return sortPaginatedResponseIfNeeded(
+        await this.grcDashboardService.getControlsByAssertion(req.user, assertionName, page, limit, startDate, endDate, functionId),
+        ob,
+      );
     } catch (error: any) {
       console.error('Error in getControlsByAssertion:', error);
       throw error;
