@@ -55,9 +55,11 @@ export class GrcRisksController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
+    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+    const id = norm(functionId);
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate),
+      await this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate, id && id.length > 0 ? id : undefined),
       ob,
     );
   }
@@ -73,9 +75,11 @@ export class GrcRisksController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
   ) {
+    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+    const id = norm(functionId);
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate),
+      await this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate, id && id.length > 0 ? id : undefined),
       ob,
     );
   }
