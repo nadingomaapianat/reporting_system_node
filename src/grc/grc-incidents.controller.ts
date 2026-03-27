@@ -8,6 +8,7 @@ import {
   orderByFunctionFromRequest,
   sortPaginatedResponseIfNeeded,
 } from '../shared/order-by-function';
+import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/incidents')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -21,10 +22,11 @@ export class GrcIncidentsController {
     @Query('timeframe') timeframe?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    const raw = await this.grcIncidentsService.getIncidentsDashboard(req.user, timeframe, startDate, endDate, functionId);
+    const raw = await this.grcIncidentsService.getIncidentsDashboard(req.user, timeframe, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds));
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
@@ -44,11 +46,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10000,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -60,11 +63,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -76,11 +80,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getPendingPreparerIncidents(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getPendingPreparerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -92,11 +97,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getPendingCheckerIncidents(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getPendingCheckerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -108,11 +114,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getPendingReviewerIncidents(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getPendingReviewerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -124,11 +131,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getPendingAcceptanceIncidents(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getPendingAcceptanceIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -141,14 +149,15 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!category) {
       throw new Error('category parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByCategory(req.user, category, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByCategory(req.user, category, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -161,14 +170,15 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!eventType) {
       throw new Error('eventType parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByEventType(req.user, eventType, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, eventType, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -181,14 +191,15 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!financialImpact) {
       throw new Error('financialImpact parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -201,14 +212,15 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!status) {
       throw new Error('status parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByStatus(req.user, status, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByStatus(req.user, status, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -221,11 +233,12 @@ export class GrcIncidentsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
     @Query('businessUnit') businessUnit?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentActionPlans(req.user, page, limit, startDate, endDate, functionId, businessUnit),
+      await this.grcIncidentsService.getIncidentActionPlans(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), businessUnit),
       ob
     );
   }
@@ -238,14 +251,15 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!monthYear) {
       throw new Error('monthYear parameter is required')
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByMonthYear(req.user, monthYear, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByMonthYear(req.user, monthYear, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -258,14 +272,15 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!subCategory) {
       throw new Error('subCategory parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, subCategory, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, subCategory, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -278,14 +293,15 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!period) {
       throw new Error('period parameter is required. Expected format: MM/YYYY');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByPeriod(req.user, period, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByPeriod(req.user, period, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -297,11 +313,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Internal Fraud', page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Internal Fraud', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -313,11 +330,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'External Fraud', page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'External Fraud', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -329,11 +347,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Damage to Physical Assets', page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Damage to Physical Assets', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -345,11 +364,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'ATM issue', page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'ATM issue', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -361,11 +381,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'Human Mistake', page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'Human Mistake', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -377,11 +398,12 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsWithRecognitionTime(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsWithRecognitionTime(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -395,7 +417,8 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!period) {
       throw new Error('period parameter is required. Expected format: YYYY-MM or MM/YYYY');
@@ -405,7 +428,7 @@ export class GrcIncidentsController {
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByPeriodAndType(req.user, period, incidentType, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByPeriodAndType(req.user, period, incidentType, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }
@@ -418,14 +441,15 @@ export class GrcIncidentsController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!metric) {
       throw new Error('metric parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByComprehensiveMetric(req.user, metric, page, limit, startDate, endDate, functionId),
+      await this.grcIncidentsService.getIncidentsByComprehensiveMetric(req.user, metric, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }

@@ -8,6 +8,7 @@ import {
   orderByFunctionFromRequest,
   sortPaginatedResponseIfNeeded,
 } from '../shared/order-by-function';
+import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/kris')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -21,10 +22,11 @@ export class GrcKrisController {
     @Query('timeframe') timeframe?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    const raw = await this.grcKrisService.getKrisDashboard(req.user, timeframe, startDate, endDate, functionId);
+    const raw = await this.grcKrisService.getKrisDashboard(req.user, timeframe, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds));
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
@@ -44,11 +46,12 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getTotalKris(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcKrisService.getTotalKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -60,11 +63,12 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getPendingPreparerKris(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcKrisService.getPendingPreparerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -76,11 +80,12 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getPendingCheckerKris(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcKrisService.getPendingCheckerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -92,11 +97,12 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getPendingReviewerKris(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcKrisService.getPendingReviewerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -108,11 +114,12 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getPendingAcceptanceKris(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcKrisService.getPendingAcceptanceKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -125,12 +132,13 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcKrisService.getKrisByStatus(req.user, status, page, limit, startDate, endDate, functionId),
+        await this.grcKrisService.getKrisByStatus(req.user, status, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -147,12 +155,13 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcKrisService.getKrisByLevel(req.user, level, page, limit, startDate, endDate, functionId),
+        await this.grcKrisService.getKrisByLevel(req.user, level, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -170,7 +179,8 @@ export class GrcKrisController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('submissionStatus') submissionStatus?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -183,7 +193,7 @@ export class GrcKrisController {
           startDate,
           endDate,
           submissionStatus,
-          functionId,
+          parseGrcFunctionIdsFromQueries(functionId, functionIds),
         ),
         ob,
       );
@@ -201,7 +211,8 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -213,7 +224,7 @@ export class GrcKrisController {
           limit,
           startDate,
           endDate,
-          functionId,
+          parseGrcFunctionIdsFromQueries(functionId, functionIds),
         ),
         ob,
       );
@@ -231,12 +242,13 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcKrisService.getKrisByFrequency(req.user, frequency, page, limit, startDate, endDate, functionId),
+        await this.grcKrisService.getKrisByFrequency(req.user, frequency, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -253,12 +265,13 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcKrisService.getRisksByKriName(req.user, kriName, page, limit, startDate, endDate, functionId),
+        await this.grcKrisService.getRisksByKriName(req.user, kriName, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -275,12 +288,13 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcKrisService.getKrisByMonthYear(req.user, monthYear, page, limit, startDate, endDate, functionId),
+        await this.grcKrisService.getKrisByMonthYear(req.user, monthYear, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -298,7 +312,8 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -311,7 +326,7 @@ export class GrcKrisController {
           limit,
           startDate,
           endDate,
-          functionId,
+          parseGrcFunctionIdsFromQueries(functionId, functionIds),
         ),
         ob,
       );
@@ -329,7 +344,8 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -341,7 +357,7 @@ export class GrcKrisController {
           limit,
           startDate,
           endDate,
-          functionId,
+          parseGrcFunctionIdsFromQueries(functionId, functionIds),
         ),
         ob,
       );

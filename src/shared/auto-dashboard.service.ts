@@ -16,7 +16,7 @@ export class AutoDashboardService {
     user: any,
     startDate?: string,
     endDate?: string,
-    functionId?: string,
+    selectedFunctionIds?: string[],
     orderByFunctionAsc?: boolean,
   ) {
     const charts = ChartRegistryService.getChartsForDashboard('main');
@@ -26,7 +26,7 @@ export class AutoDashboardService {
     let functionFilter = '';
     if (user && this.userFunctionAccess) {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
     }
 
     // Execute all chart queries in parallel
@@ -63,7 +63,7 @@ export class AutoDashboardService {
   }
 
   // Get specific chart data
-  async getChartData(user: any, chartId: string, startDate?: string, endDate?: string, functionId?: string) {
+  async getChartData(user: any, chartId: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     const chart = ChartRegistryService.getChart(chartId);
     if (!chart) {
       throw new Error(`Chart ${chartId} not found`);
@@ -73,7 +73,7 @@ export class AutoDashboardService {
     let functionFilter = '';
     if (user && this.userFunctionAccess) {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
     }
 
     const query = this.buildQuery(chart.sql, startDate, endDate, functionFilter);
