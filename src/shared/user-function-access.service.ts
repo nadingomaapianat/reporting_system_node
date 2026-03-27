@@ -11,8 +11,16 @@ export interface UserFunctionAccess {
 export class UserFunctionAccessService {
   constructor(private readonly db: DatabaseService) {}
 
+  /** Align with `normalizeGrcFunctionIdPart` / query parsing so DB padding and URL `+` never break access checks. */
+  private normalizeFunctionId(id: unknown): string {
+    return String(id ?? '')
+      .replace(/\+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
   private sqlQuoteId(id: string): string {
-    return `'${String(id).replace(/'/g, "''")}'`;
+    return `'${this.normalizeFunctionId(id).replace(/'/g, "''")}'`;
   }
 
   private sqlInSelectedIds(ids: string[]): string {
@@ -23,7 +31,8 @@ export class UserFunctionAccessService {
   private canUseSelectedIds(access: UserFunctionAccess, selected: string[]): boolean {
     if (!selected.length) return true;
     if (access.isSuperAdmin) return true;
-    return selected.every((id) => access.functionIds.includes(id));
+    const allowed = new Set(access.functionIds.map((id) => this.normalizeFunctionId(id)));
+    return selected.every((id) => allowed.has(this.normalizeFunctionId(id)));
   }
 
   /**
@@ -71,7 +80,13 @@ export class UserFunctionAccessService {
 
     try {
       const rows = await this.db.query(query, [userId]);
-      const functionIds = rows.map((r: any) => r.id as string);
+      const functionIds = [
+        ...new Set(
+          rows
+            .map((r: any) => this.normalizeFunctionId(r.id))
+            .filter(Boolean),
+        ),
+      ];
 
       return {
         isSuperAdmin: false,
@@ -107,7 +122,7 @@ export class UserFunctionAccessService {
     selectedFunctionIds?: string[],
   ): string {
     const sel = selectedFunctionIds?.length
-      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      ? [...new Set(selectedFunctionIds.map((id) => this.normalizeFunctionId(id)).filter(Boolean))]
       : [];
     if (sel.length) {
       if (!this.canUseSelectedIds(access, sel)) {
@@ -141,7 +156,7 @@ export class UserFunctionAccessService {
     selectedFunctionIds?: string[],
   ): string {
     const sel = selectedFunctionIds?.length
-      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      ? [...new Set(selectedFunctionIds.map((id) => this.normalizeFunctionId(id)).filter(Boolean))]
       : [];
     if (sel.length) {
       if (!this.canUseSelectedIds(access, sel)) {
@@ -179,7 +194,7 @@ export class UserFunctionAccessService {
     selectedFunctionIds?: string[],
   ): string {
     const sel = selectedFunctionIds?.length
-      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      ? [...new Set(selectedFunctionIds.map((id) => this.normalizeFunctionId(id)).filter(Boolean))]
       : [];
     if (sel.length) {
       if (!this.canUseSelectedIds(access, sel)) {
@@ -225,7 +240,7 @@ export class UserFunctionAccessService {
     selectedFunctionIds?: string[],
   ): string {
     const sel = selectedFunctionIds?.length
-      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      ? [...new Set(selectedFunctionIds.map((id) => this.normalizeFunctionId(id)).filter(Boolean))]
       : [];
     if (sel.length) {
       if (!this.canUseSelectedIds(access, sel)) {
@@ -269,7 +284,7 @@ export class UserFunctionAccessService {
     selectedFunctionIds?: string[],
   ): string {
     const sel = selectedFunctionIds?.length
-      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      ? [...new Set(selectedFunctionIds.map((id) => this.normalizeFunctionId(id)).filter(Boolean))]
       : [];
     if (sel.length) {
       if (!this.canUseSelectedIds(access, sel)) {
@@ -313,7 +328,10 @@ export class UserFunctionAccessService {
         ORDER BY f.name
       `;
       const rows = await this.db.query(query);
-      return rows.map((r: any) => ({ id: r.id, name: r.name }));
+      return rows.map((r: any) => ({
+        id: this.normalizeFunctionId(r.id),
+        name: r.name,
+      }));
     }
 
     const query = `
@@ -329,7 +347,10 @@ export class UserFunctionAccessService {
 
     try {
       const rows = await this.db.query(query, [userId]);
-      return rows.map((r: any) => ({ id: r.id, name: r.name }));
+      return rows.map((r: any) => ({
+        id: this.normalizeFunctionId(r.id),
+        name: r.name,
+      }));
     } catch (e: any) {
       const msg = (e?.message || String(e)) as string;
       if (msg.includes('Invalid object name') && msg.includes('UserFunction')) {
@@ -344,7 +365,10 @@ export class UserFunctionAccessService {
             ORDER BY f.name
           `;
           const rows = await this.db.query(allQuery);
-          return rows.map((r: any) => ({ id: r.id, name: r.name }));
+          return rows.map((r: any) => ({
+            id: this.normalizeFunctionId(r.id),
+            name: r.name,
+          }));
         }
         // Otherwise, return empty list (no functions available).
         return [];

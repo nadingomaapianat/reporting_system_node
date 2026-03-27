@@ -1,4 +1,15 @@
 /**
+ * Normalize a function id from query/UI: `+` (x-www-form-urlencoded space), trim, collapse spaces.
+ * Keeps multi-select and DB values comparable (CHAR/NVARCHAR padding no longer breaks access checks).
+ */
+export function normalizeGrcFunctionIdPart(s: string): string {
+  return String(s)
+    .replace(/\+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/**
  * Parse GRC dashboard function filter from query string.
  * - functionIds: comma-separated list (preferred for multi-select)
  * - functionId: single id (backward compatible); may appear multiple times in some clients
@@ -7,7 +18,7 @@ export function parseGrcFunctionIdsFromQueries(
   functionId?: string | string[],
   functionIds?: string,
 ): string[] | undefined {
-  const norm = (s: string) => s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ');
+  const norm = normalizeGrcFunctionIdPart;
 
   if (functionIds != null && String(functionIds).trim() !== '') {
     const parts = String(functionIds)
