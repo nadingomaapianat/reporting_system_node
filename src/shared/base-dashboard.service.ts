@@ -9,6 +9,16 @@ const DASHBOARD_DEFAULT_LIMIT =
     ? Number(process.env.DASHBOARD_DEFAULT_LIMIT)
     : 10);
 
+/** Named date filter tokens for SQL templates ({dateFilter}, {dateFilterC}, …). */
+export type DashboardDateFilters = {
+  dateFilter: string;
+  dateFilterC: string;
+  dateFilterA: string;
+  dateFilterAp: string;
+  dateFilterCdt: string;
+  dateFilterT: string;
+};
+
 export interface DashboardConfig {
   name: string;
   tableName: string;
@@ -70,8 +80,14 @@ export abstract class BaseDashboardService {
   ) {
     // By default: no date filter (all data). Date filter is applied only when both startDate and endDate are provided.
     const config = this.getConfig();
-    const dateFilter = this.buildDateFilter(startDate, endDate, config.dateField);
-    // console.log('[BaseDashboardService.getDashboardData] Date filter:', dateFilter);
+    const dateFilters: DashboardDateFilters = {
+      dateFilter: this.buildDateFilter(startDate, endDate, config.dateField),
+      dateFilterC: this.buildDateFilter(startDate, endDate, 'c.createdAt'),
+      dateFilterA: this.buildDateFilter(startDate, endDate, 'a.createdAt'),
+      dateFilterAp: this.buildDateFilter(startDate, endDate, 'ap.createdAt'),
+      dateFilterCdt: this.buildDateFilter(startDate, endDate, 'cdt.createdAt'),
+      dateFilterT: this.buildDateFilter(startDate, endDate, 't.createdAt'),
+    };
     
     // Get function filter if user is provided and service is available
     let functionFilter = '';
@@ -104,19 +120,19 @@ export abstract class BaseDashboardService {
       ] = await Promise.all([
         this.getMetricsData(
           config.metrics,
-          dateFilter,
+          dateFilters,
           functionFilter,
           config.tableName?.toLowerCase().includes('controls') ?? false,
         ),
         this.getChartsData(
           config.charts,
-          dateFilter,
+          dateFilters,
           functionFilter,
           config.tableName?.toLowerCase().includes('controls') ?? false,
         ),
         this.getTablesData(
           config.tables,
-          dateFilter,
+          dateFilters,
           functionFilter,
           config.tableName?.toLowerCase().includes('controls') ?? false,
         ),
@@ -134,9 +150,19 @@ export abstract class BaseDashboardService {
     }
   }
 
+  protected applyDateFilterPlaceholders(query: string, df: DashboardDateFilters): string {
+    return query
+      .replace(/\{dateFilterCdt\}/g, df.dateFilterCdt || '')
+      .replace(/\{dateFilterAp\}/g, df.dateFilterAp || '')
+      .replace(/\{dateFilterC\}/g, df.dateFilterC || '')
+      .replace(/\{dateFilterA\}/g, df.dateFilterA || '')
+      .replace(/\{dateFilterT\}/g, df.dateFilterT || '')
+      .replace(/\{dateFilter\}/g, df.dateFilter || '');
+  }
+
   private async getMetricsData(
     metrics: MetricConfig[],
-    dateFilter: string,
+    dateFilters: DashboardDateFilters,
     functionFilter: string,
     applyControlsFunctionFallback: boolean,
   ) {
@@ -144,7 +170,7 @@ export abstract class BaseDashboardService {
 
     const runOneMetric = async (metric: MetricConfig): Promise<{ id: string; total: number; change?: string }> => {
       try {
-        let query = metric.query.replace('{dateFilter}', dateFilter || '');
+        let query = this.applyDateFilterPlaceholders(metric.query, dateFilters);
         if (query.includes('{functionFilter}')) {
           query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
         } else if (applyControlsFunctionFallback) {
@@ -155,7 +181,7 @@ export abstract class BaseDashboardService {
 
         if (!metric.changeQuery) return { id: metric.id, total };
 
-        let changeQuery = metric.changeQuery.replace('{dateFilter}', dateFilter || '');
+        let changeQuery = this.applyDateFilterPlaceholders(metric.changeQuery, dateFilters);
         if (changeQuery.includes('{functionFilter}')) {
           changeQuery = changeQuery.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
         } else if (applyControlsFunctionFallback) {
@@ -181,7 +207,7 @@ export abstract class BaseDashboardService {
 
   private async getChartsData(
     charts: ChartConfig[],
-    dateFilter: string,
+    dateFilters: DashboardDateFilters,
     functionFilter: string,
     applyControlsFunctionFallback: boolean,
   ) {
@@ -189,7 +215,7 @@ export abstract class BaseDashboardService {
 
     const runOneChart = async (chart: ChartConfig): Promise<{ id: string; data: any[] }> => {
       try {
-        let query = chart.query.replace('{dateFilter}', dateFilter || '');
+        let query = this.applyDateFilterPlaceholders(chart.query, dateFilters);
         if (query.includes('{functionFilter}')) {
           query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
         } else if (applyControlsFunctionFallback) {
@@ -215,7 +241,7 @@ export abstract class BaseDashboardService {
 
   private async getTablesData(
     tables: TableConfig[],
-    dateFilter: string,
+    dateFilters: DashboardDateFilters,
     functionFilter: string,
     applyControlsFunctionFallback: boolean,
   ) {
@@ -224,7 +250,7 @@ export abstract class BaseDashboardService {
 
     const runOneTable = async (table: TableConfig): Promise<{ id: string; data: any[] }> => {
       try {
-        let query = table.query.replace('{dateFilter}', dateFilter || '');
+        let query = this.applyDateFilterPlaceholders(table.query, dateFilters);
         if (query.includes('{functionFilter}')) {
           query = query.replace('{functionFilter}', functionFilter || '').replace(/\s{2,}/g, ' ').trim();
         } else if (applyControlsFunctionFallback) {
@@ -348,7 +374,14 @@ export abstract class BaseDashboardService {
   // Card-specific data methods for modals
   async getCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     const config = this.getConfig();
-    const dateFilter = this.buildDateFilter(startDate, endDate, config.dateField);
+    const dateFilters: DashboardDateFilters = {
+      dateFilter: this.buildDateFilter(startDate, endDate, config.dateField),
+      dateFilterC: this.buildDateFilter(startDate, endDate, 'c.createdAt'),
+      dateFilterA: this.buildDateFilter(startDate, endDate, 'a.createdAt'),
+      dateFilterAp: this.buildDateFilter(startDate, endDate, 'ap.createdAt'),
+      dateFilterCdt: this.buildDateFilter(startDate, endDate, 'cdt.createdAt'),
+      dateFilterT: this.buildDateFilter(startDate, endDate, 't.createdAt'),
+    };
     
     // Get function filter if user is provided and service is available
     let functionFilter = '';
@@ -369,7 +402,7 @@ export abstract class BaseDashboardService {
     try {
       // Create a proper data query based on the metric type
       let dataQuery: string;
-      let countQuery = metric.query.replace('{dateFilter}', dateFilter);
+      let countQuery = this.applyDateFilterPlaceholders(metric.query, dateFilters);
       if (functionFilter && countQuery.includes('{functionFilter}')) {
         countQuery = countQuery.replace('{functionFilter}', functionFilter);
       } else if (functionFilter && countQuery.includes('FROM') && countQuery.includes('Controls')) {
@@ -382,9 +415,9 @@ export abstract class BaseDashboardService {
       }
       
       if (cardType === 'total') {
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
       } else if (cardType === 'unmapped') {
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
+        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
       } else if (cardType.startsWith('pending') && !cardType.startsWith('testsPending')) {
         // Handle Controls pending status cards - use standardized staged workflow pattern
         let whereClause = '';
@@ -402,7 +435,7 @@ export abstract class BaseDashboardService {
           whereClause = `c.${statusField} != 'approved'`;
         }
         
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
       } else if (cardType.startsWith('testsPending')) {
         // Map to control tests joins for details - use standardized staged workflow pattern
         let whereClause = '';
@@ -425,7 +458,7 @@ export abstract class BaseDashboardService {
         dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilter}
           ORDER BY c.createdAt DESC`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
@@ -437,7 +470,7 @@ export abstract class BaseDashboardService {
           AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
           AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
                AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
-          AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}
+          AND a.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter}
           ORDER BY c.createdAt DESC`;
       } else if (cardType === 'unmappedNonIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
@@ -450,11 +483,11 @@ export abstract class BaseDashboardService {
           AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
                AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) 
                OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
-          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}
+          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilters.dateFilterC} ${functionFilter}
           ORDER BY c.createdAt DESC`;
       } else {
         // Fallback to generic query
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
+        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
       }
       
       // Apply function filter to count query if needed

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseDashboardService, DashboardConfig } from '../shared/base-dashboard.service';
+import { BaseDashboardService, DashboardConfig, DashboardDateFilters } from '../shared/base-dashboard.service';
 import { DashboardConfigService } from '../shared/dashboard-config.service';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
@@ -36,7 +36,14 @@ export class GrcDashboardService extends BaseDashboardService {
     const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
 
     const config = this.getConfig();
-    const dateFilter = this.buildDateFilter(startDate, endDate, config.dateField);
+    const dateFilters: DashboardDateFilters = {
+      dateFilter: this.buildDateFilter(startDate, endDate, config.dateField),
+      dateFilterC: this.buildDateFilter(startDate, endDate, 'c.createdAt'),
+      dateFilterA: this.buildDateFilter(startDate, endDate, 'a.createdAt'),
+      dateFilterAp: this.buildDateFilter(startDate, endDate, 'ap.createdAt'),
+      dateFilterCdt: this.buildDateFilter(startDate, endDate, 'cdt.createdAt'),
+      dateFilterT: this.buildDateFilter(startDate, endDate, 't.createdAt'),
+    };
     
     // Find the metric configuration
     const metric = config.metrics.find(m => m.id === cardType);
@@ -47,16 +54,16 @@ export class GrcDashboardService extends BaseDashboardService {
     try {
       // Create a proper data query based on the metric type
       let dataQuery: string;
-      let countQuery = metric.query.replace('{dateFilter}', dateFilter);
+      let countQuery = this.applyDateFilterPlaceholders(metric.query, dateFilters);
       // Function name subquery for control-based cards (Controls have many-to-many with Functions)
       const functionNameSubquery = this.controlFunctionNameSubquery();
       
       if (cardType === 'total') {
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter}`;
       } else if (cardType === 'unmapped') {
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`;
       } else if (cardType.startsWith('pending') && !cardType.startsWith('testsPending')) {
         // Handle Controls pending status cards - use standardized staged workflow pattern
         // Require control to have at least one ControlFunctions link (match Python/UI; exclude unassigned controls)
@@ -76,8 +83,8 @@ export class GrcDashboardService extends BaseDashboardService {
           whereClause = `c.${statusField} != 'approved'`;
         }
         
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${baseControlFunctionExists} ${functionFilter} ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilter} ${baseControlFunctionExists} ${functionFilter}`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilters.dateFilterC} ${baseControlFunctionExists} ${functionFilter} ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilters.dateFilterC} ${baseControlFunctionExists} ${functionFilter}`;
       } else if (cardType.startsWith('testsPending')) {
         // Map to control tests joins for details - use standardized staged workflow pattern
         let whereClause = '';
@@ -101,13 +108,13 @@ export class GrcDashboardService extends BaseDashboardService {
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
           LEFT JOIN ${fq('Functions')} AS f ON f.id = t.function_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilter}
           ORDER BY c.createdAt DESC`;
 
         countQuery = `SELECT COUNT(DISTINCT t.id) as total
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilter} ${functionFilter}`;
+          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilter}`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
@@ -118,7 +125,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
           AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
                AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
-          AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}
+          AND a.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter}
           ORDER BY c.createdAt DESC`;
         countQuery = `SELECT COUNT(*) as total
           FROM ${fq('Controls')} c 
@@ -127,7 +134,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
           AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
                AND a.account_type IN ('Balance Sheet', 'Income Statement')) 
-          AND a.isDeleted = 0 ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}`;
+          AND a.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter}`;
       } else if (cardType === 'unmappedNonIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
@@ -139,7 +146,7 @@ export class GrcDashboardService extends BaseDashboardService {
           AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
                AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) 
                OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
-          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}
+          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilters.dateFilterC} ${functionFilter}
           ORDER BY c.createdAt DESC`;
         countQuery = `SELECT COUNT(*) as total
           FROM ${fq('Controls')} c 
@@ -149,11 +156,11 @@ export class GrcDashboardService extends BaseDashboardService {
           AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 
                AND (a.V IS NULL OR a.V = 0) AND (a.O IS NULL OR a.O = 0) AND (a.P IS NULL OR a.P = 0) 
                OR a.account_type NOT IN ('Balance Sheet', 'Income Statement'))) 
-          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilter.replace('createdAt', 'c.createdAt')} ${functionFilter}`;
+          AND (a.isDeleted = 0 OR a.id IS NULL) ${dateFilters.dateFilterC} ${functionFilter}`;
       } else {
         // Fallback to generic query
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter} ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilter} ${functionFilter}`;
+        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
+        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter}`;
       }
       
       // Add pagination (ensure ORDER BY exists for SQL Server OFFSET)
