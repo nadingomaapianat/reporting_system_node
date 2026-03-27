@@ -285,6 +285,31 @@ export class UserFunctionAccessService {
   }
 
   /**
+   * Restrict rows on an outer ControlFunctions join (alias e.g. cf) so queries that GROUP BY function
+   * only attribute controls to the selected function / user's allowed functions — not every function link.
+   * Use placeholder {functionJoinFilter} on charts that join c → cf → f.
+   */
+  buildControlFunctionJoinFilter(
+    cfAlias: string,
+    access: UserFunctionAccess,
+    selectedFunctionId?: string,
+  ): string {
+    if (selectedFunctionId && selectedFunctionId.trim() !== '') {
+      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
+        return ' AND 1 = 0';
+      }
+      return ` AND ${cfAlias}.function_id = '${selectedFunctionId}'`;
+    }
+    if (access.isSuperAdmin) return '';
+    if (!access.functionIds.length) {
+      if (process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true') return '';
+      return ' AND 1 = 0';
+    }
+    const ids = access.functionIds.map((id) => `'${id}'`).join(', ');
+    return ` AND ${cfAlias}.function_id IN (${ids})`;
+  }
+
+  /**
    * Get user functions with names for display in UI.
    * Admin: returns all functions so they can choose from dropdown.
    * Normal user: returns only their assigned functions; if one function, UI can show direct data.

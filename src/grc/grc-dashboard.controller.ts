@@ -167,7 +167,7 @@ export class GrcDashboardController {
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTestsPendingReviewer(req.user, page, limit, startDate, endDate),
+      await this.grcDashboardService.getTestsPendingReviewer(req.user, page, limit, startDate, endDate, functionId),
       ob,
     );
   }
