@@ -387,14 +387,15 @@ export class GrcDashboardController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     if (!principle) {
       throw new Error('principle parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getFocusPointsByPrinciple(principle, page, limit, startDate, endDate),
+      await this.grcDashboardService.getFocusPointsByPrinciple(req.user, principle, page, limit, startDate, endDate, functionId),
       ob,
     );
   }
@@ -426,14 +427,15 @@ export class GrcDashboardController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     if (!component) {
       throw new Error('component parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getFocusPointsByComponent(component, page, limit, startDate, endDate),
+      await this.grcDashboardService.getFocusPointsByComponent(req.user, component, page, limit, startDate, endDate, functionId),
       ob,
     );
   }
@@ -445,14 +447,15 @@ export class GrcDashboardController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     if (!status) {
       throw new Error('status parameter is required (Overdue or Not Overdue)');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getActionPlansByStatus(status, page, limit, startDate, endDate),
+      await this.grcDashboardService.getActionPlansByStatus(req.user, status, page, limit, startDate, endDate, functionId),
       ob,
     );
   }
@@ -485,14 +488,15 @@ export class GrcDashboardController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     if (!process || !keyControl) {
       throw new Error('process and keyControl parameters are required (keyControl: "Key Controls" or "Non-Key Controls")');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByProcessAndKeyControl(req.user, process, keyControl, page, limit, startDate, endDate),
+      await this.grcDashboardService.getControlsByProcessAndKeyControl(req.user, process, keyControl, page, limit, startDate, endDate, functionId),
       ob,
     );
   }
@@ -505,14 +509,15 @@ export class GrcDashboardController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     if (!businessUnit || !keyControl) {
       throw new Error('businessUnit and keyControl parameters are required (keyControl: "Key Controls" or "Non-Key Controls")');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByBusinessUnitAndKeyControl(req.user, businessUnit, keyControl, page, limit, startDate, endDate),
+      await this.grcDashboardService.getControlsByBusinessUnitAndKeyControl(req.user, businessUnit, keyControl, page, limit, startDate, endDate, functionId),
       ob,
     );
   }
