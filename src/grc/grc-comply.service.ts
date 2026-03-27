@@ -136,6 +136,17 @@ export class GrcComplyService {
     return ` AND EXISTS (SELECT 1 FROM UserFunction uf WHERE uf.userId = ${userIdColumn} AND uf.functionId IN (${ids}) AND uf.deletedAt IS NULL)`;
   }
 
+  /** Coerce legacy single functionId or multi-select array for SQL builders. */
+  private normalizeComplyFunctionSelection(v?: string | string[]): string[] | undefined {
+    if (v == null) return undefined;
+    if (Array.isArray(v)) {
+      const sel = [...new Set(v.map((id) => String(id).trim()).filter(Boolean))];
+      return sel.length ? sel : undefined;
+    }
+    const t = String(v).trim();
+    return t ? [t] : undefined;
+  }
+
   /**
    * Build function filter for control-based reports - uses UserFunctionAccessService
    */
@@ -144,7 +155,11 @@ export class GrcComplyService {
     access: UserFunctionAccess,
     functionFilterSelection?: string | string[],
   ): string {
-    return this.userFunctionAccess.buildControlFunctionFilter(tableAlias, access, functionFilterSelection);
+    return this.userFunctionAccess.buildControlFunctionFilter(
+      tableAlias,
+      access,
+      this.normalizeComplyFunctionSelection(functionFilterSelection),
+    );
   }
 
   /**
@@ -155,7 +170,11 @@ export class GrcComplyService {
     access: UserFunctionAccess,
     functionFilterSelection?: string | string[],
   ): string {
-    return this.userFunctionAccess.buildRiskFunctionFilter(tableAlias, access, functionFilterSelection);
+    return this.userFunctionAccess.buildRiskFunctionFilter(
+      tableAlias,
+      access,
+      this.normalizeComplyFunctionSelection(functionFilterSelection),
+    );
   }
 
   async runReport(report: GrcComplyReportKey, startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {

@@ -24,31 +24,35 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   /** Scope displayed function names to selected/allowed functions when function filter is active. */
-  private controlFunctionNameSubqueryScoped(access: UserFunctionAccess, selectedFunctionId?: string): string {
+  private controlFunctionNameSubqueryScoped(access: UserFunctionAccess, selectedFunctionIds?: string[]): string {
     const base = `SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL`;
-    if (selectedFunctionId && selectedFunctionId.trim() !== '') {
-      return `(${base} AND cf.function_id = '${selectedFunctionId}')`;
+    const sel = selectedFunctionIds?.length
+      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+    if (sel.length) {
+      const ids = sel.map((id) => `'${id.replace(/'/g, "''")}'`).join(', ');
+      return `(${base} AND cf.function_id IN (${ids}))`;
     }
     if (access.isSuperAdmin) return `(${base})`;
     if (!access.functionIds.length) return 'NULL';
-    const ids = access.functionIds.map((id) => `'${id}'`).join(', ');
+    const ids = access.functionIds.map((id) => `'${String(id).replace(/'/g, "''")}'`).join(', ');
     return `(${base} AND cf.function_id IN (${ids}))`;
   }
 
   // Override specific methods if needed for custom logic
-  async getControlsDashboard(user: any, startDate?: string, endDate?: string, functionId?: string, orderByFunctionAsc?: boolean) {
+  async getControlsDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc?: boolean) {
     // Use base class method which now accepts functionId
-    return this.getDashboardData(user, startDate, endDate, functionId, orderByFunctionAsc);
+    return this.getDashboardData(user, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
   // Control-specific card data with function filtering
-  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-    const functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, functionId);
-    const functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, functionId);
-    const functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+    const functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, selectedFunctionIds);
+    const functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, selectedFunctionIds);
+    const functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, selectedFunctionIds);
 
     const config = this.getConfig();
     const dateFilters: DashboardDateFilters = {
@@ -226,62 +230,62 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   // Individual card data methods (for modals)
-  async getTotalControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, functionId);
+  async getTotalControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getUnmappedControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'unmapped', page, limit, startDate, endDate, functionId);
+  async getUnmappedControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'unmapped', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getPendingPreparerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'pendingPreparer', page, limit, startDate, endDate, functionId);
+  async getPendingPreparerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'pendingPreparer', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getPendingCheckerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'pendingChecker', page, limit, startDate, endDate, functionId);
+  async getPendingCheckerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'pendingChecker', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getPendingReviewerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'pendingReviewer', page, limit, startDate, endDate, functionId);
+  async getPendingReviewerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'pendingReviewer', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getPendingAcceptanceControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'pendingAcceptance', page, limit, startDate, endDate, functionId);
+  async getPendingAcceptanceControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'pendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
   // Control Tests pending methods
-  async getTestsPendingPreparer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'testsPendingPreparer', page, limit, startDate, endDate, functionId);
+  async getTestsPendingPreparer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'testsPendingPreparer', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getTestsPendingChecker(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'testsPendingChecker', page, limit, startDate, endDate, functionId);
+  async getTestsPendingChecker(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'testsPendingChecker', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getTestsPendingReviewer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'testsPendingReviewer', page, limit, startDate, endDate, functionId);
+  async getTestsPendingReviewer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'testsPendingReviewer', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getTestsPendingAcceptance(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'testsPendingAcceptance', page, limit, startDate, endDate, functionId);
+  async getTestsPendingAcceptance(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'testsPendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getUnmappedIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'unmappedIcofrControls', page, limit, startDate, endDate, functionId);
+  async getUnmappedIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'unmappedIcofrControls', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
-  async getUnmappedNonIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'unmappedNonIcofrControls', page, limit, startDate, endDate, functionId);
+  async getUnmappedNonIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'unmappedNonIcofrControls', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
   // Get controls by quarter for detail modal
-  async getControlsByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getControlsByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
@@ -361,12 +365,12 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, functionId);
+      const functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -438,13 +442,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -514,13 +518,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -590,13 +594,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -662,13 +666,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -744,13 +748,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -817,12 +821,12 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -901,11 +905,11 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
@@ -976,13 +980,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -1058,11 +1062,11 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
@@ -1136,13 +1140,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -1223,13 +1227,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -1312,13 +1316,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -1392,13 +1396,13 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionNameSubquery = this.controlFunctionNameSubqueryScoped(access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -1475,12 +1479,12 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -1593,12 +1597,12 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
 
       const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
       // Ensure page and limit are integers
@@ -1697,11 +1701,11 @@ export class GrcDashboardService extends BaseDashboardService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
+      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
       const dateFilter = this.buildDateFilter(startDate, endDate, 'a.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;

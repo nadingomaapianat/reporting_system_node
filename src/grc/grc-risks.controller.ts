@@ -8,6 +8,7 @@ import {
   orderByFunctionFromRequest,
   sortPaginatedResponseIfNeeded,
 } from '../shared/order-by-function';
+import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/risks')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -20,12 +21,12 @@ export class GrcRisksController {
     @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
-    const id = norm(functionId);
     const ob = orderByFunctionFromRequest(req);
-    const raw = await this.grcRisksService.getRisksDashboard(req.user, norm(startDate) || undefined, norm(endDate) || undefined, id && id.length > 0 ? id : undefined);
+    const raw = await this.grcRisksService.getRisksDashboard(req.user, norm(startDate) || undefined, norm(endDate) || undefined, parseGrcFunctionIdsFromQueries(functionId, functionIds));
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
@@ -36,11 +37,12 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getTotalRisks(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcRisksService.getTotalRisks(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -53,13 +55,12 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
-    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
-    const id = norm(functionId);
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate, id && id.length > 0 ? id : undefined),
+      await this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -73,13 +74,12 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
-    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
-    const id = norm(functionId);
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate, id && id.length > 0 ? id : undefined),
+      await this.grcRisksService.getFilteredCardData(req.user, cardType, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -91,11 +91,12 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getHighRisks(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcRisksService.getHighRisks(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -107,11 +108,12 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getMediumRisks(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcRisksService.getMediumRisks(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -123,11 +125,12 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getLowRisks(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcRisksService.getLowRisks(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -139,11 +142,12 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getRiskReduction(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcRisksService.getRiskReduction(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -155,11 +159,12 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcRisksService.getNewRisks(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcRisksService.getNewRisks(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -172,12 +177,13 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksByCategory(req.user, category, page, limit, startDate, endDate, functionId),
+        await this.grcRisksService.getRisksByCategory(req.user, category, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -194,12 +200,13 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksByEventType(req.user, eventType, page, limit, startDate, endDate, functionId),
+        await this.grcRisksService.getRisksByEventType(req.user, eventType, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -216,7 +223,8 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -233,7 +241,7 @@ export class GrcRisksController {
           limit,
           norm(startDate) || undefined,
           norm(endDate) || undefined,
-          norm(functionId) && norm(functionId)!.length > 0 ? norm(functionId) : undefined
+          parseGrcFunctionIdsFromQueries(functionId, functionIds)
         ),
         ob,
       );
@@ -251,12 +259,13 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksByApprovalStatus(req.user, approvalStatus, page, limit, startDate, endDate, functionId),
+        await this.grcRisksService.getRisksByApprovalStatus(req.user, approvalStatus, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -273,7 +282,8 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -289,7 +299,7 @@ export class GrcRisksController {
           limit,
           norm(startDate) || undefined,
           norm(endDate) || undefined,
-          norm(functionId) && norm(functionId)!.length > 0 ? norm(functionId) : undefined
+          parseGrcFunctionIdsFromQueries(functionId, functionIds)
         ),
         ob,
       );
@@ -307,12 +317,13 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksByFunction(req.user, functionName, page, limit, startDate, endDate, functionId),
+        await this.grcRisksService.getRisksByFunction(req.user, functionName, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -329,12 +340,13 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksByBusinessProcess(req.user, processName, page, limit, startDate, endDate, functionId),
+        await this.grcRisksService.getRisksByBusinessProcess(req.user, processName, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -373,7 +385,8 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     // Prefer header so control names with &, ?, = are not broken by query string parsing. Decode base64 when present (UTF-8 / non-ASCII).
     let controlName = controlNameQuery;
@@ -392,7 +405,7 @@ export class GrcRisksController {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksByControlName(req.user, controlName, page, limit, startDate, endDate, functionId),
+        await this.grcRisksService.getRisksByControlName(req.user, controlName, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
@@ -405,7 +418,7 @@ export class GrcRisksController {
   @Post('by-control-name')
   async getRisksByControlNamePost(
     @Req() req: any,
-    @Body() body: { controlName?: string; page?: number; limit?: number; startDate?: string; endDate?: string; functionId?: string }
+    @Body() body: { controlName?: string; page?: number; limit?: number; startDate?: string; endDate?: string; functionId?: string; functionIds?: string }
   ) {
     const controlName = body?.controlName ?? (req.query?.controlName as string);
     const page = body?.page ?? (Number(req.query?.page) || 1);
@@ -413,8 +426,17 @@ export class GrcRisksController {
     const startDate = body?.startDate ?? req.query?.startDate;
     const endDate = body?.endDate ?? req.query?.endDate;
     const functionId = body?.functionId ?? req.query?.functionId;
+    const functionIds = body?.functionIds ?? (req.query?.functionIds as string | undefined);
     try {
-      return await this.grcRisksService.getRisksByControlName(req.user, controlName, page, limit, startDate, endDate, functionId);
+      return await this.grcRisksService.getRisksByControlName(
+        req.user,
+        controlName,
+        page,
+        limit,
+        startDate,
+        endDate,
+        parseGrcFunctionIdsFromQueries(typeof functionId === 'string' ? functionId : undefined, typeof functionIds === 'string' ? functionIds : undefined),
+      );
     } catch (error) {
       console.error('Error in getRisksByControlName (POST):', error);
       throw error;
@@ -429,12 +451,13 @@ export class GrcRisksController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksForComparison(req.user, riskName, page, limit, startDate, endDate, functionId),
+        await this.grcRisksService.getRisksForComparison(req.user, riskName, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error) {
