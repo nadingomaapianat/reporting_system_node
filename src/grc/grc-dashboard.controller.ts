@@ -70,7 +70,7 @@ export class GrcDashboardController {
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingPreparerControls(req.user, page, limit, startDate, endDate),
+      await this.grcDashboardService.getPendingPreparerControls(req.user, page, limit, startDate, endDate, functionId),
       ob,
     );
   }
@@ -199,7 +199,7 @@ export class GrcDashboardController {
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getUnmappedIcofrControls(req.user, page, limit, startDate, endDate),
+      await this.grcDashboardService.getUnmappedIcofrControls(req.user, page, limit, startDate, endDate, functionId),
       ob,
     );
   }
@@ -545,7 +545,8 @@ export class GrcDashboardController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string
   ) {
     try {
       if (!component || !icofrStatus) {
@@ -553,7 +554,7 @@ export class GrcDashboardController {
       }
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcDashboardService.getControlsByComponentAndIcofrStatus(req.user, component, icofrStatus, page, limit, startDate, endDate),
+        await this.grcDashboardService.getControlsByComponentAndIcofrStatus(req.user, component, icofrStatus, page, limit, startDate, endDate, functionId),
         ob,
       );
     } catch (error: any) {

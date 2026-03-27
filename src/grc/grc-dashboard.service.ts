@@ -674,6 +674,7 @@ export class GrcDashboardService extends BaseDashboardService {
           c.createdAt as created_at
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
+          AND c.deletedAt IS NULL
           AND ${riskResponseCondition}
           ${dateFilter}
           ${functionFilter}
@@ -688,6 +689,7 @@ export class GrcDashboardService extends BaseDashboardService {
         SELECT COUNT(*) as total
         FROM dbo.[Controls] c
         WHERE c.isDeleted = 0
+          AND c.deletedAt IS NULL
           AND ${riskResponseCondition}
           ${dateFilter}
           ${functionFilter}
@@ -1709,14 +1711,14 @@ export class GrcDashboardService extends BaseDashboardService {
   private buildDateFilterForQuery(startDate?: string, endDate?: string, field: string = 'createdAt'): string {
     let filter = '';
     if (startDate && startDate.trim()) {
-      // Escape single quotes and ensure proper date format
-      const escapedStartDate = startDate.replace(/'/g, "''");
+      const day = startDate.trim().slice(0, 10);
+      const escapedStartDate = day.replace(/'/g, "''");
       filter += ` AND ${field} >= '${escapedStartDate}'`;
     }
     if (endDate && endDate.trim()) {
-      // Escape single quotes and ensure proper date format
-      const escapedEndDate = endDate.replace(/'/g, "''");
-      filter += ` AND ${field} <= '${escapedEndDate}'`;
+      const day = endDate.trim().slice(0, 10);
+      const escapedEndDate = day.replace(/'/g, "''");
+      filter += ` AND ${field} <= '${escapedEndDate} 23:59:59'`;
     }
     return filter;
   }
