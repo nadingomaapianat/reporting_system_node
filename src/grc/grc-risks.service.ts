@@ -22,7 +22,7 @@ export class GrcRisksService extends BaseDashboardService {
     return `(SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[RiskFunctions] rf INNER JOIN dbo.[Functions] f ON f.id = rf.function_id WHERE rf.risk_id = r.id AND rf.deletedAt IS NULL)`;
   }
 
-  async getRisksDashboard(user: any, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // console.log('[getRisksDashboard] Received parameters:', { startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
     
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -34,7 +34,7 @@ export class GrcRisksService extends BaseDashboardService {
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     // console.log('[getRisksDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
     
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
     // console.log('[getRisksDashboard] Function filter:', functionFilter);
 
     try {
@@ -348,15 +348,15 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
-    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, functionId);
+  async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
   // Risk-specific card data with function filtering
-  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     // Normalize hyphenated card types from frontend (e.g., 'new-risks')
     if (cardType === 'new-risks') {
@@ -533,10 +533,10 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getHighRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
+  async getHighRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
     // Ensure page and limit are integers
@@ -587,10 +587,10 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getMediumRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
+  async getMediumRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
     // Ensure page and limit are integers
@@ -641,10 +641,10 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getLowRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
+  async getLowRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
     // Ensure page and limit are integers
@@ -695,10 +695,10 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getRiskReduction(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
+  async getRiskReduction(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     // Match dashboard count: use ResidualRisks join and same date logic (no residual date filter when no range)
     let residualDateFilter = '';
@@ -775,10 +775,10 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getNewRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, functionId?: string) {
+  async getNewRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
     // Ensure page and limit are integers
@@ -826,10 +826,10 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async exportRisks(user: any, format: 'pdf' | 'excel', startDate?: string, endDate?: string, functionId?: string) {
+  async exportRisks(user: any, format: 'pdf' | 'excel', startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate);
     const query = `
@@ -889,10 +889,10 @@ export class GrcRisksService extends BaseDashboardService {
   }
 
   // Detail endpoints for charts and tables
-  async getRisksByCategory(user: any, category: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByCategory(user: any, category: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     // Ensure page and limit are integers
@@ -970,10 +970,10 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByEventType(user: any, eventType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByEventType(user: any, eventType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     // Ensure page and limit are integers
@@ -1049,10 +1049,10 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     // Ensure page and limit are integers
@@ -1152,10 +1152,10 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByApprovalStatus(user: any, approvalStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByApprovalStatus(user: any, approvalStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     // Ensure page and limit are integers
@@ -1270,10 +1270,10 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByFinancialImpact(user: any, financialImpact: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByFinancialImpact(user: any, financialImpact: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     // Normalize financial impact: trim and match case-insensitively
     const impact = typeof financialImpact === 'string' ? financialImpact.trim() : '';
@@ -1375,10 +1375,10 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getRisksByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const userFunctionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const userFunctionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     // Ensure page and limit are integers
@@ -1449,10 +1449,10 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByBusinessProcess(user: any, processName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByBusinessProcess(user: any, processName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     // Ensure page and limit are integers
@@ -1510,10 +1510,10 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByName(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByName(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     // Ensure page and limit are integers
@@ -1579,7 +1579,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByControlName(user: any, controlName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByControlName(user: any, controlName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     const rawName = (controlName != null && controlName !== '') ? String(controlName).replace(/\s+/g, ' ').trim() : '';
     if (!rawName) {
       return { data: [], pagination: { page: 1, limit: Math.floor(Number(limit)) || 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
@@ -1587,7 +1587,7 @@ export class GrcRisksService extends BaseDashboardService {
 
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1652,10 +1652,10 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksForComparison(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksForComparison(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
 
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
     // Ensure page and limit are integers

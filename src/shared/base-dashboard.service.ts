@@ -75,7 +75,7 @@ export abstract class BaseDashboardService {
     user: any,
     startDate?: string,
     endDate?: string,
-    functionId?: string,
+    selectedFunctionIds?: string[],
     orderByFunctionAsc?: boolean,
   ) {
     // By default: no date filter (all data). Date filter is applied only when both startDate and endDate are provided.
@@ -99,22 +99,22 @@ export abstract class BaseDashboardService {
     let functionJoinFilter = '';
     if (user && this.userFunctionAccess) {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      // console.log('[BaseDashboardService.getDashboardData] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionId: functionId });
+      // console.log('[BaseDashboardService.getDashboardData] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionIds });
       
       // Apply appropriate function filter based on dashboard type
       if (config.tableName) {
         const tableNameLower = config.tableName.toLowerCase();
         if (tableNameLower.includes('controls')) {
-          functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-          functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, functionId);
-          functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, functionId);
-          functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, functionId);
+          functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+          functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, selectedFunctionIds);
+          functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, selectedFunctionIds);
+          functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, selectedFunctionIds);
         } else if (tableNameLower.includes('risks')) {
-          functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, functionId);
+          functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
         } else if (tableNameLower.includes('incidents')) {
-          functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, functionId);
+          functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
         } else if (tableNameLower.includes('kris')) {
-          functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+          functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
         }
       }
       // console.log('[BaseDashboardService.getDashboardData] Function filter:', functionFilter);
@@ -451,7 +451,7 @@ export abstract class BaseDashboardService {
   }
 
   // Card-specific data methods for modals
-  async getCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     const config = this.getConfig();
     const dateFilters: DashboardDateFilters = {
       dateFilter: this.buildDateFilter(startDate, endDate, config.dateField),
@@ -471,10 +471,10 @@ export abstract class BaseDashboardService {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       // Only apply Control function filter if this is Controls dashboard
       if (config.tableName && config.tableName.includes('Controls')) {
-        functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, functionId);
-        functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, functionId);
-        functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, functionId);
-        functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, functionId);
+        functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+        functionFilterControlDesignTest = this.userFunctionAccess.buildDirectFunctionFilter('t', 'function_id', access, selectedFunctionIds);
+        functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, selectedFunctionIds);
+        functionJoinFilter = this.userFunctionAccess.buildControlFunctionJoinFilter('cf', access, selectedFunctionIds);
       }
     }
     

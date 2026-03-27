@@ -65,9 +65,9 @@ export class GrcKrisService {
     return filter;
   }
 
-  async getKrisDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string) {
+  async getKrisDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     try {
-      // console.log('[getKrisDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
+      // console.log('[getKrisDashboard] Received parameters:', { timeframe, startDate, endDate, selectedFunctionIds, userId: user.id, groupName: user.groupName });
       
       const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
       const kriValueDateFilter = this.buildKriValueDateFilter(startDate, endDate);
@@ -77,7 +77,7 @@ export class GrcKrisService {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       // console.log('[getKrisDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
       
-      const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+      const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
       // console.log('[getKrisDashboard] Function filter:', functionFilter);
 
       // Total KRIs (count)
@@ -1044,10 +1044,10 @@ export class GrcKrisService {
     }
   }
 
-  async getTotalKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getTotalKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1115,10 +1115,10 @@ export class GrcKrisService {
       }
     };
   }
-  async getPendingPreparerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getPendingPreparerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1163,10 +1163,10 @@ export class GrcKrisService {
     };
   }
 
-  async getPendingCheckerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getPendingCheckerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1217,10 +1217,10 @@ export class GrcKrisService {
     };
   }
 
-  async getPendingReviewerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getPendingReviewerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1271,10 +1271,10 @@ export class GrcKrisService {
     };
   }
 
-  async getPendingAcceptanceKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getPendingAcceptanceKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1335,10 +1335,10 @@ export class GrcKrisService {
   }
 
   // Detail endpoints for info icons
-  async getKrisByStatus(user: any, status: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getKrisByStatus(user: any, status: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1410,10 +1410,10 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByLevel(user: any, level: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getKrisByLevel(user: any, level: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1550,10 +1550,10 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string, functionId?: string) {
+  async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1618,10 +1618,10 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisWithAssessmentsByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getKrisWithAssessmentsByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const kriFunctionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const kriFunctionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1717,10 +1717,10 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByFrequency(user: any, frequency: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getKrisByFrequency(user: any, frequency: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -1772,7 +1772,7 @@ export class GrcKrisService {
     };
   }
 
-  async getRisksByKriName(user: any, kriName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getRisksByKriName(user: any, kriName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
@@ -1796,7 +1796,7 @@ export class GrcKrisService {
     
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Log for debugging
     // console.log('[getRisksByKriName] Received kriName:', kriName);
@@ -1927,10 +1927,10 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByMonthYear(user: any, monthYear: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getKrisByMonthYear(user: any, monthYear: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -2014,10 +2014,10 @@ export class GrcKrisService {
     };
   }
 
-  async getKriAssessmentsByMonthAndLevel(user: any, monthYear: string, assessmentLevel: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getKriAssessmentsByMonthAndLevel(user: any, monthYear: string, assessmentLevel: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;
@@ -2154,10 +2154,10 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByOverdueStatus(user: any, overdueStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getKrisByOverdueStatus(user: any, overdueStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, functionId);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
 
     // Ensure page and limit are integers
     const pageInt = Math.floor(Number(page)) || 1;

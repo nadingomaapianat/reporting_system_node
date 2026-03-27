@@ -55,7 +55,7 @@ export class GrcIncidentsService {
     return ` AND i.createdAt >= '${startDateObj.toISOString()}'`;
   }
 
-  async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string) {
+  async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     try {
       // console.log('[getIncidentsDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
       
@@ -67,7 +67,7 @@ export class GrcIncidentsService {
       // console.log('[getIncidentsDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
       
       // Build function filter - use selected functionId if provided, otherwise use user's functions
-      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, functionId);
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
       // console.log('[getIncidentsDashboard] Function filter:', functionFilter);
 
       // Get total incidents
@@ -663,7 +663,7 @@ export class GrcIncidentsService {
         'a',
         'actionOwner',
         access,
-        functionId,
+        selectedFunctionIds,
       );
       const incidentActionPlanQuery = `
         SELECT 
@@ -997,14 +997,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      functionId,
+      selectedFunctionIds,
     );
 
     // Ensure page and limit are integers
@@ -1084,14 +1084,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      functionId,
+      selectedFunctionIds,
     );
 
     // Ensure page and limit are integers
@@ -1135,14 +1135,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      functionId,
+      selectedFunctionIds,
     );
 
     // Ensure page and limit are integers
@@ -1192,14 +1192,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      functionId,
+      selectedFunctionIds,
     );
 
     // Ensure page and limit are integers
@@ -1249,14 +1249,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
+  async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      functionId,
+      selectedFunctionIds,
     );
 
     // Ensure page and limit are integers
@@ -1312,7 +1312,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Ensure page and limit are integers
@@ -1345,6 +1345,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
       
       // Escape special characters for SQL
@@ -1422,7 +1423,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Ensure page and limit are integers
@@ -1436,6 +1437,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       // Build date filter - match the chart query logic (uses createdAt, not occurrence_date)
@@ -1527,7 +1529,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
@@ -1536,6 +1538,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
@@ -1609,7 +1612,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Get user function access
@@ -1618,6 +1621,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
@@ -1735,7 +1739,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string,
+    selectedFunctionIds?: string[],
     businessUnit?: string
   ) {
     try {
@@ -1744,7 +1748,7 @@ export class GrcIncidentsService {
         'a',
         'actionOwner',
         access,
-        functionId,
+        selectedFunctionIds,
       );
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
 
@@ -1842,7 +1846,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Ensure page and limit are integers
@@ -1881,6 +1885,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       const whereParts: string[] = [
@@ -1947,7 +1952,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Ensure page and limit are integers
@@ -1961,6 +1966,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       // Build WHERE clause
@@ -2050,7 +2056,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Ensure page and limit are integers
@@ -2064,6 +2070,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       const whereParts: string[] = [
@@ -2141,7 +2148,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Parse period format: "MM/YYYY" or "M/YYYY"
@@ -2168,6 +2175,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       const whereParts: string[] = [
@@ -2242,7 +2250,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Parse period format: "YYYY-MM" (from chart) or "MM/YYYY"
@@ -2278,6 +2286,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       // Build WHERE clause - match chart query exactly
@@ -2385,7 +2394,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    functionId?: string
+    selectedFunctionIds?: string[]
   ) {
     try {
       // Ensure page and limit are integers
@@ -2399,6 +2408,7 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
+        selectedFunctionIds,
       );
 
       // Build WHERE clause - match comprehensive query exactly
