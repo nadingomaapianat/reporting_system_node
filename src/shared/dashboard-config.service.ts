@@ -779,7 +779,7 @@ export class DashboardConfigService {
           LEFT JOIN ${fq('ControlFunctions')} cf ON c.id = cf.control_id
           LEFT JOIN ${fq('Functions')} f ON cf.function_id = f.id
           WHERE ap.[from] = 'effective' 
-            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilter}
+            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilter} {functionFilter}
           ORDER BY ap.createdAt DESC`,
           columns: [
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
@@ -872,7 +872,7 @@ export class DashboardConfigService {
           FROM ${fq('Controls')} c
           LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id 
           LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id 
-          WHERE c.icof_id IS NULL AND c.isDeleted = 0 {dateFilter}
+          WHERE c.icof_id IS NULL AND c.isDeleted = 0 {dateFilter} {functionFilter}
           ORDER BY c.createdAt DESC`,
           columns: [
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
@@ -1313,9 +1313,9 @@ export class DashboardConfigService {
             c.name AS [Controls__name], 
             COUNT(DISTINCT rc.risk_id) AS [count] 
           FROM dbo.[Controls] c
-          LEFT JOIN dbo.[RiskControls] rc ON c.id = rc.control_id 
-          LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0
-          WHERE c.isDeleted = 0 {dateFilter}
+          INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id 
+          INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0
+          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
           GROUP BY c.name 
           ORDER BY [count] DESC, c.name ASC`,
           columns: [
