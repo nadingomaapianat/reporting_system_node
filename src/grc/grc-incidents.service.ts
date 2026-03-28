@@ -667,6 +667,7 @@ export class GrcIncidentsService {
       );
       const incidentActionPlanQuery = `
         SELECT 
+          i.code AS incident_code,
           i.title AS incident_title,
           f_inc.name AS incident_function_name,
           CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
@@ -716,6 +717,50 @@ export class GrcIncidentsService {
         ORDER BY count DESC
       `;
       const incidentActionPlanByStatus = await this.databaseService.query(incidentActionPlanByStatusQuery);
+
+      // 14c. Overdue Incidents — same grain as Incident Action Plan (action plans linked to incidents),
+      // where expected implementation date is before today and the incident is not fully closed (acceptance not approved).
+      const overdueIncidentsQuery = `
+        SELECT 
+          i.code AS incident_code,
+          i.title AS incident_title,
+          f_inc.name AS incident_function_name,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
+          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
+          a.control_procedure AS action_taken,
+          f_owner.name AS action_owner_name,
+          a.business_unit AS business_unit_status,
+          a.implementation_date AS expected_implementation_date,
+          CASE 
+            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
+            ELSE 'Other'
+          END AS incident_workflow_status,
+          N'Past target date' AS target_date_status,
+          N'Not closed' AS incident_closure_status
+        FROM dbo.[Actionplans] a
+        INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
+        LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id
+          AND f_inc.isDeleted = 0
+          AND f_inc.deletedAt IS NULL
+        LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
+          AND f_owner.isDeleted = 0
+          AND f_owner.deletedAt IS NULL
+        WHERE a.deletedAt IS NULL
+          AND a.[from] = 'incident'
+          AND i.isDeleted = 0
+          AND i.deletedAt IS NULL
+          AND a.implementation_date IS NOT NULL
+          AND CAST(a.implementation_date AS DATE) < CAST(GETDATE() AS DATE)
+          AND ISNULL(i.acceptanceStatus, '') <> 'approved'
+          ${dateFilter}
+          ${actionOwnerFunctionFilter}
+        ORDER BY a.implementation_date ASC, a.createdAt DESC
+      `;
+      const overdueIncidentsRows = await this.databaseService.query(overdueIncidentsQuery);
 
       // 15. Comprehensive Operational Loss Dashboard (UNION ALL)
       const comprehensiveOperationalLossQuery = `
@@ -924,6 +969,7 @@ export class GrcIncidentsService {
         })),
         // Incident Action Plans (tabular view)
         incidentActionPlan: incidentActionPlan.map((row: any) => ({
+          code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
           root_cause: row.incident_root_cause || '',
@@ -937,6 +983,20 @@ export class GrcIncidentsService {
         incidentActionPlanByStatus: (incidentActionPlanByStatus || []).map((row: any) => ({
           status_name: row.status_name || 'N/A',
           count: row.count || 0
+        })),
+        overdueIncidents: (overdueIncidentsRows || []).map((row: any) => ({
+          code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+          incident_name: row.incident_title || 'N/A',
+          incident_department: row.incident_function_name || 'N/A',
+          root_cause: row.incident_root_cause || '',
+          description: row.incident_description || '',
+          action_taken: row.action_taken || row.control_procedure || '',
+          action_owner: row.action_owner_name || '',
+          status: row.business_unit_status || '',
+          expected_implementation_date: row.expected_implementation_date || null,
+          incident_workflow_status: row.incident_workflow_status || '',
+          target_date_status: row.target_date_status || '',
+          incident_closure_status: row.incident_closure_status || '',
         }))
       };
     } catch (error) {
