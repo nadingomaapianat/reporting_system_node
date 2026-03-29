@@ -53,7 +53,7 @@ export class GrcIncidentsService {
     return ` AND i.createdAt >= '${startDateObj.toISOString()}'`;
   }
 
-  async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, functionId?: string) {
     try {
       // console.log('[getIncidentsDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
       
@@ -65,7 +65,7 @@ export class GrcIncidentsService {
       // console.log('[getIncidentsDashboard] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds });
       
       // Build function filter - use selected functionId if provided, otherwise use user's functions
-      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, functionId);
       // console.log('[getIncidentsDashboard] Function filter:', functionFilter);
 
       // Get total incidents
@@ -661,11 +661,10 @@ export class GrcIncidentsService {
         'a',
         'actionOwner',
         access,
-        selectedFunctionIds,
+        functionId,
       );
       const incidentActionPlanQuery = `
         SELECT 
-          i.code AS incident_code,
           i.title AS incident_title,
           f_inc.name AS incident_function_name,
           CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
@@ -715,40 +714,6 @@ export class GrcIncidentsService {
         ORDER BY count DESC
       `;
       const incidentActionPlanByStatus = await this.databaseService.query(incidentActionPlanByStatusQuery);
-
-      // 14c. Overdue Incidents — same rows/columns as Incident Action Plan, filtered by
-      // Actionplans.business_unit = pending|overdue (case-insensitive) and implementation date before today.
-      const overdueIncidentsQuery = `
-        SELECT 
-          i.code AS incident_code,
-          i.title AS incident_title,
-          f_inc.name AS incident_function_name,
-          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
-          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
-          a.control_procedure AS action_taken,
-          f_owner.name AS action_owner_name,
-          a.business_unit AS business_unit_status,
-          a.implementation_date AS expected_implementation_date
-        FROM dbo.[Actionplans] a
-        INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
-        LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id
-          AND f_inc.isDeleted = 0
-          AND f_inc.deletedAt IS NULL
-        LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
-          AND f_owner.isDeleted = 0
-          AND f_owner.deletedAt IS NULL
-        WHERE a.deletedAt IS NULL
-          AND a.[from] = 'incident'
-          AND i.isDeleted = 0
-          AND i.deletedAt IS NULL
-          AND a.implementation_date IS NOT NULL
-          AND CAST(a.implementation_date AS DATE) < CAST(GETDATE() AS DATE)
-          AND LOWER(LTRIM(RTRIM(ISNULL(a.business_unit, N'')))) IN (N'pending', N'overdue')
-          ${dateFilter}
-          ${actionOwnerFunctionFilter}
-        ORDER BY a.createdAt DESC
-      `;
-      const overdueIncidentsRows = await this.databaseService.query(overdueIncidentsQuery);
 
       // 15. Comprehensive Operational Loss Dashboard (UNION ALL)
       const comprehensiveOperationalLossQuery = `
@@ -957,7 +922,6 @@ export class GrcIncidentsService {
         })),
         // Incident Action Plans (tabular view)
         incidentActionPlan: incidentActionPlan.map((row: any) => ({
-          code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
           root_cause: row.incident_root_cause || '',
@@ -971,17 +935,6 @@ export class GrcIncidentsService {
         incidentActionPlanByStatus: (incidentActionPlanByStatus || []).map((row: any) => ({
           status_name: row.status_name || 'N/A',
           count: row.count || 0
-        })),
-        overdueIncidents: (overdueIncidentsRows || []).map((row: any) => ({
-          code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
-          incident_name: row.incident_title || 'N/A',
-          incident_department: row.incident_function_name || 'N/A',
-          root_cause: row.incident_root_cause || '',
-          description: row.incident_description || '',
-          action_taken: row.action_taken || row.control_procedure || '',
-          action_owner: row.action_owner_name || '',
-          status: row.business_unit_status || '',
-          expected_implementation_date: row.expected_implementation_date || null,
         }))
       };
     } catch (error) {
@@ -990,66 +943,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async exportIncidents(user: any, format: string, timeframe?: string) {
-    // Legacy placeholder; use proxyExportToPython (export-pdf / export-excel) for real export
-    return {
-      message: `Exporting incidents data in ${format} format`,
-      timeframe: timeframe || 'all',
-      status: 'success'
-    };
-  }
-
-  /**
-   * Proxy incident export to Python so user context (X-User-Id, X-Group-Name) is sent
-   * and export applies the same function filter as the UI (same row count).
-   */
-  async proxyExportToPython(
-    user: any,
-    format: 'pdf' | 'excel',
-    query: Record<string, any>,
-    res: Response,
-  ): Promise<void> {
-    const base = PYTHON_API_URL.replace(/\/$/, '');
-    const path = `/api/grc/incidents/export-${format}`;
-    const qs = new URLSearchParams();
-    Object.entries(query || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== '') {
-        qs.append(k, String(v));
-      }
-    });
-    const url = qs.toString() ? `${base}${path}?${qs.toString()}` : `${base}${path}`;
-    const headers: Record<string, string> = {};
-    if (user?.id) headers['X-User-Id'] = String(user.id);
-    if (user?.groupName) headers['X-Group-Name'] = String(user.groupName);
-    else if (user?.group) headers['X-Group-Name'] = String(user.group);
-
-    try {
-      const ax = await axios({
-        method: 'GET',
-        url,
-        headers,
-        responseType: 'stream',
-        validateStatus: () => true,
-      });
-      const contentType = ax.headers['content-type'];
-      const contentDisposition = ax.headers['content-disposition'];
-      if (contentType) res.setHeader('Content-Type', contentType);
-      if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
-      res.status(ax.status);
-      ax.data.pipe(res);
-    } catch (err: any) {
-      res.status(500).json({ detail: err?.message || 'Export proxy failed' });
-    }
-  }
-
-  async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      selectedFunctionIds,
+      functionId,
     );
 
     // Ensure page and limit are integers
@@ -1129,14 +1030,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      selectedFunctionIds,
+      functionId,
     );
 
     // Ensure page and limit are integers
@@ -1180,14 +1081,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      selectedFunctionIds,
+      functionId,
     );
 
     // Ensure page and limit are integers
@@ -1237,14 +1138,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      selectedFunctionIds,
+      functionId,
     );
 
     // Ensure page and limit are integers
@@ -1294,14 +1195,14 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, functionId?: string) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
       'i',
       'function_id',
       access,
-      selectedFunctionIds,
+      functionId,
     );
 
     // Ensure page and limit are integers
@@ -1357,7 +1258,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1390,7 +1291,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
       
       // Escape special characters for SQL
@@ -1468,7 +1368,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1482,7 +1382,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       // Build date filter - match the chart query logic (uses createdAt, not occurrence_date)
@@ -1574,7 +1473,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
@@ -1583,7 +1482,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
@@ -1657,7 +1555,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Get user function access
@@ -1666,7 +1564,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
@@ -1784,7 +1681,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[],
+    functionId?: string,
     businessUnit?: string
   ) {
     try {
@@ -1793,7 +1690,7 @@ export class GrcIncidentsService {
         'a',
         'actionOwner',
         access,
-        selectedFunctionIds,
+        functionId,
       );
       const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
 
@@ -1891,7 +1788,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -1930,7 +1827,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       const whereParts: string[] = [
@@ -1997,7 +1893,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -2011,7 +1907,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       // Build WHERE clause
@@ -2101,7 +1996,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -2115,7 +2010,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       const whereParts: string[] = [
@@ -2193,7 +2087,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Parse period format: "MM/YYYY" or "M/YYYY"
@@ -2220,7 +2114,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       const whereParts: string[] = [
@@ -2295,7 +2188,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Parse period format: "YYYY-MM" (from chart) or "MM/YYYY"
@@ -2331,7 +2224,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       // Build WHERE clause - match chart query exactly
@@ -2439,7 +2331,7 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    functionId?: string
   ) {
     try {
       // Ensure page and limit are integers
@@ -2453,7 +2345,6 @@ export class GrcIncidentsService {
         'i',
         'function_id',
         access,
-        selectedFunctionIds,
       );
 
       // Build WHERE clause - match comprehensive query exactly
