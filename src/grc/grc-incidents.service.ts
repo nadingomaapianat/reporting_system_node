@@ -726,7 +726,9 @@ export class GrcIncidentsService {
           CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
           CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
           a.control_procedure AS action_taken,
-          f_owner.name AS action_owner_name
+          f_owner.name AS action_owner_name,
+          a.business_unit AS business_unit_status,
+          a.implementation_date AS expected_implementation_date
         FROM dbo.[Actionplans] a
         INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
         LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id
@@ -978,6 +980,8 @@ export class GrcIncidentsService {
           description: row.incident_description || '',
           action_taken: row.action_taken || row.control_procedure || '',
           action_owner: row.action_owner_name || '',
+          status: row.business_unit_status || '',
+          expected_implementation_date: row.expected_implementation_date || null,
         }))
       };
     } catch (error) {
