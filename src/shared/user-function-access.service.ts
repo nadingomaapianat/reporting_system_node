@@ -7,9 +7,22 @@ export interface UserFunctionAccess {
   functionIds: string[];
 }
 
+/** Single id, multi-select array, or unset — matches `parseGrcFunctionIdsFromQueries` / GRC query params. */
+export type GrcSelectedFunctionIds = string | string[] | undefined;
+
 @Injectable()
 export class UserFunctionAccessService {
   constructor(private readonly db: DatabaseService) {}
+
+  private normalizeSelectedFunctionIds(raw?: GrcSelectedFunctionIds): string[] | undefined {
+    if (raw == null) return undefined;
+    if (Array.isArray(raw)) {
+      const u = [...new Set(raw.map((x) => String(x).trim()).filter(Boolean))];
+      return u.length ? u : undefined;
+    }
+    const t = String(raw).trim();
+    return t ? [t] : undefined;
+  }
 
   /**
    * Whether the user is admin (sees all functions and all data when no filter selected).
@@ -89,17 +102,20 @@ export class UserFunctionAccessService {
     tableAlias: string,
     column: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: GrcSelectedFunctionIds,
   ): string {
-    // Treat empty/whitespace as no selection so super admins get all data
-    // If a specific function is selected, filter by that only (even for super admins)
-    if (selectedFunctionId) {
-      // For super admins, allow any functionId
-      // For regular users, verify they have access to this function
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
-        return ' AND 1 = 0';
+    const selectedList = this.normalizeSelectedFunctionIds(selectedFunctionIds);
+    if (selectedList?.length) {
+      for (const sid of selectedList) {
+        if (!access.isSuperAdmin && !access.functionIds.includes(sid)) {
+          return ' AND 1 = 0';
+        }
       }
-      return ` AND ${tableAlias}.${column} = '${selectedFunctionId}'`;
+      if (selectedList.length === 1) {
+        return ` AND ${tableAlias}.${column} = '${selectedList[0]}'`;
+      }
+      const ids = selectedList.map((id) => `'${id}'`).join(', ');
+      return ` AND ${tableAlias}.${column} IN (${ids})`;
     }
 
     // If no specific function selected, super admins see everything (all functions)
@@ -124,16 +140,20 @@ export class UserFunctionAccessService {
   buildKriFunctionFilter(
     tableAlias: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: GrcSelectedFunctionIds,
   ): string {
-    // If a specific function is selected, filter by that only (even for super admins)
-    if (selectedFunctionId) {
-      // For super admins, allow any functionId
-      // For regular users, verify they have access to this function
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
-        return ' AND 1 = 0';
+    const selectedList = this.normalizeSelectedFunctionIds(selectedFunctionIds);
+    if (selectedList?.length) {
+      for (const sid of selectedList) {
+        if (!access.isSuperAdmin && !access.functionIds.includes(sid)) {
+          return ' AND 1 = 0';
+        }
       }
-      return ` AND ${tableAlias}.related_function_id = '${selectedFunctionId}'`;
+      if (selectedList.length === 1) {
+        return ` AND ${tableAlias}.related_function_id = '${selectedList[0]}'`;
+      }
+      const ids = selectedList.map((id) => `'${id}'`).join(', ');
+      return ` AND ${tableAlias}.related_function_id IN (${ids})`;
     }
 
     // If no specific function selected, super admins see everything
@@ -162,22 +182,32 @@ export class UserFunctionAccessService {
   buildRiskFunctionFilter(
     tableAlias: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: GrcSelectedFunctionIds,
   ): string {
-    // If a specific function is selected, filter by that only (even for super admins)
-    if (selectedFunctionId) {
-      // For super admins, allow any functionId
-      // For regular users, verify they have access to this function
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
-        return ' AND 1 = 0';
+    const selectedList = this.normalizeSelectedFunctionIds(selectedFunctionIds);
+    if (selectedList?.length) {
+      for (const sid of selectedList) {
+        if (!access.isSuperAdmin && !access.functionIds.includes(sid)) {
+          return ' AND 1 = 0';
+        }
       }
-      return ` AND EXISTS (
+      if (selectedList.length === 1) {
+        return ` AND EXISTS (
         SELECT 1
         FROM ${fq('RiskFunctions')} rf
         WHERE rf.risk_id = ${tableAlias}.id
-          AND rf.function_id = '${selectedFunctionId}'
+          AND rf.function_id = '${selectedList[0]}'
           AND rf.deletedAt IS NULL
       )`;
+      }
+      const ids = selectedList.map((id) => `'${id}'`).join(', ');
+      return ` AND EXISTS (
+      SELECT 1
+      FROM ${fq('RiskFunctions')} rf
+      WHERE rf.risk_id = ${tableAlias}.id
+        AND rf.function_id IN (${ids})
+        AND rf.deletedAt IS NULL
+    )`;
     }
 
     // If no specific function selected, super admins see everything
@@ -208,25 +238,32 @@ export class UserFunctionAccessService {
   buildControlFunctionFilter(
     tableAlias: string,
     access: UserFunctionAccess,
-    selectedFunctionId?: string,
+    selectedFunctionIds?: GrcSelectedFunctionIds,
   ): string {
-    // console.log('[buildControlFunctionFilter] Called with:', { tableAlias, isSuperAdmin: access.isSuperAdmin, selectedFunctionId, hasFunctionIds: access.functionIds.length });
-    
-    // If a specific function is selected, filter by that only (even for super admins)
-    // Treat empty string as no selection
-    if (selectedFunctionId && selectedFunctionId.trim() !== '') {
-      // For super admins, allow any functionId
-      // For regular users, verify they have access to this function
-      if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
-        return ' AND 1 = 0';
+    const selectedList = this.normalizeSelectedFunctionIds(selectedFunctionIds);
+    if (selectedList?.length) {
+      for (const sid of selectedList) {
+        if (!access.isSuperAdmin && !access.functionIds.includes(sid)) {
+          return ' AND 1 = 0';
+        }
       }
-      return ` AND EXISTS (
+      if (selectedList.length === 1) {
+        return ` AND EXISTS (
         SELECT 1
         FROM ${fq('ControlFunctions')} cf
         WHERE cf.control_id = ${tableAlias}.id
-          AND cf.function_id = '${selectedFunctionId}'
+          AND cf.function_id = '${selectedList[0]}'
           AND cf.deletedAt IS NULL
       )`;
+      }
+      const ids = selectedList.map((id) => `'${id}'`).join(', ');
+      return ` AND EXISTS (
+      SELECT 1
+      FROM ${fq('ControlFunctions')} cf
+      WHERE cf.control_id = ${tableAlias}.id
+        AND cf.function_id IN (${ids})
+        AND cf.deletedAt IS NULL
+    )`;
     }
 
     // If no specific function selected, super admins see everything

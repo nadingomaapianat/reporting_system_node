@@ -22,7 +22,7 @@ export class GrcRisksService extends BaseDashboardService {
     return `(SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[RiskFunctions] rf INNER JOIN dbo.[Functions] f ON f.id = rf.function_id WHERE rf.risk_id = r.id AND rf.deletedAt IS NULL)`;
   }
 
-  async getRisksDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // console.log('[getRisksDashboard] Received parameters:', { startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
     
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -348,12 +348,12 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, selectedFunctionIds);
   }
 
   // Risk-specific card data with function filtering
-  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -533,7 +533,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getHighRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getHighRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -587,7 +587,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getMediumRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getMediumRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -641,7 +641,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getLowRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getLowRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -695,7 +695,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getRiskReduction(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRiskReduction(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -775,7 +775,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getNewRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getNewRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -826,7 +826,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async exportRisks(user: any, format: 'pdf' | 'excel', startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async exportRisks(user: any, format: 'pdf' | 'excel', startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -889,7 +889,7 @@ export class GrcRisksService extends BaseDashboardService {
   }
 
   // Detail endpoints for charts and tables
-  async getRisksByCategory(user: any, category: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByCategory(user: any, category: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -970,7 +970,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByEventType(user: any, eventType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByEventType(user: any, eventType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -1049,7 +1049,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByQuarter(user: any, quarter: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -1152,7 +1152,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByApprovalStatus(user: any, approvalStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByApprovalStatus(user: any, approvalStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -1270,7 +1270,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByFinancialImpact(user: any, financialImpact: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByFinancialImpact(user: any, financialImpact: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -1375,7 +1375,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getRisksByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const userFunctionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -1449,7 +1449,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByBusinessProcess(user: any, processName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByBusinessProcess(user: any, processName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -1510,7 +1510,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByName(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByName(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -1579,7 +1579,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksByControlName(user: any, controlName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksByControlName(user: any, controlName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     const rawName = (controlName != null && controlName !== '') ? String(controlName).replace(/\s+/g, ' ').trim() : '';
     if (!rawName) {
       return { data: [], pagination: { page: 1, limit: Math.floor(Number(limit)) || 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
@@ -1652,7 +1652,7 @@ export class GrcRisksService extends BaseDashboardService {
     }
   }
 
-  async getRisksForComparison(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksForComparison(user: any, riskName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string | string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);

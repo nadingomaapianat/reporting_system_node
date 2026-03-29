@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { ChartRegistryService, SimpleChartConfig } from './chart-registry.service';
-import { UserFunctionAccessService, UserFunctionAccess } from './user-function-access.service';
+import { UserFunctionAccessService, UserFunctionAccess, GrcSelectedFunctionIds } from './user-function-access.service';
 import { applyOrderByFunctionDeep } from './order-by-function';
 
 @Injectable()
@@ -63,7 +63,7 @@ export class AutoDashboardService {
   }
 
   // Get specific chart data
-  async getChartData(user: any, chartId: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getChartData(user: any, chartId: string, startDate?: string, endDate?: string, selectedFunctionIds?: GrcSelectedFunctionIds) {
     const chart = ChartRegistryService.getChart(chartId);
     if (!chart) {
       throw new Error(`Chart ${chartId} not found`);

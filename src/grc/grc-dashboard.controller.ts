@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { orderByFunctionFromRequest, sortPaginatedResponseIfNeeded } from '../shared/order-by-function';
+import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/controls')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -16,11 +17,12 @@ export class GrcDashboardController {
     @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
-      return this.grcDashboardService.getControlsDashboard(req.user, startDate, endDate, functionId, ob);
+      return this.grcDashboardService.getControlsDashboard(req.user, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
     } catch (error: any) {
       console.error('Error in getControlsDashboard:', error);
       throw error;
@@ -34,11 +36,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTotalControls(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getTotalControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -50,11 +53,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getUnmappedControls(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getUnmappedControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -66,11 +70,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingPreparerControls(req.user, page, limit, startDate, endDate),
+      await this.grcDashboardService.getPendingPreparerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -82,11 +87,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingCheckerControls(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getPendingCheckerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -98,11 +104,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingReviewerControls(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getPendingReviewerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -114,11 +121,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingAcceptanceControls(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getPendingAcceptanceControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -131,11 +139,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTestsPendingPreparer(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getTestsPendingPreparer(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -147,11 +156,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTestsPendingChecker(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getTestsPendingChecker(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -163,7 +173,8 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
@@ -179,11 +190,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTestsPendingAcceptance(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getTestsPendingAcceptance(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -195,11 +207,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getUnmappedIcofrControls(req.user, page, limit, startDate, endDate),
+      await this.grcDashboardService.getUnmappedIcofrControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -211,11 +224,12 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getUnmappedNonIcofrControls(req.user, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getUnmappedNonIcofrControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -228,14 +242,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!quarter) {
       throw new Error('quarter parameter is required (e.g., "Q1 2024")');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByQuarter(req.user, quarter, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByQuarter(req.user, quarter, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -248,14 +263,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!department) {
       throw new Error('department parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByDepartment(req.user, department, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByDepartment(req.user, department, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -268,14 +284,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!type) {
       throw new Error('type parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByType(req.user, type, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByType(req.user, type, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -288,14 +305,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!level) {
       throw new Error('level parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByLevel(req.user, level, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByLevel(req.user, level, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -308,14 +326,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!frequency) {
       throw new Error('frequency parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByFrequency(req.user, frequency, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByFrequency(req.user, frequency, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -328,14 +347,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!riskResponse) {
       throw new Error('riskResponse parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByRiskResponse(req.user, riskResponse, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByRiskResponse(req.user, riskResponse, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -348,14 +368,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!antiFraud) {
       throw new Error('antiFraud parameter is required (Anti-Fraud or Non-Anti-Fraud)');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByAntiFraud(req.user, antiFraud, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByAntiFraud(req.user, antiFraud, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -368,14 +389,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!icofrStatus) {
       throw new Error('icofrStatus parameter is required (ICOFR or Non-ICOFR)');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByIcofrStatus(req.user, icofrStatus, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByIcofrStatus(req.user, icofrStatus, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -407,14 +429,15 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     if (!component) {
       throw new Error('component parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getControlsByComponent(req.user, component, page, limit, startDate, endDate, functionId),
+      await this.grcDashboardService.getControlsByComponent(req.user, component, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob,
     );
   }
@@ -573,7 +596,8 @@ export class GrcDashboardController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
   ) {
     try {
       if (!functionName || quarter === undefined || year === undefined) {
@@ -581,7 +605,7 @@ export class GrcDashboardController {
       }
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcDashboardService.getControlsByFunctionQuarterYear(req.user, functionName, Number(quarter), Number(year), columnType, page, limit, startDate, endDate, functionId),
+        await this.grcDashboardService.getControlsByFunctionQuarterYear(req.user, functionName, Number(quarter), Number(year), columnType, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
         ob,
       );
     } catch (error: any) {
