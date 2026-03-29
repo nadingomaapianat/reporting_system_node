@@ -716,8 +716,8 @@ export class GrcIncidentsService {
       `;
       const incidentActionPlanByStatus = await this.databaseService.query(incidentActionPlanByStatusQuery);
 
-      // 14c. Overdue Incidents — same grain as Incident Action Plan (action plans linked to incidents),
-      // where expected implementation date is before today and the incident is not fully closed (acceptance not approved).
+      // 14c. Overdue Incidents — same rows/columns as Incident Action Plan, filtered by
+      // Actionplans.business_unit = pending|overdue (case-insensitive) and implementation date before today.
       const overdueIncidentsQuery = `
         SELECT 
           i.code AS incident_code,
@@ -726,19 +726,7 @@ export class GrcIncidentsService {
           CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
           CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
           a.control_procedure AS action_taken,
-          f_owner.name AS action_owner_name,
-          a.business_unit AS business_unit_status,
-          a.implementation_date AS expected_implementation_date,
-          CASE 
-            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-            WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
-            ELSE 'Other'
-          END AS incident_workflow_status,
-          N'Past target date' AS target_date_status,
-          N'Not closed' AS incident_closure_status
+          f_owner.name AS action_owner_name
         FROM dbo.[Actionplans] a
         INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
         LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id
@@ -753,10 +741,10 @@ export class GrcIncidentsService {
           AND i.deletedAt IS NULL
           AND a.implementation_date IS NOT NULL
           AND CAST(a.implementation_date AS DATE) < CAST(GETDATE() AS DATE)
-          AND ISNULL(i.acceptanceStatus, '') <> 'approved'
+          AND LOWER(LTRIM(RTRIM(ISNULL(a.business_unit, N'')))) IN (N'pending', N'overdue')
           ${dateFilter}
           ${actionOwnerFunctionFilter}
-        ORDER BY a.implementation_date ASC, a.createdAt DESC
+        ORDER BY a.createdAt DESC
       `;
       const overdueIncidentsRows = await this.databaseService.query(overdueIncidentsQuery);
 
@@ -990,11 +978,6 @@ export class GrcIncidentsService {
           description: row.incident_description || '',
           action_taken: row.action_taken || row.control_procedure || '',
           action_owner: row.action_owner_name || '',
-          status: row.business_unit_status || '',
-          expected_implementation_date: row.expected_implementation_date || null,
-          incident_workflow_status: row.incident_workflow_status || '',
-          target_date_status: row.target_date_status || '',
-          incident_closure_status: row.incident_closure_status || '',
         }))
       };
     } catch (error) {
