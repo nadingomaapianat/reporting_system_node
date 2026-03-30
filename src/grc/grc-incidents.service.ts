@@ -5,6 +5,7 @@ import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL || process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
+const DASHBOARD_PREVIEW_LIMIT = 10;
 
 @Injectable()
 export class GrcIncidentsService {
@@ -53,6 +54,10 @@ export class GrcIncidentsService {
     }
     
     return ` AND i.createdAt >= '${startDateObj.toISOString()}'`;
+  }
+
+  private previewRows<T>(rows: T[]): T[] {
+    return Array.isArray(rows) ? rows.slice(0, DASHBOARD_PREVIEW_LIMIT) : [];
   }
 
   async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
@@ -889,9 +894,9 @@ export class GrcIncidentsService {
           month_year: item.month_year,
           incident_count: item.incident_count
         })),
-        statusOverview,
-        overallStatuses: statusOverview,
-        incidentsFinancialDetails: incidentsFinancialDetails.map(item => ({
+        statusOverview: this.previewRows(statusOverview),
+        overallStatuses: this.previewRows(statusOverview),
+        incidentsFinancialDetails: this.previewRows(incidentsFinancialDetails.map(item => ({
           title: item.title || 'Unknown',
           rootCause: item.rootCause || '',
           function_name: item.function_name || 'Unknown',
@@ -900,7 +905,7 @@ export class GrcIncidentsService {
           recoveryAmount: item.recoveryAmount || 0,
           grossAmount: item.grossAmount || 0,
           status: item.status || 'Unknown'
-        })),
+        }))),
         incidentsTimeSeries: incidentsTimeSeries.map(item => ({
           month: item.month ? new Date(item.month).toISOString().split('T')[0] : null,
           total_incidents: item.total_incidents || 0
@@ -909,16 +914,16 @@ export class GrcIncidentsService {
           month: item.month ? new Date(item.month).toISOString().split('T')[0] : null,
           new_incidents: item.new_incidents || 0
         })),
-        incidentsWithTimeframe: incidentsWithTimeframe.map(item => ({
+        incidentsWithTimeframe: this.previewRows(incidentsWithTimeframe.map(item => ({
           incident_name: item.incident_name || 'Unknown',
           time_frame: item.time_frame || '',
           function_name: item.function_name || 'Unknown'
-        })),
-        incidentsWithFinancialAndFunction: incidentsWithFinancialAndFunction.map(item => ({
+        }))),
+        incidentsWithFinancialAndFunction: this.previewRows(incidentsWithFinancialAndFunction.map(item => ({
           title: item.title || 'Unknown',
           financial_impact_name: item.financial_impact_name || 'Unknown',
           function_name: item.function_name || 'Unknown'
-        })),
+        }))),
         // Operational Loss Metrics
         operationalLossValue: operationalLossValue.map(item => ({
           year: item.Year || 0,
@@ -945,20 +950,20 @@ export class GrcIncidentsService {
           atmIssues: item.ATMIssues || 0,
           systemErrors: item.SystemErrors || 0
         })),
-        lossByRiskCategory: lossByRiskCategory.map(item => ({
+        lossByRiskCategory: this.previewRows(lossByRiskCategory.map(item => ({
           riskCategory: item.RiskCategory || 'Unknown',
           incidentCount: item.IncidentCount || 0,
           totalLoss: item.TotalLoss || 0,
           averageLoss: item.AverageLoss || 0
-        })),
+        }))),
         // Comprehensive Operational Loss Dashboard
-        comprehensiveOperationalLoss: comprehensiveOperationalLoss.map(item => ({
+        comprehensiveOperationalLoss: this.previewRows(comprehensiveOperationalLoss.map(item => ({
           metric: item.Metric || 'Unknown',
           count: item.Count || 0,
           totalValue: item.TotalValue || 0
-        })),
+        }))),
         // Incident Action Plans (tabular view)
-        incidentActionPlan: incidentActionPlan.map((row: any) => ({
+        incidentActionPlan: this.previewRows(incidentActionPlan.map((row: any) => ({
           code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
@@ -968,13 +973,13 @@ export class GrcIncidentsService {
           action_owner: row.action_owner_name || '',
           status: row.business_unit_status || '',
           expected_implementation_date: row.expected_implementation_date || null
-        })),
+        }))),
         // Incident Action Plans by Status (business_unit) for pie chart
         incidentActionPlanByStatus: (incidentActionPlanByStatus || []).map((row: any) => ({
           status_name: row.status_name || 'N/A',
           count: row.count || 0
         })),
-        overdueIncidents: (overdueIncidentsRows || []).map((row: any) => ({
+        overdueIncidents: this.previewRows((overdueIncidentsRows || []).map((row: any) => ({
           code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
@@ -984,7 +989,7 @@ export class GrcIncidentsService {
           action_owner: row.action_owner_name || '',
           status: row.business_unit_status || '',
           expected_implementation_date: row.expected_implementation_date || null,
-        }))
+        })))
       };
     } catch (error) {
       console.error('Error fetching incidents dashboard data:', error);

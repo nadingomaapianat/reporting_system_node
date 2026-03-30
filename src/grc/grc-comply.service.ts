@@ -31,6 +31,8 @@ export type GrcComplyReportKey =
   | '25'
   | '26';
 
+const DASHBOARD_PREVIEW_LIMIT = 10;
+
 @Injectable()
 export class GrcComplyService {
   constructor(
@@ -41,6 +43,12 @@ export class GrcComplyService {
   /** Only treat as date if it looks like YYYY-MM-DD (avoids SQL "Conversion failed when converting date" from invalid strings). */
   private isValidDateStr(s?: string): boolean {
     return !!(s && /^\d{4}-\d{2}-\d{2}/.test(String(s).trim()));
+  }
+
+  private previewDashboardResult<T>(value: T): T {
+    return Array.isArray(value)
+      ? (value.slice(0, DASHBOARD_PREVIEW_LIMIT) as T)
+      : value;
   }
 
   /**
@@ -274,17 +282,12 @@ export class GrcComplyService {
       '26': 'Impacted Areas Trend Over Time',
     };
 
-    // Run all reports with filters applied
-    const results = await Promise.all(
-      reportKeys.map((key) => this.runReport(key, startDate, endDate, functionId, userAccess)),
-    );
-
     const combined: Record<string, any> = {};
-
-    reportKeys.forEach((key, index) => {
+    for (const key of reportKeys) {
       const name = reportNames[key] || key;
-      combined[name] = results[index];
-    });
+      const result = await this.runReport(key, startDate, endDate, functionId, userAccess);
+      combined[name] = this.previewDashboardResult(result);
+    }
 
     return combined;
   }

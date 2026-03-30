@@ -80,6 +80,7 @@ export abstract class BaseDashboardService {
   ) {
     // By default: no date filter (all data). Date filter is applied only when both startDate and endDate are provided.
     const config = this.getConfig();
+    const applyControlsFunctionFallback = config.tableName?.toLowerCase().includes('controls') ?? false;
     const dateFilters: DashboardDateFilters = {
       dateFilter: this.buildDateFilter(startDate, endDate, config.dateField),
       dateFilterC: this.buildDateFilter(startDate, endDate, 'c.createdAt'),
@@ -121,40 +122,33 @@ export abstract class BaseDashboardService {
     }
 
     try {
-      // Execute all queries in parallel
-      const [
-        metricsResults,
-        chartsResults,
-        tablesResults
-      ] = await Promise.all([
-        this.getMetricsData(
-          config.metrics,
-          dateFilters,
-          functionFilter,
-          functionFilterControlDesignTest,
-          functionFilterCdt,
-          functionJoinFilter,
-          config.tableName?.toLowerCase().includes('controls') ?? false,
-        ),
-        this.getChartsData(
-          config.charts,
-          dateFilters,
-          functionFilter,
-          functionFilterControlDesignTest,
-          functionFilterCdt,
-          functionJoinFilter,
-          config.tableName?.toLowerCase().includes('controls') ?? false,
-        ),
-        this.getTablesData(
-          config.tables,
-          dateFilters,
-          functionFilter,
-          functionFilterControlDesignTest,
-          functionFilterCdt,
-          functionJoinFilter,
-          config.tableName?.toLowerCase().includes('controls') ?? false,
-        ),
-      ]);
+      const metricsResults = await this.getMetricsData(
+        config.metrics,
+        dateFilters,
+        functionFilter,
+        functionFilterControlDesignTest,
+        functionFilterCdt,
+        functionJoinFilter,
+        applyControlsFunctionFallback,
+      );
+      const chartsResults = await this.getChartsData(
+        config.charts,
+        dateFilters,
+        functionFilter,
+        functionFilterControlDesignTest,
+        functionFilterCdt,
+        functionJoinFilter,
+        applyControlsFunctionFallback,
+      );
+      const tablesResults = await this.getTablesData(
+        config.tables,
+        dateFilters,
+        functionFilter,
+        functionFilterControlDesignTest,
+        functionFilterCdt,
+        functionJoinFilter,
+        applyControlsFunctionFallback,
+      );
 
       const payload = {
         ...metricsResults,
@@ -254,8 +248,8 @@ export abstract class BaseDashboardService {
       }
     };
 
-    const settled = await Promise.all(metrics.map((m) => runOneMetric(m)));
-    for (const { id, total, change } of settled) {
+    for (const metric of metrics) {
+      const { id, total, change } = await runOneMetric(metric);
       results[id] = total;
       if (change !== undefined) results[`${id}Change`] = change;
     }
@@ -302,8 +296,10 @@ export abstract class BaseDashboardService {
       }
     };
 
-    const settled = await Promise.all(charts.map((c) => runOneChart(c)));
-    for (const { id, data } of settled) results[id] = data;
+    for (const chart of charts) {
+      const { id, data } = await runOneChart(chart);
+      results[id] = data;
+    }
     return results;
   }
 
