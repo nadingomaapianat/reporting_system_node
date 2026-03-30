@@ -335,9 +335,11 @@ export abstract class BaseDashboardService {
         } else if (applyControlsFunctionFallback) {
           query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
         }
+        if (table.pagination) {
+          query = this.applyDashboardPreviewLimit(query, tableLimit);
+        }
         const result = await this.databaseService.query(query);
-        // When pagination is enabled, return full result so the frontend can show page numbers
-        const limitedResult = table.pagination ? result : result.slice(0, tableLimit);
+        const limitedResult = result.slice(0, tableLimit);
         const data = limitedResult.map((row: any) => {
           const processedRow: any = {};
           for (const column of table.columns) {
@@ -355,8 +357,12 @@ export abstract class BaseDashboardService {
       }
     };
 
-    const settled = await Promise.all(tables.map((t) => runOneTable(t)));
-    for (const { id, data } of settled) results[id] = data;
+    // Table queries are usually the heaviest part of a dashboard. Run them one-by-one
+    // to avoid overwhelming SQL Server with a burst of parallel reads.
+    for (const table of tables) {
+      const { id, data } = await runOneTable(table);
+      results[id] = data;
+    }
     return results;
   }
 
@@ -426,6 +432,19 @@ export abstract class BaseDashboardService {
       return beforeFrom + fromPart + ' WHERE 1=1 ' + filterToInject + restPart;
     }
     return query;
+  }
+
+  private applyDashboardPreviewLimit(query: string, limit: number): string {
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    if (!normalized || /\bFETCH\s+NEXT\b/i.test(normalized) || /\bTOP\s*\(/i.test(normalized) || /\bTOP\s+\d+\b/i.test(normalized)) {
+      return normalized;
+    }
+
+    if (/\bORDER\s+BY\b/i.test(normalized)) {
+      return `${normalized} OFFSET 0 ROWS FETCH NEXT ${limit} ROWS ONLY`;
+    }
+
+    return `${normalized} ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT ${limit} ROWS ONLY`;
   }
 
   private calculateChange(current: number, previous: number): string {

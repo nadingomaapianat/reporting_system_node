@@ -808,17 +808,15 @@ export class DashboardConfigService {
                  WHEN cdt.quarter = 'quarterFour' THEN 4 
                  ELSE NULL END AS [Quarter], 
             cdt.year AS [Year], 
-            -- Submitted? (Control-level full approval cycle)
             CASE WHEN ( c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved' ) 
                  THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Control Submitted?], 
-            -- Approved? (ControlDesignTests-level full approval cycle)
             CASE WHEN ( cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved' ) 
                  THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Test Approved?] 
-          FROM ${fq('ControlDesignTests')} cdt 
-          JOIN ${fq('Controls')} c ON cdt.control_id = c.id 
-          JOIN ${fq('Functions')} f ON cdt.function_id = f.id 
-          WHERE c.isDeleted = 0 AND cdt.deletedAt IS NULL {dateFilterC} {functionFilterCdt}
-          ORDER BY c.createdAt DESC`,
+          FROM ${fq('ControlDesignTests')} cdt
+          INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id
+          INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
+          ORDER BY cdt.createdAt DESC, c.name`,
           columns: [
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
             { key: 'Function Name', label: 'Function Name', type: 'text' as const },
@@ -843,15 +841,21 @@ export class DashboardConfigService {
             COUNT(DISTINCT c.id) AS [Total Controls],
             COUNT(DISTINCT CASE WHEN (c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved') THEN c.id END) AS [Controls Submitted],
             COUNT(DISTINCT CASE WHEN (cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved') THEN c.id END) AS [Tests Approved]
-          FROM ${fq('Functions')} AS f 
-          JOIN ${fq('ControlFunctions')} AS cf ON f.id = cf.function_id 
-          JOIN ${fq('Controls')} AS c ON cf.control_id = c.id AND c.isDeleted = 0 
-          LEFT JOIN ${fq('ControlDesignTests')} AS cdt ON cdt.control_id = c.id 
-            AND cdt.function_id = f.id 
-            AND cdt.deletedAt IS NULL 
-          WHERE cdt.id IS NOT NULL {dateFilterCdt} {functionFilterCdt}
+          FROM ${fq('ControlDesignTests')} AS cdt
+          INNER JOIN ${fq('Controls')} AS c ON c.id = cdt.control_id
+          INNER JOIN ${fq('Functions')} AS f ON f.id = cdt.function_id
+          WHERE c.isDeleted = 0
+            AND c.deletedAt IS NULL
+            AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
           GROUP BY f.name, cdt.quarter, cdt.year
-          ORDER BY f.name, cdt.year, cdt.quarter`,
+          ORDER BY f.name, cdt.year,
+            CASE cdt.quarter
+              WHEN 'quarterOne' THEN 1
+              WHEN 'quarterTwo' THEN 2
+              WHEN 'quarterThree' THEN 3
+              WHEN 'quarterFour' THEN 4
+              ELSE 5
+            END`,
           columns: [
             { key: 'Function Name', label: 'Function Name', type: 'text' as const },
             { key: 'Quarter', label: 'Quarter', type: 'number' as const },
