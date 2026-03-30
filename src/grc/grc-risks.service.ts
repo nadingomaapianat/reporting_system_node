@@ -37,7 +37,13 @@ export class GrcRisksService extends BaseDashboardService {
     return results;
   }
 
-  async getRisksDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRisksDashboard(
+    user: any,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    section?: 'cards' | 'charts' | 'tables',
+  ) {
     // console.log('[getRisksDashboard] Received parameters:', { startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
     
     const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
@@ -277,6 +283,27 @@ export class GrcRisksService extends BaseDashboardService {
         { level: 'Low', count: levelsAgg[0]?.Low || 0 },
       ];
       const riskReductionCount = riskReductionCountResult[0]?.total || 0;
+
+      if (section === 'cards') {
+        return {
+          totalRisks,
+          riskLevels,
+          riskReductionCount,
+          newRisks,
+        };
+      }
+
+      if (section === 'charts') {
+        return {
+          risksByCategory,
+          risksByEventType,
+          createdDeletedRisksPerQuarter,
+          quarterlyRiskCreationTrends,
+          riskApprovalStatusDistribution,
+          riskDistributionByFinancialImpact,
+        };
+      }
+
       let risksPerBusinessProcess: any[] = [];
       let inherentResidualRiskComparison: any[] = [];
       let highResidualRiskOverview: any[] = [];
@@ -363,6 +390,18 @@ export class GrcRisksService extends BaseDashboardService {
         controlsAndRiskCountTask,
         risksDetailsTask,
       ]);
+
+      if (section === 'tables') {
+        return {
+          risksPerDepartment: this.previewRows(risksPerDepartment),
+          risksPerBusinessProcess: this.previewRows(risksPerBusinessProcess),
+          inherentResidualRiskComparison: this.previewRows(inherentResidualRiskComparison),
+          highResidualRiskOverview: this.previewRows(highResidualRiskOverview),
+          risksAndControlsCount: this.previewRows(risksAndControlsCount),
+          controlsAndRiskCount: this.previewRows(controlsAndRiskCount),
+          allRisks: this.previewRows(allRisks),
+        };
+      }
 
       return {
         totalRisks,

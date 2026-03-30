@@ -23,6 +23,7 @@ export class GrcComplyController {
   async getDashboardOrReport(
     @Req() req: any,
     @Query('report') report?: string,
+    @Query('section') section?: 'cards' | 'charts' | 'tables',
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string
@@ -44,9 +45,12 @@ export class GrcComplyController {
       return ob ? applyOrderByFunctionDeep(raw) : raw;
     }
 
-    // Otherwise, return dashboard data
-    // console.log('[GrcComplyController.getDashboardOrReport] Calling getComplyDashboard with filters:', { startDate, endDate, functionId });
     const ob = orderByFunctionFromRequest(req);
+    if (section) {
+      const raw = await this.grcComplyService.runDashboardSection(section, startDate, endDate, functionId);
+      return ob ? applyOrderByFunctionDeep(raw) : raw;
+    }
+
     const raw = await this.grcComplyService.getComplyDashboard(req.user, startDate, endDate, functionId);
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }

@@ -21,12 +21,19 @@ export class GrcRisksController {
     @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('section') section?: 'cards' | 'charts' | 'tables',
     @Query('functionId') functionId?: string,
     @Query('functionIds') functionIds?: string
   ) {
     const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
     const ob = orderByFunctionFromRequest(req);
-    const raw = await this.grcRisksService.getRisksDashboard(req.user, norm(startDate) || undefined, norm(endDate) || undefined, parseGrcFunctionIdsFromQueries(functionId, functionIds));
+    const raw = await this.grcRisksService.getRisksDashboard(
+      req.user,
+      norm(startDate) || undefined,
+      norm(endDate) || undefined,
+      parseGrcFunctionIdsFromQueries(functionId, functionIds),
+      section,
+    );
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 

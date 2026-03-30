@@ -62,6 +62,17 @@ export interface ColumnConfig {
   render?: (value: any) => any;
 }
 
+type DashboardSection = 'cards' | 'charts' | 'tables';
+type DashboardQueryContext = {
+  config: DashboardConfig;
+  dateFilters: DashboardDateFilters;
+  functionFilter: string;
+  functionFilterControlDesignTest: string;
+  functionFilterCdt: string;
+  functionJoinFilter: string;
+  applyControlsFunctionFallback: boolean;
+};
+
 @Injectable()
 export abstract class BaseDashboardService {
   constructor(
@@ -91,7 +102,105 @@ export abstract class BaseDashboardService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc?: boolean,
   ) {
-    // By default: no date filter (all data). Date filter is applied only when both startDate and endDate are provided.
+    const ctx = await this.buildDashboardQueryContext(user, startDate, endDate, selectedFunctionIds);
+    try {
+      const metricsResults = await this.getMetricsData(
+        ctx.config.metrics,
+        ctx.dateFilters,
+        ctx.functionFilter,
+        ctx.functionFilterControlDesignTest,
+        ctx.functionFilterCdt,
+        ctx.functionJoinFilter,
+        ctx.applyControlsFunctionFallback,
+      );
+      const chartsResults = await this.getChartsData(
+        ctx.config.charts,
+        ctx.dateFilters,
+        ctx.functionFilter,
+        ctx.functionFilterControlDesignTest,
+        ctx.functionFilterCdt,
+        ctx.functionJoinFilter,
+        ctx.applyControlsFunctionFallback,
+      );
+      const tablesResults = await this.getTablesData(
+        ctx.config.tables,
+        ctx.dateFilters,
+        ctx.functionFilter,
+        ctx.functionFilterControlDesignTest,
+        ctx.functionFilterCdt,
+        ctx.functionJoinFilter,
+        ctx.applyControlsFunctionFallback,
+      );
+
+      const payload = {
+        ...metricsResults,
+        ...chartsResults,
+        ...tablesResults
+      };
+      return orderByFunctionAsc ? applyOrderByFunctionDeep(payload) : payload;
+    } catch (error) {
+      console.error(`Error fetching ${ctx.config.name} dashboard data:`, error);
+      throw error;
+    }
+  }
+
+  async getDashboardDataSection(
+    user: any,
+    section: DashboardSection,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc?: boolean,
+  ) {
+    const ctx = await this.buildDashboardQueryContext(user, startDate, endDate, selectedFunctionIds);
+
+    try {
+      let payload: Record<string, any>;
+      if (section === 'cards') {
+        payload = await this.getMetricsData(
+          ctx.config.metrics,
+          ctx.dateFilters,
+          ctx.functionFilter,
+          ctx.functionFilterControlDesignTest,
+          ctx.functionFilterCdt,
+          ctx.functionJoinFilter,
+          ctx.applyControlsFunctionFallback,
+        );
+      } else if (section === 'charts') {
+        payload = await this.getChartsData(
+          ctx.config.charts,
+          ctx.dateFilters,
+          ctx.functionFilter,
+          ctx.functionFilterControlDesignTest,
+          ctx.functionFilterCdt,
+          ctx.functionJoinFilter,
+          ctx.applyControlsFunctionFallback,
+        );
+      } else {
+        payload = await this.getTablesData(
+          ctx.config.tables,
+          ctx.dateFilters,
+          ctx.functionFilter,
+          ctx.functionFilterControlDesignTest,
+          ctx.functionFilterCdt,
+          ctx.functionJoinFilter,
+          ctx.applyControlsFunctionFallback,
+        );
+      }
+
+      return orderByFunctionAsc ? applyOrderByFunctionDeep(payload) : payload;
+    } catch (error) {
+      console.error(`Error fetching ${ctx.config.name} dashboard ${section}:`, error);
+      throw error;
+    }
+  }
+
+  private async buildDashboardQueryContext(
+    user: any,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+  ): Promise<DashboardQueryContext> {
     const config = this.getConfig();
     const applyControlsFunctionFallback = config.tableName?.toLowerCase().includes('controls') ?? false;
     const dateFilters: DashboardDateFilters = {
@@ -102,20 +211,14 @@ export abstract class BaseDashboardService {
       dateFilterCdt: this.buildDateFilter(startDate, endDate, 'cdt.createdAt'),
       dateFilterT: this.buildDateFilter(startDate, endDate, 't.createdAt'),
     };
-    
-    // Get function filter if user is provided and service is available
+
     let functionFilter = '';
-    /** For ControlDesignTests rows: filter by test's function_id (alias t), not ControlFunctions on control */
     let functionFilterControlDesignTest = '';
-    /** Same for queries that alias tests as cdt */
     let functionFilterCdt = '';
-    /** Restrict outer ControlFunctions join (cf) for GROUP BY department charts */
     let functionJoinFilter = '';
+
     if (user && this.userFunctionAccess) {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      // console.log('[BaseDashboardService.getDashboardData] User access:', { isSuperAdmin: access.isSuperAdmin, functionIds: access.functionIds, selectedFunctionIds });
-      
-      // Apply appropriate function filter based on dashboard type
       if (config.tableName) {
         const tableNameLower = config.tableName.toLowerCase();
         if (tableNameLower.includes('controls')) {
@@ -131,48 +234,17 @@ export abstract class BaseDashboardService {
           functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
         }
       }
-      // console.log('[BaseDashboardService.getDashboardData] Function filter:', functionFilter);
     }
 
-    try {
-      const metricsResults = await this.getMetricsData(
-        config.metrics,
-        dateFilters,
-        functionFilter,
-        functionFilterControlDesignTest,
-        functionFilterCdt,
-        functionJoinFilter,
-        applyControlsFunctionFallback,
-      );
-      const chartsResults = await this.getChartsData(
-        config.charts,
-        dateFilters,
-        functionFilter,
-        functionFilterControlDesignTest,
-        functionFilterCdt,
-        functionJoinFilter,
-        applyControlsFunctionFallback,
-      );
-      const tablesResults = await this.getTablesData(
-        config.tables,
-        dateFilters,
-        functionFilter,
-        functionFilterControlDesignTest,
-        functionFilterCdt,
-        functionJoinFilter,
-        applyControlsFunctionFallback,
-      );
-
-      const payload = {
-        ...metricsResults,
-        ...chartsResults,
-        ...tablesResults
-      };
-      return orderByFunctionAsc ? applyOrderByFunctionDeep(payload) : payload;
-    } catch (error) {
-      console.error(`Error fetching ${config.name} dashboard data:`, error);
-      throw error;
-    }
+    return {
+      config,
+      dateFilters,
+      functionFilter,
+      functionFilterControlDesignTest,
+      functionFilterCdt,
+      functionJoinFilter,
+      applyControlsFunctionFallback,
+    };
   }
 
   protected applyDateFilterPlaceholders(query: string, df: DashboardDateFilters): string {

@@ -17,11 +17,22 @@ export class GrcDashboardController {
     @Req() req: any,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('section') section?: 'cards' | 'charts' | 'tables',
     @Query('functionId') functionId?: string,
     @Query('functionIds') functionIds?: string
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
+      if (section) {
+        return this.grcDashboardService.getDashboardDataSection(
+          req.user,
+          section,
+          startDate,
+          endDate,
+          parseGrcFunctionIdsFromQueries(functionId, functionIds),
+          ob,
+        );
+      }
       return this.grcDashboardService.getControlsDashboard(req.user, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
     } catch (error: any) {
       console.error('Error in getControlsDashboard:', error);

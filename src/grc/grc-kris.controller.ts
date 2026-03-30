@@ -22,11 +22,19 @@ export class GrcKrisController {
     @Query('timeframe') timeframe?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('section') section?: 'cards' | 'charts' | 'tables',
     @Query('functionId') functionId?: string,
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    const raw = await this.grcKrisService.getKrisDashboard(req.user, timeframe, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds));
+    const raw = await this.grcKrisService.getKrisDashboard(
+      req.user,
+      timeframe,
+      startDate,
+      endDate,
+      parseGrcFunctionIdsFromQueries(functionId, functionIds),
+      section,
+    );
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
