@@ -32,6 +32,7 @@ export type GrcComplyReportKey =
   | '26';
 
 const DASHBOARD_PREVIEW_LIMIT = 10;
+type DashboardSection = 'cards' | 'charts' | 'tables';
 
 @Injectable()
 export class GrcComplyService {
@@ -219,6 +220,37 @@ export class GrcComplyService {
   }
 
   async runAllReports(startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
+    return this.runReportsByKeys(this.getDashboardReportKeys(), startDate, endDate, functionId, access);
+  }
+
+  async runDashboardSection(section: DashboardSection, startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
+    return this.runReportsByKeys(this.getDashboardReportKeys(section), startDate, endDate, functionId, access);
+  }
+
+  private getDashboardReportKeys(section?: DashboardSection): GrcComplyReportKey[] {
+    if (section === 'cards') {
+      return ['1', '6', '13', '14'];
+    }
+    if (section === 'charts') {
+      return ['14', '15', '16', '17', '20', '21', '23', '24', '26'];
+    }
+    if (section === 'tables') {
+      return ['1', '2', '6'];
+    }
+    return [
+      '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+      '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
+      '21', '22', '23', '24', '25', '26',
+    ];
+  }
+
+  private async runReportsByKeys(
+    reportKeys: GrcComplyReportKey[],
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    access?: UserFunctionAccess,
+  ) {
     // Log filters for debugging - always log to see what's being received
     /* console.log('[GrcComplyService.runAllReports] Called with filters:', { 
       startDate, 
@@ -233,35 +265,6 @@ export class GrcComplyService {
     // If access not provided, create a default (super admin) access
     const userAccess = access || { isSuperAdmin: true, functionIds: [] };
     
-    const reportKeys: GrcComplyReportKey[] = [
-      '1',
-      '2',
-      '3',
-      '4',
-      '5',
-      '6',
-      '7',
-      '8',
-      '9',
-      '10',
-      '11',
-      '12',
-      '13',
-      '14',
-      '15',
-      '16',
-      '17',
-      '18',
-      '19',
-      '20',
-      '21',
-      '22',
-      '23',
-      '24',
-      '25',
-      '26',
-    ];
-
     const reportNames: Record<GrcComplyReportKey, string> = {
       '1': 'Survey Completion Rate',
       '2': 'Bank Questions details',

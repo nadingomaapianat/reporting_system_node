@@ -78,7 +78,14 @@ export class GrcIncidentsService {
     return results;
   }
 
-  async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getIncidentsDashboard(
+    user: any,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    section?: 'cards' | 'charts' | 'tables',
+  ) {
     try {
       // console.log('[getIncidentsDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
       
@@ -697,6 +704,26 @@ export class GrcIncidentsService {
       const peopleErrorCount = peopleErrorResult[0]?.PeopleErrorCount || 0;
       const peopleErrorLoss = peopleErrorLossResult[0]?.TotalPeopleErrorLoss || 0;
 
+      if (section === 'cards') {
+        return {
+          totalIncidents,
+          pendingPreparer,
+          pendingChecker,
+          pendingReviewer,
+          pendingAcceptance,
+          atmTheftCount,
+          avgRecognitionTime,
+          internalFraudCount,
+          internalFraudLoss,
+          externalFraudCount,
+          externalFraudLoss,
+          physicalAssetDamageCount,
+          physicalAssetLoss,
+          peopleErrorCount,
+          peopleErrorLoss,
+        };
+      }
+
       // 12. Monthly trend analysis by incident type
       const monthlyTrendByTypeQuery = `
         SELECT 
@@ -940,6 +967,135 @@ export class GrcIncidentsService {
         overdueIncidentsTask,
         comprehensiveOperationalLossTask,
       ]);
+
+      if (section === 'charts') {
+        return {
+          incidentsByCategory: incidentsByCategory.map(item => ({
+            category_name: item.category_name || 'Unknown',
+            count: item.count,
+          })),
+          incidentsByEventType: incidentsByEventType.map(item => ({
+            event_type: item.event_type || 'Unknown',
+            incident_count: item.incident_count || 0,
+          })),
+          incidentsByFinancialImpact: incidentsByFinancialImpact.map(item => ({
+            financial_impact_name: item.financial_impact_name || 'Unknown',
+            incident_count: item.incident_count || 0,
+          })),
+          incidentsByStatus: [
+            { status: 'Pending Preparer', count: pendingPreparer },
+            { status: 'Pending Checker', count: pendingChecker },
+            { status: 'Pending Reviewer', count: pendingReviewer },
+            { status: 'Pending Acceptance', count: pendingAcceptance },
+            { status: 'Approved', count: statusCountsRow?.approved || 0 },
+          ],
+          incidentsByStatusDistribution: incidentsByStatusDistribution.map(item => ({
+            status_name: item.status_name || 'Unknown',
+            count: item.count || 0,
+          })),
+          incidentsByStatusTable: incidentsByStatus.map(item => ({
+            status: item.status || 'Unknown',
+            count: item.count || 0,
+          })),
+          topFinancialImpacts: topFinancialImpacts.map(item => ({
+            financial_impact_name: item.financial_impact_name || 'Unknown',
+            net_loss: item.net_loss || 0,
+          })),
+          monthlyTrend: monthlyTrend.map(item => ({
+            month_year: item.month_year,
+            incident_count: item.incident_count,
+          })),
+          incidentsTimeSeries: incidentsTimeSeries.map(item => ({
+            month: item.month ? new Date(item.month).toISOString().split('T')[0] : null,
+            total_incidents: item.total_incidents || 0,
+          })),
+          operationalLossValue: operationalLossValue.map(item => ({
+            year: item.Year || 0,
+            month: item.Month || 0,
+            totalLossValue: item.TotalLossValue || 0,
+            incidentCount: item.IncidentCount || 0,
+          })),
+          monthlyTrendByType: monthlyTrendByType.map(item => ({
+            period: item.Period || '',
+            internalFrauds: item.InternalFrauds || 0,
+            externalFrauds: item.ExternalFrauds || 0,
+            physicalAssetDamages: item.PhysicalAssetDamages || 0,
+            humanErrors: item.HumanErrors || 0,
+            atmIssues: item.ATMIssues || 0,
+            systemErrors: item.SystemErrors || 0,
+          })),
+          incidentActionPlanByStatus: (incidentActionPlanByStatus || []).map((row: any) => ({
+            status_name: row.status_name || 'N/A',
+            count: row.count || 0,
+          })),
+        };
+      }
+
+      if (section === 'tables') {
+        return {
+          netLossAndRecovery: netLossAndRecovery.map(item => ({
+            incident_title: item.incident_title || 'Unknown',
+            net_loss: item.net_loss || 0,
+            recovery_amount: item.recovery_amount || 0,
+            function_name: item.function_name || 'Unknown',
+          })),
+          statusOverview: this.previewRows(statusOverview),
+          overallStatuses: this.previewRows(statusOverview),
+          incidentsFinancialDetails: this.previewRows(incidentsFinancialDetails.map(item => ({
+            title: item.title || 'Unknown',
+            rootCause: item.rootCause || '',
+            function_name: item.function_name || 'Unknown',
+            netLoss: item.netLoss || 0,
+            totalLoss: item.totalLoss || 0,
+            recoveryAmount: item.recoveryAmount || 0,
+            grossAmount: item.grossAmount || 0,
+            status: item.status || 'Unknown',
+          }))),
+          incidentsWithTimeframe: this.previewRows(incidentsWithTimeframe.map(item => ({
+            incident_name: item.incident_name || 'Unknown',
+            time_frame: item.time_frame || '',
+            function_name: item.function_name || 'Unknown',
+          }))),
+          incidentsWithFinancialAndFunction: this.previewRows(incidentsWithFinancialAndFunction.map(item => ({
+            title: item.title || 'Unknown',
+            financial_impact_name: item.financial_impact_name || 'Unknown',
+            function_name: item.function_name || 'Unknown',
+          }))),
+          lossByRiskCategory: this.previewRows(lossByRiskCategory.map(item => ({
+            riskCategory: item.RiskCategory || 'Unknown',
+            incidentCount: item.IncidentCount || 0,
+            totalLoss: item.TotalLoss || 0,
+            averageLoss: item.AverageLoss || 0,
+          }))),
+          comprehensiveOperationalLoss: this.previewRows(comprehensiveOperationalLoss.map(item => ({
+            metric: item.Metric || 'Unknown',
+            count: item.Count || 0,
+            totalValue: item.TotalValue || 0,
+          }))),
+          incidentActionPlan: this.previewRows(incidentActionPlan.map((row: any) => ({
+            code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+            incident_name: row.incident_title || 'N/A',
+            incident_department: row.incident_function_name || 'N/A',
+            root_cause: row.incident_root_cause || '',
+            description: row.incident_description || '',
+            action_taken: row.action_taken || row.control_procedure || '',
+            action_owner: row.action_owner_name || '',
+            status: row.business_unit_status || '',
+            expected_implementation_date: row.expected_implementation_date || null,
+          }))),
+          overdueIncidents: this.previewRows((overdueIncidentsRows || []).map((row: any) => ({
+            code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+            incident_name: row.incident_title || 'N/A',
+            incident_department: row.incident_function_name || 'N/A',
+            root_cause: row.incident_root_cause || '',
+            description: row.incident_description || '',
+            action_taken: row.action_taken || row.control_procedure || '',
+            action_owner: row.action_owner_name || '',
+            status: row.business_unit_status || '',
+            expected_implementation_date: row.expected_implementation_date || null,
+          }))),
+        };
+      }
 
       return {
         totalIncidents,
