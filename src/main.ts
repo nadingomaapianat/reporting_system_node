@@ -27,6 +27,16 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 // Load .env first so process.env is set before any module (e.g. AuthService) reads it
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
+function normalizeOrigin(value?: string): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, '');
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -38,7 +48,12 @@ async function bootstrap() {
   app.use(helmet());
   
   // CORS: env CORS_ORIGINS (comma-separated) or fallback for dev
-  const envOrigins = process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
+  const envOrigins = [
+    ...(process.env.CORS_ORIGINS?.split(',') ?? []),
+    ...(process.env.ALLOWED_ORIGINS?.split(',') ?? []),
+  ]
+    .map((o) => normalizeOrigin(o))
+    .filter(Boolean) as string[];
   const devOrigins = [
     'https://reporting-system-frontend.pianat.ai',
     'https://reporting-system-backend.pianat.ai',
@@ -52,13 +67,21 @@ async function bootstrap() {
   // When CORS_ORIGINS not set, use FRONTEND_URL / NODE_PUBLIC_URL from .env so links are env-driven
   const fallbackFromEnv = [
     process.env.FRONTEND_URL,
+    process.env.FRONTEND_URL2,
     process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL,
+    process.env.REPORTING_FRONTEND_URL,
     process.env.NODE_PUBLIC_URL,
-  ].filter(Boolean) as string[];
+    process.env.IFRAME_MAIN_ORIGIN,
+    process.env.MAIN_APP_ORIGIN,
+    process.env.CHART_URL,
+    process.env.WEB_SOCKET,
+  ]
+    .map((o) => normalizeOrigin(o))
+    .filter(Boolean) as string[];
   const corsOrigins = envOrigins?.length
     ? [...new Set([...envOrigins, ...devOrigins])]
     : fallbackFromEnv.length
-      ? [...new Set([...fallbackFromEnv.map((o) => o.trim()), ...devOrigins])]
+      ? [...new Set([...fallbackFromEnv, ...devOrigins])]
       : [...devOrigins];
   
   const corsMethods = process.env.CORS_METHODS
@@ -88,7 +111,8 @@ async function bootstrap() {
       }
       
       // Check if origin is in allowed list
-      if (corsOrigins.indexOf(origin) !== -1 || corsOrigins.includes('*')) {
+      const normalizedOrigin = normalizeOrigin(origin);
+      if ((normalizedOrigin && corsOrigins.includes(normalizedOrigin)) || corsOrigins.includes('*')) {
         callback(null, true);
       } else {
         // Log for debugging
@@ -136,11 +160,6 @@ async function bootstrap() {
 
  
   app.useGlobalPipes(new ValidationPipe());
-
-  app.enableCors({ 
-    origin: [process.env.CHART_URL, process.env.WEB_SOCKET, process.env.FRONTEND_URL, process.env.FRONTEND_URL2], // Replace with your frontend URLs
-    credentials: true,  
-  });
 
   // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));
