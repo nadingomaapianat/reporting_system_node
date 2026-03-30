@@ -3,6 +3,8 @@ import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
 import { fq } from '../shared/db-config';
 
+const DASHBOARD_PREVIEW_LIMIT = 10;
+
 @Injectable()
 export class GrcKrisService {
   constructor(
@@ -63,6 +65,10 @@ export class GrcKrisService {
       filter += ` AND CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')) <= '${endDate}'`;
     }
     return filter;
+  }
+
+  private previewRows<T>(rows: T[]): T[] {
+    return Array.isArray(rows) ? rows.slice(0, DASHBOARD_PREVIEW_LIMIT) : [];
   }
 
   async getKrisDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
@@ -383,7 +389,7 @@ export class GrcKrisService {
 
       // Overdue KRIs by Function
       const overdueKrisByDepartmentQuery = `
-        SELECT DISTINCT 
+        SELECT DISTINCT TOP (${DASHBOARD_PREVIEW_LIMIT}) 
           k.code      AS [KRI Code], 
           k.kriName   AS [KRI Name], 
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function]
@@ -421,7 +427,7 @@ export class GrcKrisService {
 
       // All KRIs Submitted by Function
       const allKrisSubmittedByFunctionQuery = `
-        SELECT
+        SELECT TOP (${DASHBOARD_PREVIEW_LIMIT})
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function Name],
           COUNT(k.id) AS [Total KRIs],
           COUNT(CASE
@@ -541,7 +547,7 @@ export class GrcKrisService {
 
       // KRI and Risk relationships (detailed list)
       const kriRiskRelationshipsQuery = `
-        SELECT 
+        SELECT TOP (${DASHBOARD_PREVIEW_LIMIT})
           k.code AS kri_code,
           k.kriName AS kri_name,
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
@@ -575,7 +581,7 @@ export class GrcKrisService {
 
       // KRIs without linked risks
       const kriWithoutLinkedRisksQuery = `
-        SELECT  
+        SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) 
           k.kriName AS kriName, 
           k.code    AS kriCode,
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
@@ -606,7 +612,7 @@ export class GrcKrisService {
 
       // Overall KRI Statuses (all KRIs with combined status)
       const kriStatusQuery = `
-        SELECT
+        SELECT TOP (${DASHBOARD_PREVIEW_LIMIT})
           k.code             AS code,
           k.kriName          AS kri_name,
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
@@ -643,7 +649,7 @@ export class GrcKrisService {
 
       // Active KRIs details
       const activeKrisDetailsQuery = `
-        SELECT
+        SELECT TOP (${DASHBOARD_PREVIEW_LIMIT})
           k.kriName          AS kriName,
           CASE 
             WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
@@ -692,6 +698,13 @@ export class GrcKrisService {
       // we already filter KRIs by user function access (functionFilter). Same behavior for dashboard.
       // Display function_name from k.related_function_id (frel) so it matches the function filter; do not use fkf (KriFunctions) which can be a different function.
       const kriDetailsWithActionPlansQuery = `
+        WITH TopKris AS (
+          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) k.id
+          FROM Kris k
+          WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+            ${functionFilter}
+          ORDER BY k.createdAt DESC, k.id DESC
+        )
         SELECT
           k.id AS kri_id,
           k.code AS kri_code,
@@ -719,6 +732,7 @@ export class GrcKrisService {
           a.[year] AS action_year,
           a.[month] AS action_month
         FROM Kris k
+        INNER JOIN TopKris tk ON tk.id = k.id
         INNER JOIN KriValues kv ON kv.kriId = k.id AND kv.deletedAt IS NULL
         LEFT JOIN Actionplans a ON a.kri_id = k.id AND a.deletedAt IS NULL
           AND LTRIM(RTRIM(ISNULL(a.[from], ''))) IN (N'kri', N'KRI', N'Kri')
@@ -749,6 +763,13 @@ export class GrcKrisService {
         !hasAnyActionPlanInResult(kriDetailsWithActionPlansRows)
       ) {
         const kriDetailsFallbackQuery = `
+          WITH TopKris AS (
+            SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) k.id
+            FROM Kris k
+            WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+              ${functionFilter}
+            ORDER BY k.createdAt DESC, k.id DESC
+          )
           SELECT
             k.id AS kri_id,
             k.code AS kri_code,
@@ -776,6 +797,7 @@ export class GrcKrisService {
             a.[year] AS action_year,
             a.[month] AS action_month
           FROM Kris k
+          INNER JOIN TopKris tk ON tk.id = k.id
           INNER JOIN KriValues kv ON kv.kriId = k.id AND kv.deletedAt IS NULL
           LEFT JOIN Actionplans a ON a.kri_id = k.id AND a.deletedAt IS NULL
             AND LTRIM(RTRIM(ISNULL(a.[from], ''))) IN (N'kri', N'KRI', N'Kri')
@@ -907,7 +929,7 @@ export class GrcKrisService {
       const kriDetailsWithActionPlansGrouped = Array.from(kriDetailsMap.values()).map(rec => ({
         ...rec,
         valuesByPeriod: rec.valuesByPeriod.sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
-      }));
+      })).slice(0, DASHBOARD_PREVIEW_LIMIT);
 
       // Calculate status counts from statusCountsRow (convert to integers)
       const pendingPreparer = Number(statusCountsRow?.pendingPreparer || 0);
@@ -967,12 +989,12 @@ export class GrcKrisService {
           status: item['KRI Status'] || 'Unknown',
           count: item['Count'] || 0
         })),
-        overdueKrisByDepartment: overdueKrisByDepartmentRows.map(item => ({
+        overdueKrisByDepartment: this.previewRows(overdueKrisByDepartmentRows).map(item => ({
           kriCode: item['KRI Code'] || null,
           kriName: item['KRI Name'] || 'Unknown',
           function_name: item['Function'] || 'Unknown'
         })),
-        allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map(item => ({
+        allKrisSubmittedByFunction: this.previewRows(allKrisSubmittedByFunctionRows).map(item => ({
           function_name: item['Function Name'] || 'Unknown',
           all_submitted: item['All KRIs Submitted?'] || 'No',
           total_kris: item['Total KRIs'] || 0,
@@ -992,26 +1014,26 @@ export class GrcKrisService {
           kriName: item.kriName || 'Unknown',
           count: item.count || 0
         })),
-        kriRiskRelationships: kriRiskRelationships.map(item => ({
+        kriRiskRelationships: this.previewRows(kriRiskRelationships).map(item => ({
           kri_code: item.kri_code || null,
           kri_name: item.kri_name || 'Unknown',
           function_name: item.function_name || 'Unknown',
           risk_code: item.risk_code || null,
           risk_name: item.risk_name || 'Unknown'
         })),
-        kriWithoutLinkedRisks: kriWithoutLinkedRisks.map(item => ({
+        kriWithoutLinkedRisks: this.previewRows(kriWithoutLinkedRisks).map(item => ({
           kriName: item.kriName || 'Unknown',
           kriCode: item.kriCode || null,
           function_name: item.function_name || 'Unknown'
         })),
-        kriStatus: kriStatusRows.map(item => ({
+        kriStatus: this.previewRows(kriStatusRows).map(item => ({
           code: item.code || null,
           kri_name: item.kri_name || 'Unknown',
           function_name: item.function_name || 'Unknown',
           status: item.status || 'Unknown'
         })),
         kriDetailsWithActionPlans: kriDetailsWithActionPlansGrouped,
-        activeKrisDetails: activeKrisDetailsRows.map(item => ({
+        activeKrisDetails: this.previewRows(activeKrisDetailsRows).map(item => ({
           kriName: item.kriName || 'Unknown',
           combined_status: item.combined_status || 'Unknown',
           assignedPersonId: item.assignedPersonId || null,
