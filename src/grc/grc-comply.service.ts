@@ -51,6 +51,15 @@ export class GrcComplyService {
       : value;
   }
 
+  private async runInBatches<T>(tasks: Array<() => Promise<T>>, batchSize = 4): Promise<T[]> {
+    const results: T[] = [];
+    for (let index = 0; index < tasks.length; index += batchSize) {
+      const batch = tasks.slice(index, index + batchSize);
+      results.push(...await Promise.all(batch.map((task) => task())));
+    }
+    return results;
+  }
+
   /**
    * Build date filter clause for SQL queries
    */
@@ -282,12 +291,15 @@ export class GrcComplyService {
       '26': 'Impacted Areas Trend Over Time',
     };
 
+    const reportResults = await this.runInBatches(
+      reportKeys.map((key) => () => this.runReport(key, startDate, endDate, functionId, userAccess)),
+    );
+
     const combined: Record<string, any> = {};
-    for (const key of reportKeys) {
+    reportKeys.forEach((key, index) => {
       const name = reportNames[key] || key;
-      const result = await this.runReport(key, startDate, endDate, functionId, userAccess);
-      combined[name] = this.previewDashboardResult(result);
-    }
+      combined[name] = this.previewDashboardResult(reportResults[index]);
+    });
 
     return combined;
   }

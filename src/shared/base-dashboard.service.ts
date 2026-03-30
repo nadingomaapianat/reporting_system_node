@@ -71,6 +71,19 @@ export abstract class BaseDashboardService {
 
   abstract getConfig(): DashboardConfig;
 
+  /**
+   * Run lightweight dashboard queries in small batches so we reduce latency
+   * without flooding SQL Server with every query at once.
+   */
+  private async runInBatches<T>(tasks: Array<() => Promise<T>>, batchSize = 4): Promise<T[]> {
+    const results: T[] = [];
+    for (let index = 0; index < tasks.length; index += batchSize) {
+      const batch = tasks.slice(index, index + batchSize);
+      results.push(...await Promise.all(batch.map((task) => task())));
+    }
+    return results;
+  }
+
   async getDashboardData(
     user: any,
     startDate?: string,
@@ -248,8 +261,11 @@ export abstract class BaseDashboardService {
       }
     };
 
-    for (const metric of metrics) {
-      const { id, total, change } = await runOneMetric(metric);
+    const metricResults = await this.runInBatches(
+      metrics.map((metric) => () => runOneMetric(metric)),
+    );
+
+    for (const { id, total, change } of metricResults) {
       results[id] = total;
       if (change !== undefined) results[`${id}Change`] = change;
     }
@@ -296,8 +312,11 @@ export abstract class BaseDashboardService {
       }
     };
 
-    for (const chart of charts) {
-      const { id, data } = await runOneChart(chart);
+    const chartResults = await this.runInBatches(
+      charts.map((chart) => () => runOneChart(chart)),
+    );
+
+    for (const { id, data } of chartResults) {
       results[id] = data;
     }
     return results;

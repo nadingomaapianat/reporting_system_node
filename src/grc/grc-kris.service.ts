@@ -71,6 +71,28 @@ export class GrcKrisService {
     return Array.isArray(rows) ? rows.slice(0, DASHBOARD_PREVIEW_LIMIT) : [];
   }
 
+  private async runDashboardQuery<T>(label: string, query: string, fallback: T): Promise<T> {
+    try {
+      return await this.databaseService.query(query) as T;
+    } catch (error) {
+      console.error(`${label} query failed:`, error);
+      return fallback;
+    }
+  }
+
+  /**
+   * Run independent dashboard queries in small batches so the first load is
+   * faster without sending the entire dashboard workload to SQL Server at once.
+   */
+  private async runQueryBatches<T>(tasks: Array<() => Promise<T>>, batchSize = 4): Promise<T[]> {
+    const results: T[] = [];
+    for (let index = 0; index < tasks.length; index += batchSize) {
+      const batch = tasks.slice(index, index + batchSize);
+      results.push(...await Promise.all(batch.map((task) => task())));
+    }
+    return results;
+  }
+
   async getKrisDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     try {
       // console.log('[getKrisDashboard] Received parameters:', { timeframe, startDate, endDate, selectedFunctionIds, userId: user.id, groupName: user.groupName });
@@ -95,13 +117,7 @@ export class GrcKrisService {
           ${dateFilter}
           ${functionFilter}
       `;
-      let totalKris = 0;
-      try {
-        const totalKrisResult = await this.databaseService.query(totalKrisQuery);
-        totalKris = totalKrisResult[0]?.total || 0;
-      } catch (e) {
-        console.error('KRIs total query failed:', e);
-      }
+      const totalKrisTask = () => this.runDashboardQuery<any[]>('KRIs total', totalKrisQuery, []);
 
       // KRIs status counts (same logic as incidents - staged status counts, using CTE for accuracy)
       const krisStatusCountsQuery = `
@@ -128,14 +144,7 @@ export class GrcKrisService {
           CAST(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS INT) AS approved
         FROM KrisStatus
       `;
-      let statusCountsRow: any = {};
-      try {
-        const [statusCountsResult] = await this.databaseService.query(krisStatusCountsQuery);
-        statusCountsRow = statusCountsResult || {};
-        // console.log('[KRI Dashboard] Status counts query result:', JSON.stringify(statusCountsRow));
-      } catch (e) {
-        console.error('KRIs status counts query failed:', e);
-      }
+      const statusCountsTask = () => this.runDashboardQuery<any[]>('KRIs status counts', krisStatusCountsQuery, []);
 
       // KRIs by level (use kri_level if present else derive from latest kv vs thresholds)
       const krisByLevelQuery = `
@@ -181,12 +190,7 @@ export class GrcKrisService {
         GROUP BY level_bucket
         ORDER BY count DESC
       `;
-      let krisByLevel: any[] = [];
-      try {
-        krisByLevel = await this.databaseService.query(krisByLevelQuery);
-      } catch (e) {
-        console.error('KRIs by level query failed:', e);
-      }
+      const krisByLevelTask = () => this.runDashboardQuery<any[]>('KRIs by level', krisByLevelQuery, []);
 
       // KRIs by function (simplified - just count KRIs per function)
       const breachedKRIsByDepartmentQuery = `
@@ -212,12 +216,7 @@ export class GrcKrisService {
         GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
         ORDER BY breached_count DESC
       `;
-      let breachedKRIsByDepartment: any[] = [];
-      try {
-        breachedKRIsByDepartment = await this.databaseService.query(breachedKRIsByDepartmentQuery);
-      } catch (e) {
-        console.error('Breached KRIs by function query failed:', e);
-      }
+      const breachedKRIsByDepartmentTask = () => this.runDashboardQuery<any[]>('Breached KRIs by function', breachedKRIsByDepartmentQuery, []);
 
       // KRI health status (list)
       const kriHealthQuery = `
@@ -237,12 +236,7 @@ export class GrcKrisService {
           ${functionFilter}
         ORDER BY k.createdAt DESC
       `;
-      let kriHealth: any[] = [];
-      try {
-        kriHealth = await this.databaseService.query(kriHealthQuery);
-      } catch (e) {
-        console.error('KRI health query failed:', e);
-      }
+      const kriHealthTask = () => this.runDashboardQuery<any[]>('KRI health', kriHealthQuery, []);
 
       // KRI assessment count by function (count assessments from KriValues table)
       const kriAssessmentCountQuery = `
@@ -267,12 +261,7 @@ export class GrcKrisService {
         GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
         ORDER BY assessment_count DESC
       `;
-      let kriAssessmentCount: any[] = [];
-      try {
-        kriAssessmentCount = await this.databaseService.query(kriAssessmentCountQuery);
-      } catch (e) {
-        console.error('KRI assessment count query failed:', e);
-      }
+      const kriAssessmentCountTask = () => this.runDashboardQuery<any[]>('KRI assessment count', kriAssessmentCountQuery, []);
 
       // Monthly KRI counts grouped by assessment
       const kriMonthlyAssessmentQuery = `
@@ -299,12 +288,7 @@ export class GrcKrisService {
           createdAt ASC,
           assessment ASC
       `;
-      let kriMonthlyAssessment: any[] = [];
-      try {
-        kriMonthlyAssessment = await this.databaseService.query(kriMonthlyAssessmentQuery);
-      } catch (e) {
-        console.error('KRI monthly assessment query failed:', e);
-      }
+      const kriMonthlyAssessmentTask = () => this.runDashboardQuery<any[]>('KRI monthly assessment', kriMonthlyAssessmentQuery, []);
 
       // Number of Newly Created KRIs per Month
       const newlyCreatedKrisPerMonthQuery = `
@@ -322,12 +306,7 @@ export class GrcKrisService {
         ORDER BY
           createdAt ASC
       `;
-      let newlyCreatedKrisPerMonth: any[] = [];
-      try {
-        newlyCreatedKrisPerMonth = await this.databaseService.query(newlyCreatedKrisPerMonthQuery);
-      } catch (e) {
-        console.error('Newly created KRIs per month query failed:', e);
-      }
+      const newlyCreatedKrisPerMonthTask = () => this.runDashboardQuery<any[]>('Newly created KRIs per month', newlyCreatedKrisPerMonthQuery, []);
 
       // Number of Deleted KRIs by Month
       const deletedKrisPerMonthQuery = `
@@ -345,12 +324,7 @@ export class GrcKrisService {
           YEAR(k.createdAt) ASC,
           MONTH(k.createdAt) ASC
       `;
-      let deletedKrisPerMonth: any[] = [];
-      try {
-        deletedKrisPerMonth = await this.databaseService.query(deletedKrisPerMonthQuery);
-      } catch (e) {
-        console.error('Deleted KRIs per month query failed:', e);
-      }
+      const deletedKrisPerMonthTask = () => this.runDashboardQuery<any[]>('Deleted KRIs per month', deletedKrisPerMonthQuery, []);
 
       // KRIs Overdue vs Not Overdue based on related Action Plans
       const kriOverdueStatusCountsQuery = `
@@ -380,12 +354,7 @@ export class GrcKrisService {
         FROM classified
         GROUP BY KRIStatus
       `;
-      let kriOverdueStatusCountsRows: any[] = [];
-      try {
-        kriOverdueStatusCountsRows = await this.databaseService.query(kriOverdueStatusCountsQuery);
-      } catch (e) {
-        console.error('KRI overdue status counts query failed:', e);
-      }
+      const kriOverdueStatusCountsTask = () => this.runDashboardQuery<any[]>('KRI overdue status counts', kriOverdueStatusCountsQuery, []);
 
       // Overdue KRIs by Function
       const overdueKrisByDepartmentQuery = `
@@ -418,12 +387,7 @@ export class GrcKrisService {
         ORDER BY 
           [Function], [KRI Name]
       `;
-      let overdueKrisByDepartmentRows: any[] = [];
-      try {
-        overdueKrisByDepartmentRows = await this.databaseService.query(overdueKrisByDepartmentQuery);
-      } catch (e) {
-        console.error('Overdue KRIs by department query failed:', e);
-      }
+      const overdueKrisByDepartmentTask = () => this.runDashboardQuery<any[]>('Overdue KRIs by department', overdueKrisByDepartmentQuery, []);
 
       // All KRIs Submitted by Function
       const allKrisSubmittedByFunctionQuery = `
@@ -461,12 +425,7 @@ export class GrcKrisService {
         GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
         ORDER BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
       `;
-      let allKrisSubmittedByFunctionRows: any[] = [];
-      try {
-        allKrisSubmittedByFunctionRows = await this.databaseService.query(allKrisSubmittedByFunctionQuery);
-      } catch (e) {
-        console.error('All KRIs submitted by function query failed:', e);
-      }
+      const allKrisSubmittedByFunctionTask = () => this.runDashboardQuery<any[]>('All KRIs submitted by function', allKrisSubmittedByFunctionQuery, []);
 
       // KRI counts by Month and Year
       const kriCountsByMonthYearQuery = `
@@ -483,13 +442,7 @@ export class GrcKrisService {
         GROUP BY FORMAT(k.createdAt, 'MMM yyyy'), YEAR(k.createdAt), DATENAME(month, k.createdAt), MONTH(k.createdAt) 
         ORDER BY YEAR(k.createdAt), MONTH(k.createdAt)
       `;
-      let kriCountsByMonthYear: any[] = [];
-      try {
-        kriCountsByMonthYear = await this.databaseService.query(kriCountsByMonthYearQuery);
-        // console.log('[KRI Dashboard] kriCountsByMonthYear query result:', JSON.stringify(kriCountsByMonthYear.slice(0, 3)));
-      } catch (e) {
-        console.error('KRI counts by Month/Year query failed:', e);
-      }
+      const kriCountsByMonthYearTask = () => this.runDashboardQuery<any[]>('KRI counts by Month/Year', kriCountsByMonthYearQuery, []);
 
       // KRI counts by frequency
       const kriCountsByFrequencyQuery = `
@@ -507,12 +460,7 @@ export class GrcKrisService {
         ORDER BY 
           frequency ASC
       `;
-      let kriCountsByFrequency: any[] = [];
-      try {
-        kriCountsByFrequency = await this.databaseService.query(kriCountsByFrequencyQuery);
-      } catch (e) {
-        console.error('KRI counts by frequency query failed:', e);
-      }
+      const kriCountsByFrequencyTask = () => this.runDashboardQuery<any[]>('KRI counts by frequency', kriCountsByFrequencyQuery, []);
 
       // Risks linked to KRIs (count per KRI name)
       const kriRisksByKriNameQuery = `
@@ -538,12 +486,7 @@ export class GrcKrisService {
         ORDER BY 
           k.kriName ASC
       `;
-      let kriRisksByKriName: any[] = [];
-      try {
-        kriRisksByKriName = await this.databaseService.query(kriRisksByKriNameQuery);
-      } catch (e) {
-        console.error('KRI risks by KRI name query failed:', e);
-      }
+      const kriRisksByKriNameTask = () => this.runDashboardQuery<any[]>('KRI risks by KRI name', kriRisksByKriNameQuery, []);
 
       // KRI and Risk relationships (detailed list)
       const kriRiskRelationshipsQuery = `
@@ -572,12 +515,7 @@ export class GrcKrisService {
         ORDER BY 
           k.kriName, r.name
       `;
-      let kriRiskRelationships: any[] = [];
-      try {
-        kriRiskRelationships = await this.databaseService.query(kriRiskRelationshipsQuery);
-      } catch (e) {
-        console.error('KRI risk relationships query failed:', e);
-      }
+      const kriRiskRelationshipsTask = () => this.runDashboardQuery<any[]>('KRI risk relationships', kriRiskRelationshipsQuery, []);
 
       // KRIs without linked risks
       const kriWithoutLinkedRisksQuery = `
@@ -603,12 +541,7 @@ export class GrcKrisService {
         ORDER BY  
           k.kriName
       `;
-      let kriWithoutLinkedRisks: any[] = [];
-      try {
-        kriWithoutLinkedRisks = await this.databaseService.query(kriWithoutLinkedRisksQuery);
-      } catch (e) {
-        console.error('KRIs without linked risks query failed:', e);
-      }
+      const kriWithoutLinkedRisksTask = () => this.runDashboardQuery<any[]>('KRIs without linked risks', kriWithoutLinkedRisksQuery, []);
 
       // Overall KRI Statuses (all KRIs with combined status)
       const kriStatusQuery = `
@@ -640,12 +573,7 @@ export class GrcKrisService {
           ${functionFilter}
         ORDER BY k.kriName
       `;
-      let kriStatusRows: any[] = [];
-      try {
-        kriStatusRows = await this.databaseService.query(kriStatusQuery);
-      } catch (e) {
-        console.error('Overall KRI statuses query failed:', e);
-      }
+      const kriStatusTask = () => this.runDashboardQuery<any[]>('Overall KRI statuses', kriStatusQuery, []);
 
       // Active KRIs details
       const activeKrisDetailsQuery = `
@@ -685,12 +613,51 @@ export class GrcKrisService {
           ${dateFilter}
           ${functionFilter}
       `;
-      let activeKrisDetailsRows: any[] = [];
-      try {
-        activeKrisDetailsRows = await this.databaseService.query(activeKrisDetailsQuery);
-      } catch (e) {
-        console.error('Active KRIs details query failed:', e);
-      }
+      const activeKrisDetailsTask = () => this.runDashboardQuery<any[]>('Active KRIs details', activeKrisDetailsQuery, []);
+
+      const [
+        totalKrisResult,
+        statusCountsResults,
+        krisByLevel,
+        breachedKRIsByDepartment,
+        kriHealth,
+        kriAssessmentCount,
+        kriMonthlyAssessment,
+        newlyCreatedKrisPerMonth,
+        deletedKrisPerMonth,
+        kriOverdueStatusCountsRows,
+        overdueKrisByDepartmentRows,
+        allKrisSubmittedByFunctionRows,
+        kriCountsByMonthYear,
+        kriCountsByFrequency,
+        kriRisksByKriName,
+        kriRiskRelationships,
+        kriWithoutLinkedRisks,
+        kriStatusRows,
+        activeKrisDetailsRows,
+      ] = await this.runQueryBatches<any[]>([
+        totalKrisTask,
+        statusCountsTask,
+        krisByLevelTask,
+        breachedKRIsByDepartmentTask,
+        kriHealthTask,
+        kriAssessmentCountTask,
+        kriMonthlyAssessmentTask,
+        newlyCreatedKrisPerMonthTask,
+        deletedKrisPerMonthTask,
+        kriOverdueStatusCountsTask,
+        overdueKrisByDepartmentTask,
+        allKrisSubmittedByFunctionTask,
+        kriCountsByMonthYearTask,
+        kriCountsByFrequencyTask,
+        kriRisksByKriNameTask,
+        kriRiskRelationshipsTask,
+        kriWithoutLinkedRisksTask,
+        kriStatusTask,
+        activeKrisDetailsTask,
+      ]);
+      const totalKris = Number(totalKrisResult[0]?.total || 0);
+      const statusCountsRow = statusCountsResults[0] || {};
 
       // KRI Details & Action Plans: include every KRI that has at least one value (including value 0); action plan is optional.
       // Source: Kris INNER JOIN KriValues (all KRI-value pairs) LEFT JOIN Actionplans (from='kri', a.kri_id = k.id).
@@ -749,77 +716,11 @@ export class GrcKrisService {
           ${functionFilter}
         ORDER BY k.id, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
       `;
-      let kriDetailsWithActionPlansRows: any[] = [];
-      try {
-        kriDetailsWithActionPlansRows = await this.databaseService.query(kriDetailsWithActionPlansQuery);
-      } catch (e) {
-        console.error('KRI details with action plans query failed:', e);
-      }
-      // Fallback: if primary query returned no rows or no action plan data (e.g. different schema), re-run with same join (a.kri_id = k.id).
-      const hasAnyActionPlanInResult = (rows: any[]) =>
-        rows.some((r: any) => r?.action_taken != null && String(r.action_taken).trim() !== '');
-      if (
-        kriDetailsWithActionPlansRows.length === 0 ||
-        !hasAnyActionPlanInResult(kriDetailsWithActionPlansRows)
-      ) {
-        const kriDetailsFallbackQuery = `
-          WITH TopKris AS (
-            SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) k.id
-            FROM Kris k
-            WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
-              ${functionFilter}
-            ORDER BY k.createdAt DESC, k.id DESC
-          )
-          SELECT
-            k.id AS kri_id,
-            k.code AS kri_code,
-            k.kriName AS kri_name,
-            k.createdAt AS kri_created_at,
-            ISNULL(frel.name, 'Unknown') AS function_name,
-            u_assigned.name AS assigned_person_name,
-            k.type AS kri_type,
-            u_added.name AS added_by_name,
-            k.status AS kri_status,
-            k.frequency AS kri_frequency,
-            CASE WHEN k.typePercentageOrFigure = '%' THEN 'percentage' ELSE ISNULL(k.typePercentageOrFigure, 'N/A') END AS measurable_unit,
-            k.low_from,
-            k.medium_from,
-            k.high_from,
-            k.threshold AS defining_threshold,
-            kv.[month] AS value_month,
-            kv.[year] AS value_year,
-            kv.value AS value_value,
-            kv.assessment AS value_assessment,
-            a.control_procedure AS action_taken,
-            f_owner.name AS action_owner_name,
-            a.business_unit AS action_plan_status,
-            a.implementation_date AS expected_implementation_date,
-            a.[year] AS action_year,
-            a.[month] AS action_month
-          FROM Kris k
-          INNER JOIN TopKris tk ON tk.id = k.id
-          INNER JOIN KriValues kv ON kv.kriId = k.id AND kv.deletedAt IS NULL
-          LEFT JOIN Actionplans a ON a.kri_id = k.id AND a.deletedAt IS NULL
-            AND LTRIM(RTRIM(ISNULL(a.[from], ''))) IN (N'kri', N'KRI', N'Kri')
-          LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-          LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-          LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
-          LEFT JOIN users u_assigned ON k.assignedPersonId = u_assigned.id AND u_assigned.deletedAt IS NULL
-          LEFT JOIN users u_added ON k.addedBy = u_added.id AND u_added.deletedAt IS NULL
-          LEFT JOIN Functions f_owner ON a.actionOwner = f_owner.id
-            AND f_owner.isDeleted = 0
-            AND f_owner.deletedAt IS NULL
-          WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
-            ${kriValueDateFilter}
-            ${functionFilter}
-          ORDER BY k.id, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
-        `;
-        try {
-          kriDetailsWithActionPlansRows = await this.databaseService.query(kriDetailsFallbackQuery);
-        } catch (e2) {
-          console.error('KRI details fallback query failed:', e2);
-        }
-      }
+      const kriDetailsWithActionPlansRows = await this.runDashboardQuery<any[]>(
+        'KRI details with action plans',
+        kriDetailsWithActionPlansQuery,
+        [],
+      );
 
       // Group flat rows into one row per KRI with valuesByPeriod (each period has value, assessment, actionPlans[])
       const kriDetailsMap = new Map<string, {
