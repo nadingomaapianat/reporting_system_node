@@ -47,9 +47,26 @@ export class GrcComplyService {
   }
 
   private previewDashboardResult<T>(value: T): T {
-    return Array.isArray(value)
-      ? (value.slice(0, DASHBOARD_PREVIEW_LIMIT) as T)
-      : value;
+    return value;
+  }
+
+  private paginateRows<T>(rows: T[], page = 1, limit = 10) {
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.max(1, Number(limit) || 10);
+    const total = Array.isArray(rows) ? rows.length : 0;
+    const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+    const start = (safePage - 1) * safeLimit;
+    return {
+      data: Array.isArray(rows) ? rows.slice(start, start + safeLimit) : [],
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages,
+        hasNext: safePage < totalPages,
+        hasPrev: safePage > 1,
+      },
+    };
   }
 
   private async runInBatches<T>(tasks: Array<() => Promise<T>>, batchSize = 4): Promise<T[]> {
@@ -225,6 +242,30 @@ export class GrcComplyService {
 
   async runDashboardSection(section: DashboardSection, startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
     return this.runReportsByKeys(this.getDashboardReportKeys(section), startDate, endDate, functionId, access);
+  }
+
+  async getDashboardTablePage(
+    tableId: string,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    access?: UserFunctionAccess,
+  ) {
+    const tablesPayload = await this.runDashboardSection('tables', startDate, endDate, functionId, access) as Record<string, any[]>;
+
+    const tableRows = {
+      complianceDetails: tablesPayload['Compliance Details'] || [],
+      surveyCompletionRate: tablesPayload['Survey Completion Rate'] || [],
+      bankQuestionsDetails: tablesPayload['Bank Questions details'] || [],
+    }[tableId];
+
+    if (!tableRows) {
+      throw new BadRequestException(`Table not found: ${tableId}`);
+    }
+
+    return this.paginateRows(tableRows, page, limit);
   }
 
   private getDashboardReportKeys(section?: DashboardSection): GrcComplyReportKey[] {

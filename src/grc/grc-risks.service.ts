@@ -85,7 +85,7 @@ export class GrcRisksService extends BaseDashboardService {
           WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
         `, []);
       const allRisksTask = () => queryOrFallback<any[]>('allRisks', `
-          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT})
+          SELECT
             r.name AS [RiskName],
             r.description AS [RiskDesc],
             'Event' AS [RiskEventName],
@@ -237,7 +237,7 @@ export class GrcRisksService extends BaseDashboardService {
           ORDER BY q.quarter_num ASC
         `, []);
       const risksPerDepartmentTask = () => queryOrFallback<any[]>('risksPerDepartment', `
-          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT})
+          SELECT
             f.name AS [Functions__name],
             COUNT(*) AS [count]
           FROM dbo.[Risks] r
@@ -312,7 +312,7 @@ export class GrcRisksService extends BaseDashboardService {
       let risksDetails: any[] = [];
 
       const risksPerBusinessProcessTask = () => queryOrFallback<any[]>('risksPerBusinessProcess', `
-          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) p.name AS process_name, COUNT(rp.risk_id) AS risk_count
+          SELECT p.name AS process_name, COUNT(rp.risk_id) AS risk_count
           FROM dbo.[RiskProcesses] rp
           JOIN dbo.[Processes] p ON rp.process_id = p.id
           JOIN dbo.[Risks] r ON rp.risk_id = r.id
@@ -320,7 +320,7 @@ export class GrcRisksService extends BaseDashboardService {
           GROUP BY p.name ORDER BY risk_count DESC, p.name ASC
         `, []);
       const inherentResidualRiskComparisonTask = () => queryOrFallback<any[]>('inherentResidualRiskComparison', `
-          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) r.name AS [Risk Name], f.name AS [Department Name], r.inherent_value AS [Inherent Value], rr.residual_value AS [Residual Value]
+          SELECT r.name AS [Risk Name], f.name AS [Department Name], r.inherent_value AS [Inherent Value], rr.residual_value AS [Residual Value]
           FROM dbo.[Risks] r
           JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id
           LEFT JOIN dbo.[RiskFunctions] rf ON r.id = rf.risk_id
@@ -329,7 +329,7 @@ export class GrcRisksService extends BaseDashboardService {
           ORDER BY r.createdAt DESC
         `, []);
       const highResidualRiskOverviewTask = () => queryOrFallback<any[]>('highResidualRiskOverview', `
-          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) risk_name AS [Risk Name], function_name AS [function_name], residual_level AS [Residual Level], inherent_value AS [Inherent Value],
+          SELECT risk_name AS [Risk Name], function_name AS [function_name], residual_level AS [Residual Level], inherent_value AS [Inherent Value],
             inherent_frequency_label AS [Inherent Frequency], inherent_financial_label AS [Inherent Financial],
             residual_frequency_label AS [Residual Frequency], residual_financial_label AS [Residual Financial],
             quarter AS [Quarter], year AS [Year]
@@ -348,7 +348,7 @@ export class GrcRisksService extends BaseDashboardService {
           ORDER BY year DESC, quarter DESC, inherent_value DESC
         `, []);
       const risksAndControlsCountTask = () => queryOrFallback<any[]>('risksAndControlsCount', `
-          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) r.name AS risk_name, ${this.riskFunctionNameSubquery()} AS function_name, COUNT(DISTINCT rc.control_id) AS control_count
+          SELECT r.name AS risk_name, ${this.riskFunctionNameSubquery()} AS function_name, COUNT(DISTINCT rc.control_id) AS control_count
           FROM dbo.[Risks] r
           LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
           LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
@@ -356,7 +356,7 @@ export class GrcRisksService extends BaseDashboardService {
           GROUP BY r.id, r.name ORDER BY control_count DESC
         `, []);
       const controlsAndRiskCountTask = () => queryOrFallback<any[]>('controlsAndRiskCount', `
-          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) c.name AS [Controls__name], (SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL) AS function_name, COUNT(DISTINCT r.id) AS [count]
+          SELECT c.name AS [Controls__name], (SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL) AS function_name, COUNT(DISTINCT r.id) AS [count]
           FROM dbo.[Controls] c
           INNER JOIN (SELECT DISTINCT rc.control_id FROM dbo.[RiskControls] rc INNER JOIN dbo.[Risks] r0 ON rc.risk_id = r0.id AND r0.isDeleted = 0 AND r0.deletedAt IS NULL ${dateFilter.replace('r.', 'r0.')}) rc0 ON c.id = rc0.control_id
           LEFT JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
@@ -365,7 +365,7 @@ export class GrcRisksService extends BaseDashboardService {
           GROUP BY c.id, c.name ORDER BY [count] DESC, c.name ASC
         `, []);
       const risksDetailsTask = () => queryOrFallback<any[]>('risksDetails', `
-          SELECT TOP (${DASHBOARD_PREVIEW_LIMIT}) r.name AS [RiskName], r.description AS [RiskDesc], et.name AS [RiskEventName], r.approve AS [RiskApprove],
+          SELECT r.name AS [RiskName], r.description AS [RiskDesc], et.name AS [RiskEventName], r.approve AS [RiskApprove],
             r.inherent_value AS [InherentValue], r.residual_value AS [ResidualValue], r.inherent_frequency AS [InherentFrequency],
             r.inherent_financial_value AS [InherentFinancialValue], rr.residual_value AS [RiskResidualValue], rr.quarter AS [ResidualQuarter], rr.year AS [ResidualYear]
           FROM dbo.[Risks] r
@@ -393,41 +393,74 @@ export class GrcRisksService extends BaseDashboardService {
 
       if (section === 'tables') {
         return {
-          risksPerDepartment: this.previewRows(risksPerDepartment),
-          risksPerBusinessProcess: this.previewRows(risksPerBusinessProcess),
-          inherentResidualRiskComparison: this.previewRows(inherentResidualRiskComparison),
-          highResidualRiskOverview: this.previewRows(highResidualRiskOverview),
-          risksAndControlsCount: this.previewRows(risksAndControlsCount),
-          controlsAndRiskCount: this.previewRows(controlsAndRiskCount),
-          allRisks: this.previewRows(allRisks),
+          risksPerDepartment,
+          risksPerBusinessProcess,
+          inherentResidualRiskComparison,
+          highResidualRiskOverview,
+          risksAndControlsCount,
+          controlsAndRiskCount,
+          allRisks,
         };
       }
 
       return {
         totalRisks,
-        allRisks: this.previewRows(allRisks),
+        allRisks,
         risksByCategory,
         risksByEventType,
         riskLevels,
         riskReductionCount,
         newRisks,
         // New data
-        risksPerDepartment: this.previewRows(risksPerDepartment),
-        risksPerBusinessProcess: this.previewRows(risksPerBusinessProcess),
+        risksPerDepartment,
+        risksPerBusinessProcess,
         createdDeletedRisksPerQuarter,
         quarterlyRiskCreationTrends,
-        inherentResidualRiskComparison: this.previewRows(inherentResidualRiskComparison),
+        inherentResidualRiskComparison,
         riskApprovalStatusDistribution,
-        highResidualRiskOverview: this.previewRows(highResidualRiskOverview),
+        highResidualRiskOverview,
         riskDistributionByFinancialImpact,
-        risksAndControlsCount: this.previewRows(risksAndControlsCount),
-        controlsAndRiskCount: this.previewRows(controlsAndRiskCount),
-        risksDetails: this.previewRows(risksDetails)
+        risksAndControlsCount,
+        controlsAndRiskCount,
+        risksDetails
       };
     } catch (error) {
       console.error('Error fetching risks dashboard data:', error);
       throw error;
     }
+  }
+
+  async getRisksDashboardTablePage(
+    user: any,
+    tableId: string,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+  ) {
+    const tablesPayload = await this.getRisksDashboard(
+      user,
+      startDate,
+      endDate,
+      selectedFunctionIds,
+      'tables',
+    ) as Record<string, any[]>;
+
+    const tableRows = {
+      risksPerDepartment: tablesPayload.risksPerDepartment || [],
+      risksPerBusinessProcess: tablesPayload.risksPerBusinessProcess || [],
+      highResidualRiskOverview: tablesPayload.highResidualRiskOverview || [],
+      risksAndControlsCount: tablesPayload.risksAndControlsCount || [],
+      controlsAndRiskCount: tablesPayload.controlsAndRiskCount || [],
+      allRisks: tablesPayload.allRisks || [],
+    }[tableId];
+
+    if (!tableRows) {
+      throw new Error(`Table ${tableId} not found`);
+    }
+
+    return this.paginateRows(tableRows, page, limit);
   }
 
   async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {

@@ -57,6 +57,105 @@ export class GrcIncidentsController {
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
+  @Get('table')
+  async getIncidentsDashboardTable(
+    @Req() req: any,
+    @Query('tableId') tableId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('timeframe') timeframe?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    const raw = await this.grcIncidentsService.getIncidentsDashboardTablePage(
+      req.user,
+      tableId,
+      Number(page) || 1,
+      Number(limit) || 10,
+      timeframe,
+      startDate,
+      endDate,
+      parseGrcFunctionIdsFromQueries(functionId, functionIds),
+    );
+    return sortPaginatedResponseIfNeeded(raw, ob);
+  }
+
+  @Get('widget')
+  async getIncidentsDashboardWidget(
+    @Req() req: any,
+    @Query('kind') kind: 'metric' | 'chart' | 'table',
+    @Query('widgetId') widgetId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+  ) {
+    const selectedFunctionIds = parseGrcFunctionIdsFromQueries(functionId, functionIds);
+
+    if (kind === 'table') {
+      return this.grcIncidentsService.getIncidentsDashboardTablePage(
+        req.user,
+        widgetId,
+        Number(page) || 1,
+        Number(limit) || 10,
+        undefined,
+        startDate,
+        endDate,
+        selectedFunctionIds,
+      );
+    }
+
+    const section = kind === 'metric' ? 'cards' : 'charts';
+    const payload: any = await this.grcIncidentsService.getIncidentsDashboard(
+      req.user,
+      undefined,
+      startDate,
+      endDate,
+      selectedFunctionIds,
+      section,
+    );
+
+    if (kind === 'metric') {
+      const metricPayload: Record<string, any> = {
+        totalIncidents: { total: Number((payload?.total ?? payload?.totalIncidents) || 0) },
+        pendingPreparer: { pendingPreparer: Number(payload?.pendingPreparer || 0) },
+        pendingChecker: { pendingChecker: Number(payload?.pendingChecker || 0) },
+        pendingReviewer: { pendingReviewer: Number(payload?.pendingReviewer || 0) },
+        pendingAcceptance: { pendingAcceptance: Number(payload?.pendingAcceptance || 0) },
+        atmTheftCount: { atmTheftCount: Number(payload?.atmTheftCount || 0) },
+        avgRecognitionTime: { avgRecognitionTime: Number(payload?.avgRecognitionTime || 0) },
+        internalFraudCount: { internalFraudCount: Number(payload?.internalFraudCount || 0) },
+        externalFraudCount: { externalFraudCount: Number(payload?.externalFraudCount || 0) },
+        physicalAssetDamageCount: { physicalAssetDamageCount: Number(payload?.physicalAssetDamageCount || 0) },
+        peopleErrorCount: { peopleErrorCount: Number(payload?.peopleErrorCount || 0) },
+        internalFraudLoss: { internalFraudLoss: Number(payload?.internalFraudLoss || 0) },
+        externalFraudLoss: { externalFraudLoss: Number(payload?.externalFraudLoss || 0) },
+        physicalAssetLoss: { physicalAssetLoss: Number(payload?.physicalAssetLoss || 0) },
+        peopleErrorLoss: { peopleErrorLoss: Number(payload?.peopleErrorLoss || 0) },
+      };
+      return metricPayload[widgetId] ?? {};
+    }
+
+    const chartPayload: Record<string, any> = {
+      byCategory: { incidentsByCategory: payload?.incidentsByCategory || [], categoryDistribution: payload?.categoryDistribution || [] },
+      byStatus: { incidentsByStatus: payload?.incidentsByStatus || [], incidentsByStatusDistribution: payload?.incidentsByStatusDistribution || [] },
+      monthlyTrend: { monthlyTrend: payload?.monthlyTrend || [] },
+      incidentsTimeSeries: { incidentsTimeSeries: payload?.incidentsTimeSeries || [] },
+      topFinancialImpacts: { topFinancialImpacts: payload?.topFinancialImpacts || [] },
+      incidentsByEventType: { incidentsByEventType: payload?.incidentsByEventType || [] },
+      incidentsByFinancialImpact: { incidentsByFinancialImpact: payload?.incidentsByFinancialImpact || [] },
+      operationalLossValue: { operationalLossValue: payload?.operationalLossValue || [] },
+      monthlyTrendByType: { monthlyTrendByType: payload?.monthlyTrendByType || [] },
+      incidentActionPlanByStatus: { incidentActionPlanByStatus: payload?.incidentActionPlanByStatus || [] },
+    };
+    return chartPayload[widgetId] ?? {};
+  }
+
   @Get('export')
   async exportIncidents(
     @Req() req: any,

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { fq } from './db-config';
-import { applyOrderByFunctionDeep } from './order-by-function';
+import { applyOrderByFunctionDeep, sortPaginatedResponseIfNeeded } from './order-by-function';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from './user-function-access.service';
 
@@ -63,6 +63,7 @@ export interface ColumnConfig {
 }
 
 type DashboardSection = 'cards' | 'charts' | 'tables';
+export type DashboardWidgetKind = 'metric' | 'chart' | 'table';
 type DashboardQueryContext = {
   config: DashboardConfig;
   dateFilters: DashboardDateFilters;
@@ -195,6 +196,127 @@ export abstract class BaseDashboardService {
     }
   }
 
+  async getDashboardTablePage(
+    user: any,
+    tableId: string,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc?: boolean,
+  ) {
+    const ctx = await this.buildDashboardQueryContext(user, startDate, endDate, selectedFunctionIds);
+    const table = ctx.config.tables.find((item) => item.id === tableId);
+    if (!table) {
+      throw new Error(`Table ${tableId} not found`);
+    }
+
+    try {
+      let query = this.applyDateFilterPlaceholders(table.query, ctx.dateFilters);
+      const hasExplicitFunctionTokens =
+        /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(table.query);
+      if (hasExplicitFunctionTokens) {
+        query = this.applyFunctionFilterPlaceholders(
+          query,
+          ctx.functionFilter,
+          ctx.functionFilterControlDesignTest,
+          ctx.functionFilterCdt,
+          ctx.functionJoinFilter,
+        ).replace(/\s{2,}/g, ' ').trim();
+      } else if (ctx.applyControlsFunctionFallback) {
+        query = this.injectControlsFunctionFilterIntoQuery(query, ctx.functionFilter);
+      }
+
+      const result = await this.databaseService.query(query);
+      const rows = result.map((row: any) => {
+        const processedRow: any = {};
+        for (const column of table.columns) {
+          let value = row[column.key];
+          if (column.render) value = column.render(value);
+          else value = this.formatValue(value, column.type);
+          processedRow[column.key] = value;
+        }
+        return processedRow;
+      });
+
+      const paginated = this.paginateRows(rows, page, limit);
+      return orderByFunctionAsc ? sortPaginatedResponseIfNeeded(paginated, true) : paginated;
+    } catch (error) {
+      console.error(`Error fetching table page ${tableId}:`, error);
+      throw error;
+    }
+  }
+
+  async getDashboardWidget(
+    user: any,
+    kind: DashboardWidgetKind,
+    widgetId: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc?: boolean,
+    page = 1,
+    limit = 10,
+  ) {
+    const ctx = await this.buildDashboardQueryContext(user, startDate, endDate, selectedFunctionIds);
+
+    if (kind === 'metric') {
+      const metric = ctx.config.metrics.find((item) => item.id === widgetId);
+      if (!metric) throw new Error(`Metric ${widgetId} not found`);
+      const metricResult = await this.getMetricDataItem(
+        metric,
+        ctx.dateFilters,
+        ctx.functionFilter,
+        ctx.functionFilterControlDesignTest,
+        ctx.functionFilterCdt,
+        ctx.functionJoinFilter,
+        ctx.applyControlsFunctionFallback,
+      );
+      const payload = {
+        id: metricResult.id,
+        value: metricResult.total,
+        change: metricResult.change,
+      };
+      return orderByFunctionAsc ? applyOrderByFunctionDeep(payload) : payload;
+    }
+
+    if (kind === 'chart') {
+      const chart = ctx.config.charts.find((item) => item.id === widgetId);
+      if (!chart) throw new Error(`Chart ${widgetId} not found`);
+      const chartResult = await this.getChartDataItem(
+        chart,
+        ctx.dateFilters,
+        ctx.functionFilter,
+        ctx.functionFilterControlDesignTest,
+        ctx.functionFilterCdt,
+        ctx.functionJoinFilter,
+        ctx.applyControlsFunctionFallback,
+      );
+      const payload = {
+        id: chartResult.id,
+        data: chartResult.data,
+      };
+      return orderByFunctionAsc ? applyOrderByFunctionDeep(payload) : payload;
+    }
+
+    const tablePayload = await this.getDashboardTablePage(
+      user,
+      widgetId,
+      page,
+      limit,
+      startDate,
+      endDate,
+      selectedFunctionIds,
+      orderByFunctionAsc,
+    );
+
+    return {
+      id: widgetId,
+      ...tablePayload,
+    };
+  }
+
   private async buildDashboardQueryContext(
     user: any,
     startDate?: string,
@@ -288,53 +410,16 @@ export abstract class BaseDashboardService {
   ) {
     const results: any = {};
 
-    const runOneMetric = async (metric: MetricConfig): Promise<{ id: string; total: number; change?: string }> => {
-      try {
-        let query = this.applyDateFilterPlaceholders(metric.query, dateFilters);
-        const hasExplicitFunctionTokens =
-          /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.query);
-        if (hasExplicitFunctionTokens) {
-          query = this.applyFunctionFilterPlaceholders(
-            query,
-            functionFilter,
-            functionFilterControlDesignTest,
-            functionFilterCdt,
-            functionJoinFilter,
-          ).replace(/\s{2,}/g, ' ').trim();
-        } else if (applyControlsFunctionFallback) {
-          query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
-        }
-        const result = await this.databaseService.query(query);
-        const total = result[0]?.total ?? result[0]?.count ?? 0;
-
-        if (!metric.changeQuery) return { id: metric.id, total };
-
-        let changeQuery = this.applyDateFilterPlaceholders(metric.changeQuery, dateFilters);
-        const hasExplicitChange =
-          /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.changeQuery);
-        if (hasExplicitChange) {
-          changeQuery = this.applyFunctionFilterPlaceholders(
-            changeQuery,
-            functionFilter,
-            functionFilterControlDesignTest,
-            functionFilterCdt,
-            functionJoinFilter,
-          ).replace(/\s{2,}/g, ' ').trim();
-        } else if (applyControlsFunctionFallback) {
-          changeQuery = this.injectControlsFunctionFilterIntoQuery(changeQuery, functionFilter);
-        }
-        const changeResult = await this.databaseService.query(changeQuery);
-        const previous = changeResult[0]?.total ?? changeResult[0]?.count ?? 0;
-        const change = this.calculateChange(total, previous);
-        return { id: metric.id, total, change };
-      } catch (error) {
-        console.error(`Error fetching metric ${metric.id}:`, error);
-        return { id: metric.id, total: 0, change: '+0%' };
-      }
-    };
-
     const metricResults = await this.runInBatches(
-      metrics.map((metric) => () => runOneMetric(metric)),
+      metrics.map((metric) => () => this.getMetricDataItem(
+        metric,
+        dateFilters,
+        functionFilter,
+        functionFilterControlDesignTest,
+        functionFilterCdt,
+        functionJoinFilter,
+        applyControlsFunctionFallback,
+      )),
     );
 
     for (const { id, total, change } of metricResults) {
@@ -355,37 +440,16 @@ export abstract class BaseDashboardService {
   ) {
     const results: any = {};
 
-    const runOneChart = async (chart: ChartConfig): Promise<{ id: string; data: any[] }> => {
-      try {
-        let query = this.applyDateFilterPlaceholders(chart.query, dateFilters);
-        const hasExplicitFunctionTokens =
-          /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(chart.query);
-        if (hasExplicitFunctionTokens) {
-          query = this.applyFunctionFilterPlaceholders(
-            query,
-            functionFilter,
-            functionFilterControlDesignTest,
-            functionFilterCdt,
-            functionJoinFilter,
-          ).replace(/\s{2,}/g, ' ').trim();
-        } else if (applyControlsFunctionFallback) {
-          query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
-        }
-        const result = await this.databaseService.query(query);
-        const data = result.map((row: any) => ({
-          name: row[chart.xField],
-          value: row[chart.yField],
-          label: chart.labelField ? row[chart.labelField] : row[chart.xField]
-        }));
-        return { id: chart.id, data };
-      } catch (error) {
-        console.error(`Error fetching chart ${chart.id}:`, error);
-        return { id: chart.id, data: [] };
-      }
-    };
-
     const chartResults = await this.runInBatches(
-      charts.map((chart) => () => runOneChart(chart)),
+      charts.map((chart) => () => this.getChartDataItem(
+        chart,
+        dateFilters,
+        functionFilter,
+        functionFilterControlDesignTest,
+        functionFilterCdt,
+        functionJoinFilter,
+        applyControlsFunctionFallback,
+      )),
     );
 
     for (const { id, data } of chartResults) {
@@ -404,53 +468,156 @@ export abstract class BaseDashboardService {
     applyControlsFunctionFallback: boolean,
   ) {
     const results: any = {};
-    const tableLimit = this.getDefaultLimit();
 
-    const runOneTable = async (table: TableConfig): Promise<{ id: string; data: any[] }> => {
-      try {
-        let query = this.applyDateFilterPlaceholders(table.query, dateFilters);
-        const hasExplicitFunctionTokens =
-          /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(table.query);
-        if (hasExplicitFunctionTokens) {
-          query = this.applyFunctionFilterPlaceholders(
-            query,
-            functionFilter,
-            functionFilterControlDesignTest,
-            functionFilterCdt,
-            functionJoinFilter,
-          ).replace(/\s{2,}/g, ' ').trim();
-        } else if (applyControlsFunctionFallback) {
-          query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
-        }
-        if (table.pagination) {
-          query = this.applyDashboardPreviewLimit(query, tableLimit);
-        }
-        const result = await this.databaseService.query(query);
-        const limitedResult = result.slice(0, tableLimit);
-        const data = limitedResult.map((row: any) => {
-          const processedRow: any = {};
-          for (const column of table.columns) {
-            let value = row[column.key];
-            if (column.render) value = column.render(value);
-            else value = this.formatValue(value, column.type);
-            processedRow[column.key] = value;
-          }
-          return processedRow;
-        });
-        return { id: table.id, data };
-      } catch (error) {
-        console.error(`Error fetching table ${table.id}:`, error);
-        return { id: table.id, data: [] };
-      }
-    };
+    const tableResults = await this.runInBatches(
+      tables.map((table) => () => this.getTableDataItem(
+        table,
+        dateFilters,
+        functionFilter,
+        functionFilterControlDesignTest,
+        functionFilterCdt,
+        functionJoinFilter,
+        applyControlsFunctionFallback,
+      )),
+      2,
+    );
 
-    // Table queries are usually the heaviest part of a dashboard. Run them one-by-one
-    // to avoid overwhelming SQL Server with a burst of parallel reads.
-    for (const table of tables) {
-      const { id, data } = await runOneTable(table);
+    for (const { id, data } of tableResults) {
       results[id] = data;
     }
     return results;
+  }
+
+  private async getMetricDataItem(
+    metric: MetricConfig,
+    dateFilters: DashboardDateFilters,
+    functionFilter: string,
+    functionFilterControlDesignTest: string,
+    functionFilterCdt: string,
+    functionJoinFilter: string,
+    applyControlsFunctionFallback: boolean,
+  ): Promise<{ id: string; total: number; change?: string }> {
+    try {
+      let query = this.applyDateFilterPlaceholders(metric.query, dateFilters);
+      const hasExplicitFunctionTokens =
+        /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.query);
+      if (hasExplicitFunctionTokens) {
+        query = this.applyFunctionFilterPlaceholders(
+          query,
+          functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
+        ).replace(/\s{2,}/g, ' ').trim();
+      } else if (applyControlsFunctionFallback) {
+        query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
+      }
+      const result = await this.databaseService.query(query);
+      const total = result[0]?.total ?? result[0]?.count ?? 0;
+
+      if (!metric.changeQuery) return { id: metric.id, total };
+
+      let changeQuery = this.applyDateFilterPlaceholders(metric.changeQuery, dateFilters);
+      const hasExplicitChange =
+        /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(metric.changeQuery);
+      if (hasExplicitChange) {
+        changeQuery = this.applyFunctionFilterPlaceholders(
+          changeQuery,
+          functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
+        ).replace(/\s{2,}/g, ' ').trim();
+      } else if (applyControlsFunctionFallback) {
+        changeQuery = this.injectControlsFunctionFilterIntoQuery(changeQuery, functionFilter);
+      }
+      const changeResult = await this.databaseService.query(changeQuery);
+      const previous = changeResult[0]?.total ?? changeResult[0]?.count ?? 0;
+      const change = this.calculateChange(total, previous);
+      return { id: metric.id, total, change };
+    } catch (error) {
+      console.error(`Error fetching metric ${metric.id}:`, error);
+      return { id: metric.id, total: 0, change: '+0%' };
+    }
+  }
+
+  private async getChartDataItem(
+    chart: ChartConfig,
+    dateFilters: DashboardDateFilters,
+    functionFilter: string,
+    functionFilterControlDesignTest: string,
+    functionFilterCdt: string,
+    functionJoinFilter: string,
+    applyControlsFunctionFallback: boolean,
+  ): Promise<{ id: string; data: any[] }> {
+    try {
+      let query = this.applyDateFilterPlaceholders(chart.query, dateFilters);
+      const hasExplicitFunctionTokens =
+        /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(chart.query);
+      if (hasExplicitFunctionTokens) {
+        query = this.applyFunctionFilterPlaceholders(
+          query,
+          functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
+        ).replace(/\s{2,}/g, ' ').trim();
+      } else if (applyControlsFunctionFallback) {
+        query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
+      }
+      const result = await this.databaseService.query(query);
+      const data = result.map((row: any) => ({
+        name: row[chart.xField],
+        value: row[chart.yField],
+        label: chart.labelField ? row[chart.labelField] : row[chart.xField]
+      }));
+      return { id: chart.id, data };
+    } catch (error) {
+      console.error(`Error fetching chart ${chart.id}:`, error);
+      return { id: chart.id, data: [] };
+    }
+  }
+
+  private async getTableDataItem(
+    table: TableConfig,
+    dateFilters: DashboardDateFilters,
+    functionFilter: string,
+    functionFilterControlDesignTest: string,
+    functionFilterCdt: string,
+    functionJoinFilter: string,
+    applyControlsFunctionFallback: boolean,
+  ): Promise<{ id: string; data: any[] }> {
+    try {
+      let query = this.applyDateFilterPlaceholders(table.query, dateFilters);
+      const hasExplicitFunctionTokens =
+        /\{functionJoinFilter\}|\{functionFilter(ControlDesignTest|Cdt)?\}/.test(table.query);
+      if (hasExplicitFunctionTokens) {
+        query = this.applyFunctionFilterPlaceholders(
+          query,
+          functionFilter,
+          functionFilterControlDesignTest,
+          functionFilterCdt,
+          functionJoinFilter,
+        ).replace(/\s{2,}/g, ' ').trim();
+      } else if (applyControlsFunctionFallback) {
+        query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
+      }
+      const result = await this.databaseService.query(query);
+      const data = result.map((row: any) => {
+        const processedRow: any = {};
+        for (const column of table.columns) {
+          let value = row[column.key];
+          if (column.render) value = column.render(value);
+          else value = this.formatValue(value, column.type);
+          processedRow[column.key] = value;
+        }
+        return processedRow;
+      });
+      return { id: table.id, data };
+    } catch (error) {
+      console.error(`Error fetching table ${table.id}:`, error);
+      return { id: table.id, data: [] };
+    }
   }
 
   /** Only treat as date if it looks like YYYY-MM-DD (avoids "Conversion failed when converting date" from invalid strings). */
@@ -554,6 +721,27 @@ export abstract class BaseDashboardService {
       default:
         return value || 'N/A';
     }
+  }
+
+  protected paginateRows<T>(rows: T[], page = 1, limit = 10) {
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.max(1, Number(limit) || 10);
+    const total = Array.isArray(rows) ? rows.length : 0;
+    const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+    const start = (safePage - 1) * safeLimit;
+    const data = Array.isArray(rows) ? rows.slice(start, start + safeLimit) : [];
+
+    return {
+      data,
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages,
+        hasNext: safePage < totalPages,
+        hasPrev: safePage > 1,
+      },
+    };
   }
 
   // Card-specific data methods for modals

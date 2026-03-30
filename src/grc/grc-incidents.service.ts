@@ -60,6 +60,25 @@ export class GrcIncidentsService {
     return Array.isArray(rows) ? rows.slice(0, DASHBOARD_PREVIEW_LIMIT) : [];
   }
 
+  private paginateRows<T>(rows: T[], page = 1, limit = 10) {
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.max(1, Number(limit) || 10);
+    const total = Array.isArray(rows) ? rows.length : 0;
+    const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+    const start = (safePage - 1) * safeLimit;
+    return {
+      data: Array.isArray(rows) ? rows.slice(start, start + safeLimit) : [],
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages,
+        hasNext: safePage < totalPages,
+        hasPrev: safePage > 1,
+      },
+    };
+  }
+
   private async runDashboardQuery<T>(label: string, query: string, fallback: T): Promise<T> {
     try {
       return await this.databaseService.query(query) as T;
@@ -1039,9 +1058,9 @@ export class GrcIncidentsService {
             recovery_amount: item.recovery_amount || 0,
             function_name: item.function_name || 'Unknown',
           })),
-          statusOverview: this.previewRows(statusOverview),
-          overallStatuses: this.previewRows(statusOverview),
-          incidentsFinancialDetails: this.previewRows(incidentsFinancialDetails.map(item => ({
+          statusOverview,
+          overallStatuses: statusOverview,
+          incidentsFinancialDetails: incidentsFinancialDetails.map(item => ({
             title: item.title || 'Unknown',
             rootCause: item.rootCause || '',
             function_name: item.function_name || 'Unknown',
@@ -1050,29 +1069,29 @@ export class GrcIncidentsService {
             recoveryAmount: item.recoveryAmount || 0,
             grossAmount: item.grossAmount || 0,
             status: item.status || 'Unknown',
-          }))),
-          incidentsWithTimeframe: this.previewRows(incidentsWithTimeframe.map(item => ({
+          })),
+          incidentsWithTimeframe: incidentsWithTimeframe.map(item => ({
             incident_name: item.incident_name || 'Unknown',
             time_frame: item.time_frame || '',
             function_name: item.function_name || 'Unknown',
-          }))),
-          incidentsWithFinancialAndFunction: this.previewRows(incidentsWithFinancialAndFunction.map(item => ({
+          })),
+          incidentsWithFinancialAndFunction: incidentsWithFinancialAndFunction.map(item => ({
             title: item.title || 'Unknown',
             financial_impact_name: item.financial_impact_name || 'Unknown',
             function_name: item.function_name || 'Unknown',
-          }))),
-          lossByRiskCategory: this.previewRows(lossByRiskCategory.map(item => ({
+          })),
+          lossByRiskCategory: lossByRiskCategory.map(item => ({
             riskCategory: item.RiskCategory || 'Unknown',
             incidentCount: item.IncidentCount || 0,
             totalLoss: item.TotalLoss || 0,
             averageLoss: item.AverageLoss || 0,
-          }))),
-          comprehensiveOperationalLoss: this.previewRows(comprehensiveOperationalLoss.map(item => ({
+          })),
+          comprehensiveOperationalLoss: comprehensiveOperationalLoss.map(item => ({
             metric: item.Metric || 'Unknown',
             count: item.Count || 0,
             totalValue: item.TotalValue || 0,
-          }))),
-          incidentActionPlan: this.previewRows(incidentActionPlan.map((row: any) => ({
+          })),
+          incidentActionPlan: incidentActionPlan.map((row: any) => ({
             code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
             incident_name: row.incident_title || 'N/A',
             incident_department: row.incident_function_name || 'N/A',
@@ -1082,8 +1101,8 @@ export class GrcIncidentsService {
             action_owner: row.action_owner_name || '',
             status: row.business_unit_status || '',
             expected_implementation_date: row.expected_implementation_date || null,
-          }))),
-          overdueIncidents: this.previewRows((overdueIncidentsRows || []).map((row: any) => ({
+          })),
+          overdueIncidents: (overdueIncidentsRows || []).map((row: any) => ({
             code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
             incident_name: row.incident_title || 'N/A',
             incident_department: row.incident_function_name || 'N/A',
@@ -1093,7 +1112,7 @@ export class GrcIncidentsService {
             action_owner: row.action_owner_name || '',
             status: row.business_unit_status || '',
             expected_implementation_date: row.expected_implementation_date || null,
-          }))),
+          })),
         };
       }
 
@@ -1145,9 +1164,9 @@ export class GrcIncidentsService {
           month_year: item.month_year,
           incident_count: item.incident_count
         })),
-        statusOverview: this.previewRows(statusOverview),
-        overallStatuses: this.previewRows(statusOverview),
-        incidentsFinancialDetails: this.previewRows(incidentsFinancialDetails.map(item => ({
+        statusOverview,
+        overallStatuses: statusOverview,
+        incidentsFinancialDetails: incidentsFinancialDetails.map(item => ({
           title: item.title || 'Unknown',
           rootCause: item.rootCause || '',
           function_name: item.function_name || 'Unknown',
@@ -1156,7 +1175,7 @@ export class GrcIncidentsService {
           recoveryAmount: item.recoveryAmount || 0,
           grossAmount: item.grossAmount || 0,
           status: item.status || 'Unknown'
-        }))),
+        })),
         incidentsTimeSeries: incidentsTimeSeries.map(item => ({
           month: item.month ? new Date(item.month).toISOString().split('T')[0] : null,
           total_incidents: item.total_incidents || 0
@@ -1165,16 +1184,16 @@ export class GrcIncidentsService {
           month: item.month ? new Date(item.month).toISOString().split('T')[0] : null,
           new_incidents: item.new_incidents || 0
         })),
-        incidentsWithTimeframe: this.previewRows(incidentsWithTimeframe.map(item => ({
+        incidentsWithTimeframe: incidentsWithTimeframe.map(item => ({
           incident_name: item.incident_name || 'Unknown',
           time_frame: item.time_frame || '',
           function_name: item.function_name || 'Unknown'
-        }))),
-        incidentsWithFinancialAndFunction: this.previewRows(incidentsWithFinancialAndFunction.map(item => ({
+        })),
+        incidentsWithFinancialAndFunction: incidentsWithFinancialAndFunction.map(item => ({
           title: item.title || 'Unknown',
           financial_impact_name: item.financial_impact_name || 'Unknown',
           function_name: item.function_name || 'Unknown'
-        }))),
+        })),
         // Operational Loss Metrics
         operationalLossValue: operationalLossValue.map(item => ({
           year: item.Year || 0,
@@ -1201,20 +1220,20 @@ export class GrcIncidentsService {
           atmIssues: item.ATMIssues || 0,
           systemErrors: item.SystemErrors || 0
         })),
-        lossByRiskCategory: this.previewRows(lossByRiskCategory.map(item => ({
+        lossByRiskCategory: lossByRiskCategory.map(item => ({
           riskCategory: item.RiskCategory || 'Unknown',
           incidentCount: item.IncidentCount || 0,
           totalLoss: item.TotalLoss || 0,
           averageLoss: item.AverageLoss || 0
-        }))),
+        })),
         // Comprehensive Operational Loss Dashboard
-        comprehensiveOperationalLoss: this.previewRows(comprehensiveOperationalLoss.map(item => ({
+        comprehensiveOperationalLoss: comprehensiveOperationalLoss.map(item => ({
           metric: item.Metric || 'Unknown',
           count: item.Count || 0,
           totalValue: item.TotalValue || 0
-        }))),
+        })),
         // Incident Action Plans (tabular view)
-        incidentActionPlan: this.previewRows(incidentActionPlan.map((row: any) => ({
+        incidentActionPlan: incidentActionPlan.map((row: any) => ({
           code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
@@ -1224,13 +1243,13 @@ export class GrcIncidentsService {
           action_owner: row.action_owner_name || '',
           status: row.business_unit_status || '',
           expected_implementation_date: row.expected_implementation_date || null
-        }))),
+        })),
         // Incident Action Plans by Status (business_unit) for pie chart
         incidentActionPlanByStatus: (incidentActionPlanByStatus || []).map((row: any) => ({
           status_name: row.status_name || 'N/A',
           count: row.count || 0
         })),
-        overdueIncidents: this.previewRows((overdueIncidentsRows || []).map((row: any) => ({
+        overdueIncidents: (overdueIncidentsRows || []).map((row: any) => ({
           code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
@@ -1240,12 +1259,50 @@ export class GrcIncidentsService {
           action_owner: row.action_owner_name || '',
           status: row.business_unit_status || '',
           expected_implementation_date: row.expected_implementation_date || null,
-        })))
+        }))
       };
     } catch (error) {
       console.error('Error fetching incidents dashboard data:', error);
       throw error;
     }
+  }
+
+  async getIncidentsDashboardTablePage(
+    user: any,
+    tableId: string,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+  ) {
+    const tablesPayload = await this.getIncidentsDashboard(
+      user,
+      timeframe,
+      startDate,
+      endDate,
+      selectedFunctionIds,
+      'tables',
+    ) as Record<string, any[]>;
+
+    const tableRows = {
+      overallStatuses: tablesPayload.overallStatuses || [],
+      incidentsFinancialDetails: tablesPayload.incidentsFinancialDetails || [],
+      incidentsWithTimeframe: tablesPayload.incidentsWithTimeframe || [],
+      incidentsWithFinancialAndFunction: tablesPayload.incidentsWithFinancialAndFunction || [],
+      lossByRiskCategory: tablesPayload.lossByRiskCategory || [],
+      comprehensiveOperationalLoss: tablesPayload.comprehensiveOperationalLoss || [],
+      netLossAndRecovery: tablesPayload.netLossAndRecovery || [],
+      incidentActionPlan: tablesPayload.incidentActionPlan || [],
+      overdueIncidents: tablesPayload.overdueIncidents || [],
+    }[tableId];
+
+    if (!tableRows) {
+      throw new Error(`Table ${tableId} not found`);
+    }
+
+    return this.paginateRows(tableRows, page, limit);
   }
 
   async exportIncidents(user: any, format: string, timeframe?: string) {

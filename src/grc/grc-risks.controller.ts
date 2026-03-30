@@ -37,6 +37,94 @@ export class GrcRisksController {
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
+  @Get('table')
+  async getRisksDashboardTable(
+    @Req() req: any,
+    @Query('tableId') tableId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+  ) {
+    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+    const ob = orderByFunctionFromRequest(req);
+    const raw = await this.grcRisksService.getRisksDashboardTablePage(
+      req.user,
+      tableId,
+      Number(page) || 1,
+      Number(limit) || 10,
+      norm(startDate) || undefined,
+      norm(endDate) || undefined,
+      parseGrcFunctionIdsFromQueries(functionId, functionIds),
+    );
+    return sortPaginatedResponseIfNeeded(raw, ob);
+  }
+
+  @Get('widget')
+  async getRisksDashboardWidget(
+    @Req() req: any,
+    @Query('kind') kind: 'metric' | 'chart' | 'table',
+    @Query('widgetId') widgetId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+  ) {
+    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+    const selectedFunctionIds = parseGrcFunctionIdsFromQueries(functionId, functionIds);
+    const start = norm(startDate) || undefined;
+    const end = norm(endDate) || undefined;
+
+    if (kind === 'table') {
+      return this.grcRisksService.getRisksDashboardTablePage(
+        req.user,
+        widgetId,
+        Number(page) || 1,
+        Number(limit) || 10,
+        start,
+        end,
+        selectedFunctionIds,
+      );
+    }
+
+    const section = kind === 'metric' ? 'cards' : 'charts';
+    const payload: any = await this.grcRisksService.getRisksDashboard(
+      req.user,
+      start,
+      end,
+      selectedFunctionIds,
+      section,
+    );
+
+    if (kind === 'metric') {
+      const levels = Array.isArray(payload?.riskLevels) ? payload.riskLevels : [];
+      const findLevel = (level: string) => Number(levels.find((item: any) => item?.level === level)?.count || 0);
+      const metricPayload: Record<string, any> = {
+        total: { totalRisks: Number(payload?.totalRisks || 0) },
+        high: { riskLevels: [{ level: 'High', count: findLevel('High') }] },
+        medium: { riskLevels: [{ level: 'Medium', count: findLevel('Medium') }] },
+        low: { riskLevels: [{ level: 'Low', count: findLevel('Low') }] },
+        reduction: { riskReductionCount: Number(payload?.riskReductionCount || 0) },
+        newRisks: { newRisks: Array.isArray(payload?.newRisks) ? payload.newRisks : [] },
+      };
+      return metricPayload[widgetId] ?? {};
+    }
+
+    const chartPayload: Record<string, any> = {
+      risksByCategory: { risksByCategory: payload?.risksByCategory || [] },
+      risksByEventType: { risksByEventType: payload?.risksByEventType || [] },
+      createdDeletedRisksPerQuarter: { createdDeletedRisksPerQuarter: payload?.createdDeletedRisksPerQuarter || [] },
+      quarterlyRiskCreationTrends: { quarterlyRiskCreationTrends: payload?.quarterlyRiskCreationTrends || [] },
+      riskApprovalStatusDistribution: { riskApprovalStatusDistribution: payload?.riskApprovalStatusDistribution || [] },
+      riskDistributionByFinancialImpact: { riskDistributionByFinancialImpact: payload?.riskDistributionByFinancialImpact || [] },
+    };
+    return chartPayload[widgetId] ?? {};
+  }
+
   @Get('total')
   async getTotalRisks(
     @Req() req: any,

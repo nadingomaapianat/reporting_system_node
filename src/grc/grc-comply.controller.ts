@@ -55,6 +55,85 @@ export class GrcComplyController {
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
+  @Get('table')
+  async getDashboardTable(
+    @Req() req: any,
+    @Query('tableId') tableId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+  ) {
+    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+    const start = norm(startDate);
+    const end = norm(endDate);
+    const id = norm(functionId);
+    const ob = orderByFunctionFromRequest(req);
+    const raw = await this.grcComplyService.getDashboardTablePage(
+      tableId,
+      Number(page) || 1,
+      Number(limit) || 10,
+      start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
+      end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
+      id,
+    );
+    return sortPaginatedResponseIfNeeded(raw, ob);
+  }
+
+  @Get('widget')
+  async getDashboardWidget(
+    @Req() req: any,
+    @Query('kind') kind: 'metric' | 'chart' | 'table',
+    @Query('widgetId') widgetId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+  ) {
+    const norm = (s?: string) => (typeof s === 'string' ? s.replace(/\+/g, ' ').trim().replace(/\s+/g, ' ') : undefined) || undefined;
+    const start = norm(startDate);
+    const end = norm(endDate);
+    const id = norm(functionId);
+
+    if (kind === 'table') {
+      return this.grcComplyService.getDashboardTablePage(
+        widgetId,
+        Number(page) || 1,
+        Number(limit) || 10,
+        start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
+        end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
+        id,
+      );
+    }
+
+    const section = kind === 'metric' ? 'cards' : 'charts';
+    const payload = await this.grcComplyService.runDashboardSection(
+      section,
+      start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
+      end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
+      id,
+    ) as Record<string, any>;
+
+    const widgetPayload: Record<string, any> = {
+      totalSurveys: { 'Surveys by Status': payload['Surveys by Status'] || [] },
+      totalCompliance: { 'Compliance Details': payload['Compliance Details'] || [] },
+      avgCompletionRate: { 'Survey Completion Rate': payload['Survey Completion Rate'] || [] },
+      complianceWithoutEvidence: { 'Compliance controls without evidence': payload['Compliance controls without evidence'] || [] },
+      surveysByStatus: { 'Surveys by Status': payload['Surveys by Status'] || [] },
+      complianceByStatus: { 'Compliance per complianceStatus': payload['Compliance per complianceStatus'] || [] },
+      complianceByProgress: { 'Compliance per progressStatus': payload['Compliance per progressStatus'] || [] },
+      avgScorePerSurvey: { 'Average Score Per Survey': payload['Average Score Per Survey'] || [] },
+      complianceByControlCategory: { 'Compliance by Control Category': payload['Compliance by Control Category'] || [] },
+      topFailedControls: { 'Top Failed Controls': payload['Top Failed Controls'] || [] },
+      controlsPerCategory: { 'Controls no. per category': payload['Controls no. per category'] || [] },
+      risksPerCategory: { 'Risks no. per category': payload['Risks no. per category'] || [] },
+      impactedAreasTrend: { 'Impacted Areas Trend Over Time': payload['Impacted Areas Trend Over Time'] || [] },
+    };
+    return widgetPayload[widgetId] ?? {};
+  }
+
   /**
    * Fetch all 26 reports in one call.
    *
