@@ -60,6 +60,24 @@ export class GrcIncidentsService {
     return Array.isArray(rows) ? rows.slice(0, DASHBOARD_PREVIEW_LIMIT) : [];
   }
 
+  private async runDashboardQuery<T>(label: string, query: string, fallback: T): Promise<T> {
+    try {
+      return await this.databaseService.query(query) as T;
+    } catch (error) {
+      console.error(`${label} query failed:`, error);
+      return fallback;
+    }
+  }
+
+  private async runQueryBatches<T>(tasks: Array<() => Promise<T>>, batchSize = 4): Promise<T[]> {
+    const results: T[] = [];
+    for (let index = 0; index < tasks.length; index += batchSize) {
+      const batch = tasks.slice(index, index + batchSize);
+      results.push(...await Promise.all(batch.map((task) => task())));
+    }
+    return results;
+  }
+
   async getIncidentsDashboard(user: any, timeframe?: string, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     try {
       // console.log('[getIncidentsDashboard] Received parameters:', { timeframe, startDate, endDate, functionId, userId: user.id, groupName: user.groupName });
@@ -81,8 +99,7 @@ export class GrcIncidentsService {
         FROM Incidents i
         WHERE i.isDeleted = 0 ${dateFilter} ${functionFilter}
       `;
-      const totalIncidentsResult = await this.databaseService.query(totalIncidentsQuery);
-      const totalIncidents = totalIncidentsResult[0]?.total || 0;
+      const totalIncidentsTask = () => this.runDashboardQuery<any[]>('Total incidents', totalIncidentsQuery, []);
 
       // Get incidents status counts using standardized pending rules
       const incidentsStatusCountsQuery = `
@@ -95,7 +112,7 @@ export class GrcIncidentsService {
         FROM Incidents i
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
       `;
-      const [statusCountsRow] = await this.databaseService.query(incidentsStatusCountsQuery);
+      const statusCountsTask = () => this.runDashboardQuery<any[]>('Incident status counts', incidentsStatusCountsQuery, []);
 
       // Get incidents by status distribution (for pie charts - same format as Python)
       const incidentsByStatusDistributionQuery = `
@@ -135,7 +152,7 @@ export class GrcIncidentsService {
         LEFT JOIN StatusCounts s ON a.status_name = s.status_name
         ORDER BY s.count DESC, a.status_name
       `;
-      const incidentsByStatusDistribution = await this.databaseService.query(incidentsByStatusDistributionQuery);
+      const incidentsByStatusDistributionTask = () => this.runDashboardQuery<any[]>('Incidents by status distribution', incidentsByStatusDistributionQuery, []);
 
       // Get incidents by category
       const incidentsByCategoryQuery = `
@@ -153,7 +170,7 @@ export class GrcIncidentsService {
         GROUP BY ISNULL(c.name, 'Unknown')
         ORDER BY COUNT(i.id) DESC
       `;
-      const incidentsByCategory = await this.databaseService.query(incidentsByCategoryQuery);
+      const incidentsByCategoryTask = () => this.runDashboardQuery<any[]>('Incidents by category', incidentsByCategoryQuery, []);
 
       // Get top financial impacts grouped by category with total net loss
       const topFinancialImpactsQuery = `
@@ -173,7 +190,7 @@ export class GrcIncidentsService {
         GROUP BY fi.name
         ORDER BY net_loss DESC
       `;
-      const topFinancialImpacts = await this.databaseService.query(topFinancialImpactsQuery);
+      const topFinancialImpactsTask = () => this.runDashboardQuery<any[]>('Top financial impacts', topFinancialImpactsQuery, []);
 
       // Get net loss and recovery data
       const netLossAndRecoveryQuery = `
@@ -193,7 +210,7 @@ export class GrcIncidentsService {
           AND (i.net_loss IS NOT NULL OR i.recovery_amount IS NOT NULL)
         ORDER BY i.net_loss DESC
       `;
-      const netLossAndRecovery = await this.databaseService.query(netLossAndRecoveryQuery);
+      const netLossAndRecoveryTask = () => this.runDashboardQuery<any[]>('Net loss and recovery', netLossAndRecoveryQuery, []);
 
       // Get monthly trend
       const monthlyTrendQuery = `
@@ -209,7 +226,7 @@ export class GrcIncidentsService {
         GROUP BY FORMAT(i.createdAt, 'MMM yyyy')
         ORDER BY MIN(i.createdAt)
       `;
-      const monthlyTrend = await this.databaseService.query(monthlyTrendQuery);
+      const monthlyTrendTask = () => this.runDashboardQuery<any[]>('Incident monthly trend', monthlyTrendQuery, []);
 
       // Get incidents by status
       const incidentsByStatusQuery = `
@@ -225,7 +242,7 @@ export class GrcIncidentsService {
         ORDER BY 
           i.status ASC
       `;
-      const incidentsByStatus = await this.databaseService.query(incidentsByStatusQuery);
+      const incidentsByStatusTask = () => this.runDashboardQuery<any[]>('Incidents by status table', incidentsByStatusQuery, []);
 
       // Calculate status counts
       const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
@@ -258,7 +275,7 @@ export class GrcIncidentsService {
           ${functionFilter}
         ORDER BY i.createdAt DESC
       `;
-      const statusOverview = await this.databaseService.query(listQuery);
+      const statusOverviewTask = () => this.runDashboardQuery<any[]>('Incident status overview', listQuery, []);
 
       // Get incidents financial details
       const incidentsFinancialDetailsQuery = `
@@ -288,7 +305,7 @@ export class GrcIncidentsService {
           ${dateFilter}
           ${functionFilter}
       `;
-      const incidentsFinancialDetails = await this.databaseService.query(incidentsFinancialDetailsQuery);
+      const incidentsFinancialDetailsTask = () => this.runDashboardQuery<any[]>('Incident financial details', incidentsFinancialDetailsQuery, []);
 
       // Get incidents by event type
       const incidentsByEventTypeQuery = `
@@ -309,7 +326,7 @@ export class GrcIncidentsService {
         ORDER BY 
           COUNT(i.id) DESC
       `;
-      const incidentsByEventType = await this.databaseService.query(incidentsByEventTypeQuery);
+      const incidentsByEventTypeTask = () => this.runDashboardQuery<any[]>('Incidents by event type', incidentsByEventTypeQuery, []);
 
       // Get incidents by financial impact
       const incidentsByFinancialImpactQuery = `
@@ -330,7 +347,7 @@ export class GrcIncidentsService {
         ORDER BY 
           COUNT(i.id) DESC
       `;
-      const incidentsByFinancialImpact = await this.databaseService.query(incidentsByFinancialImpactQuery);
+      const incidentsByFinancialImpactTask = () => this.runDashboardQuery<any[]>('Incidents by financial impact', incidentsByFinancialImpactQuery, []);
 
       // Get incidents time series by month
       const incidentsTimeSeriesQuery = `
@@ -365,7 +382,7 @@ export class GrcIncidentsService {
           m.month_date 
         OPTION (MAXRECURSION 0)
       `;
-      const incidentsTimeSeries = await this.databaseService.query(incidentsTimeSeriesQuery);
+      const incidentsTimeSeriesTask = () => this.runDashboardQuery<any[]>('Incidents time series', incidentsTimeSeriesQuery, []);
 
       // Get new incidents by month
       const newIncidentsByMonthQuery = `
@@ -394,7 +411,7 @@ export class GrcIncidentsService {
         ORDER BY 
           month ASC
       `;
-      const newIncidentsByMonth = await this.databaseService.query(newIncidentsByMonthQuery);
+      const newIncidentsByMonthTask = () => this.runDashboardQuery<any[]>('New incidents by month', newIncidentsByMonthQuery, []);
 
       // Get incidents with timeframe
       const incidentsWithTimeframeQuery = `
@@ -411,7 +428,7 @@ export class GrcIncidentsService {
           AND i.deletedAt IS NULL
         ORDER BY i.timeFrame DESC
       `;
-      const incidentsWithTimeframe = await this.databaseService.query(incidentsWithTimeframeQuery);
+      const incidentsWithTimeframeTask = () => this.runDashboardQuery<any[]>('Incidents with timeframe', incidentsWithTimeframeQuery, []);
 
       // Get incidents with financial impact and function details
       const incidentsWithFinancialAndFunctionQuery = `
@@ -431,7 +448,45 @@ export class GrcIncidentsService {
           ${functionFilter}
           AND i.deletedAt IS NULL
       `;
-      const incidentsWithFinancialAndFunction = await this.databaseService.query(incidentsWithFinancialAndFunctionQuery);
+      const incidentsWithFinancialAndFunctionTask = () => this.runDashboardQuery<any[]>('Incidents with financial impact and function', incidentsWithFinancialAndFunctionQuery, []);
+
+      const [
+        totalIncidentsResult,
+        statusCountsResults,
+        incidentsByStatusDistribution,
+        incidentsByCategory,
+        topFinancialImpacts,
+        netLossAndRecovery,
+        monthlyTrend,
+        incidentsByStatus,
+        statusOverview,
+        incidentsFinancialDetails,
+        incidentsByEventType,
+        incidentsByFinancialImpact,
+        incidentsTimeSeries,
+        newIncidentsByMonth,
+        incidentsWithTimeframe,
+        incidentsWithFinancialAndFunction,
+      ] = await this.runQueryBatches<any[]>([
+        totalIncidentsTask,
+        statusCountsTask,
+        incidentsByStatusDistributionTask,
+        incidentsByCategoryTask,
+        topFinancialImpactsTask,
+        netLossAndRecoveryTask,
+        monthlyTrendTask,
+        incidentsByStatusTask,
+        statusOverviewTask,
+        incidentsFinancialDetailsTask,
+        incidentsByEventTypeTask,
+        incidentsByFinancialImpactTask,
+        incidentsTimeSeriesTask,
+        newIncidentsByMonthTask,
+        incidentsWithTimeframeTask,
+        incidentsWithFinancialAndFunctionTask,
+      ]);
+      const totalIncidents = totalIncidentsResult[0]?.total || 0;
+      const statusCountsRow = statusCountsResults[0] || {};
 
       // Operational Loss Metrics - Calculate date range (last 12 months)
       // Use occurrence_date if available, otherwise fall back to createdAt
@@ -453,7 +508,7 @@ export class GrcIncidentsService {
         GROUP BY YEAR(i.occurrence_date), MONTH(i.occurrence_date)
         ORDER BY [Year], [Month]
       `;
-      const operationalLossValue = await this.databaseService.query(operationalLossValueQuery);
+      const operationalLossValueTask = () => this.runDashboardQuery<any[]>('Operational loss value', operationalLossValueQuery, []);
 
       // 2. Number of ATM theft events
       const atmTheftCountQuery = `
@@ -467,8 +522,7 @@ export class GrcIncidentsService {
           ${functionFilter}
           AND sc.name = N'ATM issue'
       `;
-      const atmTheftResult = await this.databaseService.query(atmTheftCountQuery);
-      const atmTheftCount = atmTheftResult[0]?.ATMTheftCount || 0;
+      const atmTheftTask = () => this.runDashboardQuery<any[]>('ATM theft count', atmTheftCountQuery, []);
 
       // 3. Average time to recognize operational losses (in months)
       const avgRecognitionTimeQuery = `
@@ -483,8 +537,7 @@ export class GrcIncidentsService {
           AND i.reported_date IS NOT NULL
           AND i.reported_date >= i.occurrence_date
       `;
-      const avgRecognitionTimeResult = await this.databaseService.query(avgRecognitionTimeQuery);
-      const avgRecognitionTime = avgRecognitionTimeResult[0]?.AvgRecognitionTimeMonths || 0;
+      const avgRecognitionTimeTask = () => this.runDashboardQuery<any[]>('Average recognition time', avgRecognitionTimeQuery, []);
 
       // 4. Number of internal frauds
       const internalFraudCountQuery = `
@@ -498,8 +551,7 @@ export class GrcIncidentsService {
           ${functionFilter}
           AND ie.name = N'Internal Fraud'
       `;
-      const internalFraudResult = await this.databaseService.query(internalFraudCountQuery);
-      const internalFraudCount = internalFraudResult[0]?.InternalFraudCount || 0;
+      const internalFraudTask = () => this.runDashboardQuery<any[]>('Internal fraud count', internalFraudCountQuery, []);
 
       // 5. Value of losses due to internal frauds
       const internalFraudLossQuery = `
@@ -516,8 +568,7 @@ export class GrcIncidentsService {
           AND ie.name = N'Internal Fraud'
           AND i.net_loss IS NOT NULL
       `;
-      const internalFraudLossResult = await this.databaseService.query(internalFraudLossQuery);
-      const internalFraudLoss = internalFraudLossResult[0]?.TotalInternalFraudLoss || 0;
+      const internalFraudLossTask = () => this.runDashboardQuery<any[]>('Internal fraud loss', internalFraudLossQuery, []);
 
       // 6. Number of external frauds
       const externalFraudCountQuery = `
@@ -531,8 +582,7 @@ export class GrcIncidentsService {
           ${functionFilter}
           AND ie.name = N'External Fraud'
       `;
-      const externalFraudResult = await this.databaseService.query(externalFraudCountQuery);
-      const externalFraudCount = externalFraudResult[0]?.ExternalFraudCount || 0;
+      const externalFraudTask = () => this.runDashboardQuery<any[]>('External fraud count', externalFraudCountQuery, []);
 
       // 7. Value of losses due to external frauds
       const externalFraudLossQuery = `
@@ -549,8 +599,7 @@ export class GrcIncidentsService {
           AND ie.name = N'External Fraud'
           AND i.net_loss IS NOT NULL
       `;
-      const externalFraudLossResult = await this.databaseService.query(externalFraudLossQuery);
-      const externalFraudLoss = externalFraudLossResult[0]?.TotalExternalFraudLoss || 0;
+      const externalFraudLossTask = () => this.runDashboardQuery<any[]>('External fraud loss', externalFraudLossQuery, []);
 
       // 8. Number of events that caused damages to physical assets
       const physicalAssetDamageCountQuery = `
@@ -564,8 +613,7 @@ export class GrcIncidentsService {
           ${functionFilter}
           AND ie.name = N'Damage to Physical Assets'
       `;
-      const physicalAssetDamageResult = await this.databaseService.query(physicalAssetDamageCountQuery);
-      const physicalAssetDamageCount = physicalAssetDamageResult[0]?.PhysicalAssetDamageCount || 0;
+      const physicalAssetDamageTask = () => this.runDashboardQuery<any[]>('Physical asset damage count', physicalAssetDamageCountQuery, []);
 
       // 9. Value of losses due to damages to physical assets
       const physicalAssetLossQuery = `
@@ -582,8 +630,7 @@ export class GrcIncidentsService {
           AND ie.name = N'Damage to Physical Assets'
           AND i.net_loss IS NOT NULL
       `;
-      const physicalAssetLossResult = await this.databaseService.query(physicalAssetLossQuery);
-      const physicalAssetLoss = physicalAssetLossResult[0]?.TotalPhysicalAssetLoss || 0;
+      const physicalAssetLossTask = () => this.runDashboardQuery<any[]>('Physical asset loss', physicalAssetLossQuery, []);
 
       // 10. Number of loss events due to people errors
       const peopleErrorCountQuery = `
@@ -597,8 +644,7 @@ export class GrcIncidentsService {
           ${functionFilter}
           AND sc.name = N'Human Mistake'
       `;
-      const peopleErrorResult = await this.databaseService.query(peopleErrorCountQuery);
-      const peopleErrorCount = peopleErrorResult[0]?.PeopleErrorCount || 0;
+      const peopleErrorTask = () => this.runDashboardQuery<any[]>('People error count', peopleErrorCountQuery, []);
 
       // 11. Value of losses due to people errors
       const peopleErrorLossQuery = `
@@ -615,7 +661,42 @@ export class GrcIncidentsService {
           AND sc.name = N'Human Mistake'
           AND i.net_loss IS NOT NULL
       `;
-      const peopleErrorLossResult = await this.databaseService.query(peopleErrorLossQuery);
+      const peopleErrorLossTask = () => this.runDashboardQuery<any[]>('People error loss', peopleErrorLossQuery, []);
+
+      const [
+        operationalLossValue,
+        atmTheftResult,
+        avgRecognitionTimeResult,
+        internalFraudResult,
+        internalFraudLossResult,
+        externalFraudResult,
+        externalFraudLossResult,
+        physicalAssetDamageResult,
+        physicalAssetLossResult,
+        peopleErrorResult,
+        peopleErrorLossResult,
+      ] = await this.runQueryBatches<any[]>([
+        operationalLossValueTask,
+        atmTheftTask,
+        avgRecognitionTimeTask,
+        internalFraudTask,
+        internalFraudLossTask,
+        externalFraudTask,
+        externalFraudLossTask,
+        physicalAssetDamageTask,
+        physicalAssetLossTask,
+        peopleErrorTask,
+        peopleErrorLossTask,
+      ]);
+      const atmTheftCount = atmTheftResult[0]?.ATMTheftCount || 0;
+      const avgRecognitionTime = avgRecognitionTimeResult[0]?.AvgRecognitionTimeMonths || 0;
+      const internalFraudCount = internalFraudResult[0]?.InternalFraudCount || 0;
+      const internalFraudLoss = internalFraudLossResult[0]?.TotalInternalFraudLoss || 0;
+      const externalFraudCount = externalFraudResult[0]?.ExternalFraudCount || 0;
+      const externalFraudLoss = externalFraudLossResult[0]?.TotalExternalFraudLoss || 0;
+      const physicalAssetDamageCount = physicalAssetDamageResult[0]?.PhysicalAssetDamageCount || 0;
+      const physicalAssetLoss = physicalAssetLossResult[0]?.TotalPhysicalAssetLoss || 0;
+      const peopleErrorCount = peopleErrorResult[0]?.PeopleErrorCount || 0;
       const peopleErrorLoss = peopleErrorLossResult[0]?.TotalPeopleErrorLoss || 0;
 
       // 12. Monthly trend analysis by incident type
@@ -640,7 +721,7 @@ export class GrcIncidentsService {
         GROUP BY FORMAT(COALESCE(i.occurrence_date, i.createdAt), 'yyyy-MM')
         ORDER BY Period
       `;
-      const monthlyTrendByType = await this.databaseService.query(monthlyTrendByTypeQuery);
+      const monthlyTrendByTypeTask = () => this.runDashboardQuery<any[]>('Monthly trend by type', monthlyTrendByTypeQuery, []);
 
       // 13. Loss analysis by risk category
       const lossByRiskCategoryQuery = `
@@ -660,7 +741,7 @@ export class GrcIncidentsService {
         GROUP BY c.name
         ORDER BY TotalLoss DESC
       `;
-      const lossByRiskCategory = await this.databaseService.query(lossByRiskCategoryQuery);
+      const lossByRiskCategoryTask = () => this.runDashboardQuery<any[]>('Loss by risk category', lossByRiskCategoryQuery, []);
 
       // 14. Incident Action Plans (from Actionplans linked to Incidents)
       // For this table, function filter is applied on Actionplans.actionOwner (not incident.function_id)
@@ -697,7 +778,7 @@ export class GrcIncidentsService {
           ${actionOwnerFunctionFilter}
         ORDER BY a.createdAt DESC
       `;
-      const incidentActionPlan = await this.databaseService.query(incidentActionPlanQuery);
+      const incidentActionPlanTask = () => this.runDashboardQuery<any[]>('Incident action plan', incidentActionPlanQuery, []);
 
       // 14b. Incident Action Plans by Status (business_unit) - counts for pie chart
       const incidentActionPlanByStatusQuery = `
@@ -721,7 +802,7 @@ export class GrcIncidentsService {
         GROUP BY ISNULL(a.business_unit, 'N/A')
         ORDER BY count DESC
       `;
-      const incidentActionPlanByStatus = await this.databaseService.query(incidentActionPlanByStatusQuery);
+      const incidentActionPlanByStatusTask = () => this.runDashboardQuery<any[]>('Incident action plan by status', incidentActionPlanByStatusQuery, []);
 
       // 14c. Overdue Incidents — same rows/columns as Incident Action Plan, filtered by
       // Actionplans.business_unit = pending|overdue (case-insensitive) and implementation date before today.
@@ -755,7 +836,7 @@ export class GrcIncidentsService {
           ${actionOwnerFunctionFilter}
         ORDER BY a.createdAt DESC
       `;
-      const overdueIncidentsRows = await this.databaseService.query(overdueIncidentsQuery);
+      const overdueIncidentsTask = () => this.runDashboardQuery<any[]>('Overdue incidents', overdueIncidentsQuery, []);
 
       // 15. Comprehensive Operational Loss Dashboard (UNION ALL)
       const comprehensiveOperationalLossQuery = `
@@ -844,7 +925,23 @@ export class GrcIncidentsService {
           ${functionFilter}
           AND sc.name IN (N'System Error', N'Prime System Issue', N'Transaction system error (TRX BUG)')
       `;
-      const comprehensiveOperationalLoss = await this.databaseService.query(comprehensiveOperationalLossQuery);
+      const comprehensiveOperationalLossTask = () => this.runDashboardQuery<any[]>('Comprehensive operational loss', comprehensiveOperationalLossQuery, []);
+
+      const [
+        monthlyTrendByType,
+        lossByRiskCategory,
+        incidentActionPlan,
+        incidentActionPlanByStatus,
+        overdueIncidentsRows,
+        comprehensiveOperationalLoss,
+      ] = await this.runQueryBatches<any[]>([
+        monthlyTrendByTypeTask,
+        lossByRiskCategoryTask,
+        incidentActionPlanTask,
+        incidentActionPlanByStatusTask,
+        overdueIncidentsTask,
+        comprehensiveOperationalLossTask,
+      ]);
 
       return {
         totalIncidents,
