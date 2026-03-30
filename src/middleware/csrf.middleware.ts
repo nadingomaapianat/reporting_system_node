@@ -2,11 +2,19 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
 const EXCLUDED_PATHS = ['/csrf/token', '/docs', '/swagger', '/api/auth/entry-token', '/api/auth/logout'];
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const path = req.path || req.originalUrl || '';
+    const method = (req.method || 'GET').toUpperCase();
+
+    // Read-only requests should not require a CSRF token.
+    if (SAFE_METHODS.has(method)) {
+      return next();
+    }
+
     if (EXCLUDED_PATHS.some((excluded) => path.startsWith(excluded))) {
       return next();
     }
