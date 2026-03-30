@@ -40,6 +40,63 @@ export class GrcDashboardController {
     }
   }
 
+  @Get('table')
+  async getControlsDashboardTable(
+    @Req() req: any,
+    @Query('tableId') tableId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcDashboardService.getDashboardTablePage(
+      req.user,
+      tableId,
+      Number(page) || 1,
+      Number(limit) || 10,
+      startDate,
+      endDate,
+      parseGrcFunctionIdsFromQueries(functionId, functionIds),
+      ob,
+    );
+  }
+
+  @Get('widget')
+  async getControlsDashboardWidget(
+    @Req() req: any,
+    @Query('kind') kind: 'metric' | 'chart' | 'table',
+    @Query('widgetId') widgetId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    const widgetIdMap: Record<string, string> = {
+      totalControls: 'total',
+      unmappedControls: 'unmapped',
+      department: 'departmentDistribution',
+      risk: 'statusDistribution',
+      overallStatuses: 'statusOverview',
+    };
+    return this.grcDashboardService.getDashboardWidget(
+      req.user,
+      kind,
+      widgetIdMap[widgetId] ?? widgetId,
+      startDate,
+      endDate,
+      parseGrcFunctionIdsFromQueries(functionId, functionIds),
+      ob,
+      Number(page) || 1,
+      Number(limit) || 10,
+    );
+  }
+
   @Get('total')
   async getTotalControls(
     @Req() req: any,

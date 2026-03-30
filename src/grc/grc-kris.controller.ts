@@ -38,6 +38,95 @@ export class GrcKrisController {
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
 
+  @Get('table')
+  async getKrisDashboardTable(
+    @Req() req: any,
+    @Query('tableId') tableId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('timeframe') timeframe?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    const raw = await this.grcKrisService.getKrisDashboardTablePage(
+      req.user,
+      tableId,
+      Number(page) || 1,
+      Number(limit) || 10,
+      timeframe,
+      startDate,
+      endDate,
+      parseGrcFunctionIdsFromQueries(functionId, functionIds),
+    );
+    return sortPaginatedResponseIfNeeded(raw, ob);
+  }
+
+  @Get('widget')
+  async getKrisDashboardWidget(
+    @Req() req: any,
+    @Query('kind') kind: 'metric' | 'chart' | 'table',
+    @Query('widgetId') widgetId: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+  ) {
+    const selectedFunctionIds = parseGrcFunctionIdsFromQueries(functionId, functionIds);
+
+    if (kind === 'table') {
+      return this.grcKrisService.getKrisDashboardTablePage(
+        req.user,
+        widgetId,
+        Number(page) || 1,
+        Number(limit) || 10,
+        undefined,
+        startDate,
+        endDate,
+        selectedFunctionIds,
+      );
+    }
+
+    const section = kind === 'metric' ? 'cards' : 'charts';
+    const payload: any = await this.grcKrisService.getKrisDashboard(
+      req.user,
+      undefined,
+      startDate,
+      endDate,
+      selectedFunctionIds,
+      section,
+    );
+
+    if (kind === 'metric') {
+      const metricPayload: Record<string, any> = {
+        totalKris: { totalKris: Number(payload?.totalKris || 0) },
+        pendingPreparer: { pendingPreparer: Number(payload?.pendingPreparer || 0) },
+        pendingChecker: { pendingChecker: Number(payload?.pendingChecker || 0) },
+        pendingReviewer: { pendingReviewer: Number(payload?.pendingReviewer || 0) },
+        pendingAcceptance: { pendingAcceptance: Number(payload?.pendingAcceptance || 0) },
+      };
+      return metricPayload[widgetId] ?? {};
+    }
+
+    const chartPayload: Record<string, any> = {
+      krisByStatus: { krisByStatus: payload?.krisByStatus || [] },
+      krisByLevel: { krisByLevel: payload?.krisByLevel || [] },
+      breachedKRIsByDepartment: { breachedKRIsByDepartment: payload?.breachedKRIsByDepartment || [] },
+      kriAssessmentCount: { kriAssessmentCount: payload?.kriAssessmentCount || [] },
+      kriCountsByFrequency: { kriCountsByFrequency: payload?.kriCountsByFrequency || [] },
+      kriCountsByMonthYear: { kriCountsByMonthYear: payload?.kriCountsByMonthYear || [] },
+      kriRisksByKriName: { kriRisksByKriName: payload?.kriRisksByKriName || [] },
+      deletedKrisPerMonth: { deletedKrisPerMonth: payload?.deletedKrisPerMonth || [] },
+      kriOverdueStatusCounts: { kriOverdueStatusCounts: payload?.kriOverdueStatusCounts || [] },
+      kriMonthlyAssessment: { kriMonthlyAssessment: payload?.kriMonthlyAssessment || [] },
+    };
+    return chartPayload[widgetId] ?? {};
+  }
+
   @Get('export')
   async exportKris(
     @Req() req: any,
