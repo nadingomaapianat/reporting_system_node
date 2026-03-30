@@ -244,12 +244,6 @@ export class GrcIncidentsService {
       `;
       const incidentsByStatusTask = () => this.runDashboardQuery<any[]>('Incidents by status table', incidentsByStatusQuery, []);
 
-      // Calculate status counts
-      const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
-      const pendingChecker = statusCountsRow?.pendingChecker || 0;
-      const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
-      const pendingAcceptance = statusCountsRow?.pendingAcceptance || 0;
-
       // Fetch statusOverview (details list) using standardized staged status logic
       const listQuery = `
         SELECT 
@@ -487,6 +481,10 @@ export class GrcIncidentsService {
       ]);
       const totalIncidents = totalIncidentsResult[0]?.total || 0;
       const statusCountsRow = statusCountsResults[0] || {};
+      const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
+      const pendingChecker = statusCountsRow?.pendingChecker || 0;
+      const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
+      const pendingAcceptance = statusCountsRow?.pendingAcceptance || 0;
 
       // Operational Loss Metrics - Calculate date range (last 12 months)
       // Use occurrence_date if available, otherwise fall back to createdAt
