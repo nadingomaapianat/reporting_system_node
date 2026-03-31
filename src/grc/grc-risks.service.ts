@@ -3,6 +3,7 @@ import { DatabaseService } from '../database/database.service';
 import { BaseDashboardService, DashboardConfig } from '../shared/base-dashboard.service';
 import { DashboardConfigService } from '../shared/dashboard-config.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
+import { sortRowsByFunctionAsc } from '../shared/order-by-function';
 
 const DASHBOARD_PREVIEW_LIMIT = 10;
 
@@ -438,6 +439,7 @@ export class GrcRisksService extends BaseDashboardService {
     startDate?: string,
     endDate?: string,
     selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
   ) {
     const tablesPayload = await this.getRisksDashboard(
       user,
@@ -460,7 +462,10 @@ export class GrcRisksService extends BaseDashboardService {
       throw new Error(`Table ${tableId} not found`);
     }
 
-    return this.paginateRows(tableRows, page, limit);
+    const sortedRows = orderByFunctionAsc
+      ? sortRowsByFunctionAsc(tableRows as Record<string, unknown>[])
+      : tableRows;
+    return this.paginateRows(sortedRows, page, limit);
   }
 
   async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {

@@ -77,8 +77,10 @@ export class GrcComplyController {
       start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
       end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
       id,
+      undefined,
+      ob,
     );
-    return sortPaginatedResponseIfNeeded(raw, ob);
+    return raw;
   }
 
   @Get('widget')
@@ -98,6 +100,7 @@ export class GrcComplyController {
     const id = norm(functionId);
 
     if (kind === 'table') {
+      const ob = orderByFunctionFromRequest(req);
       return this.grcComplyService.getDashboardTablePage(
         widgetId,
         Number(page) || 1,
@@ -105,6 +108,8 @@ export class GrcComplyController {
         start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
         end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
         id,
+        undefined,
+        ob,
       );
     }
 

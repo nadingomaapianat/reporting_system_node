@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
 import { fq } from '../shared/db-config';
+import { sortRowsByFunctionAsc } from '../shared/order-by-function';
 
 const DASHBOARD_PREVIEW_LIMIT = 10;
 
@@ -1237,6 +1238,7 @@ export class GrcKrisService {
     startDate?: string,
     endDate?: string,
     selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
   ) {
     const tablesPayload = await this.getKrisDashboard(
       user,
@@ -1261,7 +1263,10 @@ export class GrcKrisService {
       throw new Error(`Table ${tableId} not found`);
     }
 
-    return this.paginateRows(tableRows, page, limit);
+    const sortedRows = orderByFunctionAsc
+      ? sortRowsByFunctionAsc(tableRows as Record<string, unknown>[])
+      : tableRows;
+    return this.paginateRows(sortedRows, page, limit);
   }
 
   async getTotalKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {

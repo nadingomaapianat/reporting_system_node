@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
 import { fq } from '../shared/db-config';
+import { sortRowsByFunctionAsc } from '../shared/order-by-function';
 
 export type GrcComplyReportKey =
   | '1'
@@ -252,6 +253,7 @@ export class GrcComplyService {
     endDate?: string,
     functionId?: string,
     access?: UserFunctionAccess,
+    orderByFunctionAsc = false,
   ) {
     const tablesPayload = await this.runDashboardSection('tables', startDate, endDate, functionId, access) as Record<string, any[]>;
 
@@ -265,7 +267,10 @@ export class GrcComplyService {
       throw new BadRequestException(`Table not found: ${tableId}`);
     }
 
-    return this.paginateRows(tableRows, page, limit);
+    const sortedRows = orderByFunctionAsc
+      ? sortRowsByFunctionAsc(tableRows as Record<string, unknown>[])
+      : tableRows;
+    return this.paginateRows(sortedRows, page, limit);
   }
 
   private getDashboardReportKeys(section?: DashboardSection): GrcComplyReportKey[] {

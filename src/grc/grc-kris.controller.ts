@@ -60,8 +60,9 @@ export class GrcKrisController {
       startDate,
       endDate,
       parseGrcFunctionIdsFromQueries(functionId, functionIds),
+      ob,
     );
-    return sortPaginatedResponseIfNeeded(raw, ob);
+    return raw;
   }
 
   @Get('widget')
@@ -79,6 +80,7 @@ export class GrcKrisController {
     const selectedFunctionIds = parseGrcFunctionIdsFromQueries(functionId, functionIds);
 
     if (kind === 'table') {
+      const ob = orderByFunctionFromRequest(req);
       return this.grcKrisService.getKrisDashboardTablePage(
         req.user,
         widgetId,
@@ -88,6 +90,7 @@ export class GrcKrisController {
         startDate,
         endDate,
         selectedFunctionIds,
+        ob,
       );
     }
 
