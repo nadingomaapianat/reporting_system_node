@@ -468,12 +468,12 @@ export class GrcRisksService extends BaseDashboardService {
     return this.paginateRows(sortedRows, page, limit);
   }
 
-  async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
   // Risk-specific card data with function filtering
-  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -632,8 +632,13 @@ export class GrcRisksService extends BaseDashboardService {
       }
     }
 
+    const normalizedDataQuery = (dataQuery || '').trim().replace(/;$/, '');
+    const finalDataQuery = orderByFunctionAsc
+      ? `${normalizedDataQuery.replace(/\border\s+by\b[\s\S]*$/i, '').trim()} ORDER BY function_name ASC, created_at DESC OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY`
+      : normalizedDataQuery;
+
     const [data, count] = await Promise.all([
-      this.databaseService.query(dataQuery!, [offset, limitInt]),
+      this.databaseService.query(finalDataQuery, [offset, limitInt]),
       this.databaseService.query(countQuery!)
     ]);
 
@@ -653,7 +658,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getHighRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getHighRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -674,7 +679,7 @@ export class GrcRisksService extends BaseDashboardService {
         r.createdAt as created_at
       FROM dbo.[Risks] r
       WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter} AND r.inherent_value = 'High'
-      ORDER BY r.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'r.createdAt DESC'}
       OFFSET @param0 ROWS
       FETCH NEXT @param1 ROWS ONLY
     `;
@@ -707,7 +712,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getMediumRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getMediumRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -728,7 +733,7 @@ export class GrcRisksService extends BaseDashboardService {
         r.createdAt as created_at
       FROM dbo.[Risks] r
       WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter} AND r.inherent_value = 'Medium'
-      ORDER BY r.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'r.createdAt DESC'}
       OFFSET @param0 ROWS
       FETCH NEXT @param1 ROWS ONLY
     `;
@@ -761,7 +766,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getLowRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getLowRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -782,7 +787,7 @@ export class GrcRisksService extends BaseDashboardService {
         r.createdAt as created_at
       FROM dbo.[Risks] r
       WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter} AND r.inherent_value = 'Low'
-      ORDER BY r.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'r.createdAt DESC'}
       OFFSET @param0 ROWS
       FETCH NEXT @param1 ROWS ONLY
     `;
@@ -815,7 +820,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getRiskReduction(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getRiskReduction(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -856,8 +861,9 @@ export class GrcRisksService extends BaseDashboardService {
           (CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END)
           - (CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END)
         ) > 0
-      ORDER BY (CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END)
-             - (CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END) DESC
+      ORDER BY ${orderByFunctionAsc
+        ? 'function_name ASC, created_at DESC'
+        : "(CASE WHEN r.inherent_value = 'High' THEN 3 WHEN r.inherent_value = 'Medium' THEN 2 WHEN r.inherent_value = 'Low' THEN 1 ELSE 0 END) - (CASE WHEN rr.residual_value = 'High' THEN 3 WHEN rr.residual_value = 'Medium' THEN 2 WHEN rr.residual_value = 'Low' THEN 1 ELSE 0 END) DESC"}
       OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
     `;
 
@@ -895,7 +901,7 @@ export class GrcRisksService extends BaseDashboardService {
     };
   }
 
-  async getNewRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getNewRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
@@ -914,7 +920,7 @@ export class GrcRisksService extends BaseDashboardService {
         r.createdAt as created_at
       FROM dbo.[Risks] r
       WHERE r.isDeleted = 0 AND DATEDIFF(month, r.createdAt, GETDATE()) = 0 ${dateFilter} ${functionFilter}
-      ORDER BY r.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'r.createdAt DESC'}
       OFFSET @param0 ROWS
       FETCH NEXT @param1 ROWS ONLY
     `;

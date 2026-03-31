@@ -179,10 +179,7 @@ export class GrcIncidentsController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob
-    );
+    return this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('total')
@@ -196,10 +193,7 @@ export class GrcIncidentsController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob
-    );
+    return this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-preparer')
@@ -213,10 +207,7 @@ export class GrcIncidentsController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getPendingPreparerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob
-    );
+    return this.grcIncidentsService.getPendingPreparerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-checker')
@@ -230,10 +221,7 @@ export class GrcIncidentsController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getPendingCheckerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob
-    );
+    return this.grcIncidentsService.getPendingCheckerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-reviewer')
@@ -247,10 +235,7 @@ export class GrcIncidentsController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getPendingReviewerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob
-    );
+    return this.grcIncidentsService.getPendingReviewerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-acceptance')
@@ -264,10 +249,7 @@ export class GrcIncidentsController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getPendingAcceptanceIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob
-    );
+    return this.grcIncidentsService.getPendingAcceptanceIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('by-category')

@@ -109,10 +109,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTotalControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getTotalControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('unmapped')
@@ -126,10 +123,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getUnmappedControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getUnmappedControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-preparer')
@@ -143,10 +137,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingPreparerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getPendingPreparerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-checker')
@@ -160,10 +151,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingCheckerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getPendingCheckerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-reviewer')
@@ -177,10 +165,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingReviewerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getPendingReviewerControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-acceptance')
@@ -194,10 +179,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getPendingAcceptanceControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getPendingAcceptanceControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   // Control Tests pending endpoints
@@ -212,10 +194,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTestsPendingPreparer(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getTestsPendingPreparer(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('tests/pending-checker')
@@ -229,10 +208,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTestsPendingChecker(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getTestsPendingChecker(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('tests/pending-reviewer')
@@ -246,10 +222,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTestsPendingReviewer(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getTestsPendingReviewer(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('tests/pending-acceptance')
@@ -263,10 +236,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getTestsPendingAcceptance(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getTestsPendingAcceptance(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('unmapped-icofr')
@@ -280,10 +250,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getUnmappedIcofrControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getUnmappedIcofrControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('unmapped-non-icofr')
@@ -297,10 +264,7 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcDashboardService.getUnmappedNonIcofrControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcDashboardService.getUnmappedNonIcofrControls(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('by-quarter')
