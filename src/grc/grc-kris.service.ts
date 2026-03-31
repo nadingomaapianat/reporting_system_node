@@ -2229,6 +2229,89 @@ export class GrcKrisService {
     };
   }
 
+  async getDeletedKrisByMonthYear(user: any, monthYear: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
+    const where: string[] = [
+      "(k.isDeleted = 1 OR k.deletedAt IS NOT NULL)",
+      "COALESCE(k.deletedAt, k.createdAt) IS NOT NULL",
+    ];
+
+    let monthFilter = '';
+    if (monthYear && monthYear !== 'Unknown') {
+      const monthYearPattern = /(\w+)\s+(\d{4})/i;
+      const match = monthYear.match(monthYearPattern);
+      if (match) {
+        const monthName = match[1];
+        const year = match[2];
+        const monthMap: Record<string, string> = {
+          'jan': '01', 'january': '01',
+          'feb': '02', 'february': '02',
+          'mar': '03', 'march': '03',
+          'apr': '04', 'april': '04',
+          'may': '05',
+          'jun': '06', 'june': '06',
+          'jul': '07', 'july': '07',
+          'aug': '08', 'august': '08',
+          'sep': '09', 'september': '09',
+          'oct': '10', 'october': '10',
+          'nov': '11', 'november': '11',
+          'dec': '12', 'december': '12'
+        };
+        const monthNum = monthMap[monthName.toLowerCase()];
+        if (monthNum && year) {
+          const yearNum = parseInt(year, 10);
+          const monthNumInt = parseInt(monthNum, 10);
+          if (!isNaN(yearNum) && !isNaN(monthNumInt) && monthNumInt >= 1 && monthNumInt <= 12) {
+            monthFilter = `AND YEAR(COALESCE(k.deletedAt, k.createdAt)) = ${yearNum} AND MONTH(COALESCE(k.deletedAt, k.createdAt)) = ${monthNumInt}`;
+          }
+        }
+      }
+    }
+
+    if (startDate) where.push(`COALESCE(k.deletedAt, k.createdAt) >= '${startDate}'`);
+    if (endDate) where.push(`COALESCE(k.deletedAt, k.createdAt) <= '${endDate}'`);
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql} ${monthFilter} ${functionFilter}`;
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+
+    const dataQuery = `
+      SELECT 
+        k.code,
+        k.kriName as name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        COALESCE(k.deletedAt, k.createdAt) as deletedAt
+      FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      ${whereSql}
+      ${monthFilter}
+      ${functionFilter}
+      ORDER BY COALESCE(k.deletedAt, k.createdAt) DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const data = await this.databaseService.query(dataQuery);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
   async getKriAssessmentsByMonthAndLevel(user: any, monthYear: string, assessmentLevel: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
