@@ -153,7 +153,6 @@ export class GrcKrisService {
           FROM Kris k
           WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
             ${detailsFunctionFilter}
-          ORDER BY k.createdAt DESC, k.id DESC
         )
         SELECT
           k.id AS kri_id,
