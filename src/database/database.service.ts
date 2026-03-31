@@ -2,11 +2,21 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sql from 'mssql';
 
+type QueryLogContext = {
+  label?: string;
+};
+
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: sql.ConnectionPool;
+  private readonly slowQueryThresholdMs: number;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) {
+    this.slowQueryThresholdMs = parseInt(
+      this.configService.get<string>('DB_SLOW_QUERY_THRESHOLD') || '5000',
+      10
+    );
+  }
 
   async onModuleInit() {
     const dbHost =
@@ -92,10 +102,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async query(sqlQuery: string, params: any[] = []) {
+  async query(sqlQuery: string, params: any[] = [], context?: QueryLogContext | string) {
     if (!this.pool) {
       throw new Error('Database not connected');
     }
+
+    const startedAt = Date.now();
+    const source = this.resolveQuerySource(context);
 
     try {
       const request = this.pool.request();
@@ -130,11 +143,75 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       }
 
       const result = await request.query(sqlQuery);
+      const elapsedMs = Date.now() - startedAt;
+
+      if (elapsedMs >= this.slowQueryThresholdMs) {
+        console.warn(
+          `[DatabaseService] Slow query detected (${elapsedMs}ms) [${source}]: ${this.summarizeQuery(sqlQuery)}`,
+          {
+            paramsCount: params?.length || 0,
+            rowCount: result.recordset?.length || 0,
+          }
+        );
+      }
+
       return result.recordset;
     } catch (error) {
-      console.error('Database query error:', error);
+      const elapsedMs = Date.now() - startedAt;
+      console.error(
+        `[DatabaseService] Database query error after ${elapsedMs}ms [${source}]: ${this.summarizeQuery(sqlQuery)}`,
+        {
+          paramsCount: params?.length || 0,
+          error,
+        }
+      );
       throw error;
     }
+  }
+
+  private summarizeQuery(sqlQuery: string): string {
+    const normalized = String(sqlQuery || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (normalized.length <= 300) return normalized;
+    return `${normalized.slice(0, 300)}...`;
+  }
+
+  private resolveQuerySource(context?: QueryLogContext | string): string {
+    if (typeof context === 'string' && context.trim()) {
+      return context.trim();
+    }
+
+    if (
+      context &&
+      typeof context === 'object' &&
+      typeof context.label === 'string' &&
+      context.label.trim()
+    ) {
+      return context.label.trim();
+    }
+
+    const stack = new Error().stack || '';
+    const frames = stack
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const appFrame = frames.find(
+      (line) =>
+        line.includes('/src/') &&
+        !line.includes('/src/database/database.service.ts')
+    );
+
+    if (!appFrame) return 'unknown-source';
+
+    const normalized = appFrame
+      .replace(/^at\s+/, '')
+      .replace(process.cwd(), '')
+      .replace(/\\/g, '/');
+
+    return normalized;
   }
 
   async getConnection() {
