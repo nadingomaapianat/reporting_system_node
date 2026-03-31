@@ -400,6 +400,29 @@ export class GrcKrisController {
     }
   }
 
+  @Get('deleted-by-month-year')
+  async getDeletedKrisByMonthYear(
+    @Req() req: any,
+    @Query('monthYear') monthYear: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
+  ) {
+    try {
+      const ob = orderByFunctionFromRequest(req);
+      return sortPaginatedResponseIfNeeded(
+        await this.grcKrisService.getDeletedKrisByMonthYear(req.user, monthYear, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
+        ob,
+      );
+    } catch (error) {
+      console.error('Error fetching deleted KRIs by month/year:', error);
+      return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+    }
+  }
+
   @Get('assessments-by-month-level')
   async getKriAssessmentsByMonthAndLevel(
     @Req() req: any,
