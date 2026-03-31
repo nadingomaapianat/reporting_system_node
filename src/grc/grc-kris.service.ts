@@ -54,7 +54,7 @@ export class GrcKrisService {
     return ` AND k.createdAt >= '${startDateObj.toISOString()}'`;
   }
 
-  /** Filter KriValues by period (year/month) within startDate..endDate. Used for KRI Details & Action Plans. */
+  /** Filter KriValues by period (year/month) within startDate..endDate. Used on the JOIN for KRI Details & Action Plans. */
   private buildKriValueDateFilter(startDate?: string, endDate?: string): string {
     if (!startDate && !endDate) return '';
     let filter = '';
@@ -184,6 +184,7 @@ export class GrcKrisService {
         FROM Kris k
         INNER JOIN TopKris tk ON tk.id = k.id
         LEFT JOIN KriValues kv ON kv.kriId = k.id AND kv.deletedAt IS NULL
+          ${kriValueDateFilter}
         LEFT JOIN Actionplans a ON a.kri_id = k.id AND a.deletedAt IS NULL
           AND LTRIM(RTRIM(ISNULL(a.[from], ''))) IN (N'kri', N'KRI', N'Kri')
         LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
@@ -195,7 +196,6 @@ export class GrcKrisService {
           AND f_owner.isDeleted = 0
           AND f_owner.deletedAt IS NULL
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
-          ${kriValueDateFilter}
           ${detailsFunctionFilter}
         ORDER BY k.id, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
       `;
