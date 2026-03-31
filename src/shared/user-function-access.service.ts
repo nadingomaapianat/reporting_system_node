@@ -53,14 +53,14 @@ export class UserFunctionAccessService {
    * Normal user: only their functions in filter and in data.
    */
   async getUserFunctionAccess(
-    userIdOrUser: string | { id: string; groupName?: string; role?: string; isAdmin?: boolean },
+    userIdOrUser: string | { id: string; groupName?: string; group?: string; role?: string; title?: string; isAdmin?: boolean },
     groupName?: string,
     role?: string,
     isAdminFlag?: boolean,
   ): Promise<UserFunctionAccess> {
     const userId = typeof userIdOrUser === 'object' ? userIdOrUser.id : userIdOrUser;
-    const g = typeof userIdOrUser === 'object' ? userIdOrUser.groupName : groupName;
-    const r = typeof userIdOrUser === 'object' ? userIdOrUser.role : role;
+    const g = typeof userIdOrUser === 'object' ? (userIdOrUser.groupName ?? userIdOrUser.group) : groupName;
+    const r = typeof userIdOrUser === 'object' ? (userIdOrUser.role ?? userIdOrUser.title) : role;
     const adm = typeof userIdOrUser === 'object' ? userIdOrUser.isAdmin : isAdminFlag;
     const isSuperAdmin = this.isAdmin(userId, g, r, adm);
     if (isSuperAdmin) {
@@ -307,14 +307,14 @@ export class UserFunctionAccessService {
    * Normal user: returns only their assigned functions; if one function, UI can show direct data.
    */
   async getUserFunctions(
-    userIdOrUser: string | { id: string; groupName?: string; role?: string; isAdmin?: boolean },
+    userIdOrUser: string | { id: string; groupName?: string; group?: string; role?: string; title?: string; isAdmin?: boolean },
     groupName?: string,
     role?: string,
     isAdminFlag?: boolean,
   ): Promise<Array<{ id: string; name: string }>> {
     const userId = typeof userIdOrUser === 'object' ? userIdOrUser.id : userIdOrUser;
-    const g = typeof userIdOrUser === 'object' ? userIdOrUser.groupName : groupName;
-    const r = typeof userIdOrUser === 'object' ? userIdOrUser.role : role;
+    const g = typeof userIdOrUser === 'object' ? (userIdOrUser.groupName ?? userIdOrUser.group) : groupName;
+    const r = typeof userIdOrUser === 'object' ? (userIdOrUser.role ?? userIdOrUser.title) : role;
     const adm = typeof userIdOrUser === 'object' ? userIdOrUser.isAdmin : isAdminFlag;
     const isSuperAdmin = this.isAdmin(userId, g, r, adm);
 
