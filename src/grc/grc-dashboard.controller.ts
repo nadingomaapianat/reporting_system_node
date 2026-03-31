@@ -52,9 +52,10 @@ export class GrcDashboardController {
     @Query('functionIds') functionIds?: string,
   ) {
     const ob = orderByFunctionFromRequest(req);
+    const normalizedTableId = tableId === 'overallStatuses' ? 'statusOverview' : tableId
     return this.grcDashboardService.getDashboardTablePage(
       req.user,
-      tableId,
+      normalizedTableId,
       Number(page) || 1,
       Number(limit) || 10,
       startDate,
