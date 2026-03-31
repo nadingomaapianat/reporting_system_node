@@ -126,7 +126,7 @@ export class GrcKrisService {
           k.code AS kri_code,
           k.kriName AS kri_name,
           k.createdAt AS kri_created_at,
-          ISNULL(frel.name, 'Unknown') AS function_name,
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
           u_assigned.name AS assigned_person_name,
           k.type AS kri_type,
           u_added.name AS added_by_name,
@@ -149,7 +149,7 @@ export class GrcKrisService {
           a.[month] AS action_month
         FROM Kris k
         INNER JOIN TopKris tk ON tk.id = k.id
-        INNER JOIN KriValues kv ON kv.kriId = k.id AND kv.deletedAt IS NULL
+        LEFT JOIN KriValues kv ON kv.kriId = k.id AND kv.deletedAt IS NULL
         LEFT JOIN Actionplans a ON a.kri_id = k.id AND a.deletedAt IS NULL
           AND LTRIM(RTRIM(ISNULL(a.[from], ''))) IN (N'kri', N'KRI', N'Kri')
         LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
@@ -222,35 +222,51 @@ export class GrcKrisService {
         });
       }
       const rec = kriDetailsMap.get(kriId)!;
-      const valueMonth = row.value_month != null ? Number(row.value_month) : 0;
-      const valueYear = row.value_year != null ? Number(row.value_year) : 0;
+      const valueMonth = row.value_month != null ? Number(row.value_month) : null;
+      const valueYear = row.value_year != null ? Number(row.value_year) : null;
       const actionMonth = row.action_month != null ? Number(row.action_month) : null;
       const actionYear = row.action_year != null ? Number(row.action_year) : null;
-      let valuePeriod = rec.valuesByPeriod.find((p) => p.year === valueYear && p.month === valueMonth);
-      if (!valuePeriod) {
-        valuePeriod = {
-          month: valueMonth,
-          year: valueYear,
-          value: row.value_value != null ? Number(row.value_value) : null,
-          assessment: row.value_assessment ?? null,
-          actionPlans: [],
-        };
-        rec.valuesByPeriod.push(valuePeriod);
-      } else {
-        if (row.value_value != null) valuePeriod.value = Number(row.value_value);
-        if (row.value_assessment != null) valuePeriod.assessment = row.value_assessment;
+      let valuePeriod = null as null | {
+        month: number;
+        year: number;
+        value: number | null;
+        assessment: string | null;
+        actionPlans: Array<{
+          control_procedure: string;
+          implementation_date: string | null;
+          business_unit: string;
+        }>;
+      };
+      if (valueYear != null && valueMonth != null) {
+        valuePeriod = rec.valuesByPeriod.find((p) => p.year === valueYear && p.month === valueMonth) || null;
+        if (!valuePeriod) {
+          valuePeriod = {
+            month: valueMonth,
+            year: valueYear,
+            value: row.value_value != null ? Number(row.value_value) : null,
+            assessment: row.value_assessment ?? null,
+            actionPlans: [],
+          };
+          rec.valuesByPeriod.push(valuePeriod);
+        } else {
+          if (row.value_value != null) valuePeriod.value = Number(row.value_value);
+          if (row.value_assessment != null) valuePeriod.assessment = row.value_assessment;
+        }
       }
       const hasAction = row.action_taken != null && String(row.action_taken).trim() !== '';
       if (hasAction) {
         const targetYear = actionYear ?? valueYear;
         const targetMonth = actionMonth ?? valueMonth;
+        if (targetYear == null || targetMonth == null) {
+          continue;
+        }
         let actionPeriod = rec.valuesByPeriod.find((p) => p.year === targetYear && p.month === targetMonth);
         if (!actionPeriod) {
           actionPeriod = {
             month: targetMonth,
             year: targetYear,
-            value: targetYear === valueYear && targetMonth === valueMonth ? valuePeriod.value : null,
-            assessment: targetYear === valueYear && targetMonth === valueMonth ? valuePeriod.assessment : null,
+            value: targetYear === valueYear && targetMonth === valueMonth ? (valuePeriod?.value ?? null) : null,
+            assessment: targetYear === valueYear && targetMonth === valueMonth ? (valuePeriod?.assessment ?? null) : null,
             actionPlans: [],
           };
           rec.valuesByPeriod.push(actionPeriod);
@@ -506,18 +522,18 @@ export class GrcKrisService {
       // Number of Deleted KRIs by Month
       const deletedKrisPerMonthQuery = `
         SELECT 
-          CAST(DATEFROMPARTS(YEAR(k.createdAt), MONTH(k.createdAt), 1) AS datetime2) AS createdAt,
+          CAST(DATEFROMPARTS(YEAR(k.deletedAt), MONTH(k.deletedAt), 1) AS datetime2) AS deletedAt,
           COUNT(*) AS count
         FROM Kris k
         WHERE
-          k.isDeleted = 1
-          OR k.deletedAt IS NOT NULL
+          (k.isDeleted = 1 OR k.deletedAt IS NOT NULL)
+          AND k.deletedAt IS NOT NULL
         GROUP BY 
-          YEAR(k.createdAt),
-          MONTH(k.createdAt)
+          YEAR(k.deletedAt),
+          MONTH(k.deletedAt)
         ORDER BY 
-          YEAR(k.createdAt) ASC,
-          MONTH(k.createdAt) ASC
+          YEAR(k.deletedAt) ASC,
+          MONTH(k.deletedAt) ASC
       `;
       const deletedKrisPerMonthTask = () => this.runDashboardQuery<any[]>('Deleted KRIs per month', deletedKrisPerMonthQuery, []);
 
@@ -890,7 +906,7 @@ export class GrcKrisService {
             count: item.count || 0,
           })),
           deletedKrisPerMonth: deletedKrisPerMonth.map((item) => ({
-            month: item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : null,
+            month: item.deletedAt ? new Date(item.deletedAt).toISOString().split('T')[0] : null,
             count: item.count || 0,
           })),
           kriOverdueStatusCounts: kriOverdueStatusCountsRows.map((item) => ({
@@ -1081,7 +1097,7 @@ export class GrcKrisService {
           count: item.count || 0
         })),
         deletedKrisPerMonth: deletedKrisPerMonth.map(item => ({
-          month: item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : null,
+          month: item.deletedAt ? new Date(item.deletedAt).toISOString().split('T')[0] : null,
           count: item.count || 0
         })),
         kriOverdueStatusCounts: kriOverdueStatusCountsRows.map(item => ({
