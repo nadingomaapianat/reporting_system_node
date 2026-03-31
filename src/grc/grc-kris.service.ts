@@ -196,7 +196,7 @@ export class GrcKrisService {
           AND f_owner.deletedAt IS NULL
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
           ${detailsFunctionFilter}
-        ORDER BY k.id, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
+        ORDER BY k.createdAt DESC, k.id DESC, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
       `;
     const kriDetailsWithActionPlansRows = await this.runDashboardQuery<any[]>(
       'KRI details with action plans',
@@ -324,10 +324,16 @@ export class GrcKrisService {
       }
     }
 
-    return Array.from(kriDetailsMap.values()).map((rec) => ({
-      ...rec,
-      valuesByPeriod: rec.valuesByPeriod.sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month),
-    }));
+    return Array.from(kriDetailsMap.values())
+      .map((rec) => ({
+        ...rec,
+        valuesByPeriod: rec.valuesByPeriod.sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month),
+      }))
+      .sort((a, b) => {
+        const aTime = a.kri_created_at ? new Date(a.kri_created_at).getTime() : 0;
+        const bTime = b.kri_created_at ? new Date(b.kri_created_at).getTime() : 0;
+        return bTime - aTime;
+      });
   }
 
   async getKrisDashboard(
