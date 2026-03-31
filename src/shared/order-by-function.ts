@@ -12,7 +12,13 @@ export function orderByFunctionFromRequest(req: { query?: Record<string, unknown
 }
 
 function getSortKey(row: Record<string, unknown>): string {
-  const keys = [
+  const normalizeKeyName = (key: string) =>
+    String(key)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '');
+
+  const exactKeys = [
     'function_name',
     'functionName',
     'function',
@@ -24,11 +30,22 @@ function getSortKey(row: Record<string, unknown>): string {
     'functionId',
     'Functionn',
     'FunctionID',
+    'related_function_name',
+    'business_unit',
+    'businessUnit',
     'name',
   ];
-  for (const k of keys) {
+  for (const k of exactKeys) {
     const v = row[k];
     if (v != null && String(v).trim() !== '') return String(v).trim();
+  }
+
+  for (const [rawKey, rawValue] of Object.entries(row)) {
+    if (rawValue == null || String(rawValue).trim() === '') continue;
+    const key = normalizeKeyName(rawKey);
+    if (key.includes('function') || key.includes('department') || key.includes('businessunit')) {
+      return String(rawValue).trim();
+    }
   }
   return '';
 }
