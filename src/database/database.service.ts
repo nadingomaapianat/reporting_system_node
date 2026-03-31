@@ -2,21 +2,11 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sql from 'mssql';
 
-type QueryLogContext = {
-  label?: string;
-};
-
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: sql.ConnectionPool;
-  private readonly slowQueryThresholdMs: number;
 
-  constructor(private configService: ConfigService) {
-    this.slowQueryThresholdMs = parseInt(
-      this.configService.get<string>('DB_SLOW_QUERY_THRESHOLD') || '5000',
-      10
-    );
-  }
+  constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
     const dbHost =
@@ -28,35 +18,49 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const dbName =
       this.configService.get<string>('DB_NAME') ;
 
-    // Tedious requires domain to be a string for NTLM; use empty string if not set
+    // Determine authentication type based on domain configuration
     const domain =
       this.configService.get<string>('DB_DOMAIN') ?? '';
     const username =
-      this.configService.get<string>('DB_USERNAME') ;
+      this.configService.get<string>('DB_USERNAME')?.trim();
     const password = this.configService.get<string>('DB_PASSWORD');
 
+    if (!username) {
+      throw new Error('DB_USERNAME is required for database authentication');
+    }
     if (!password) {
-      throw new Error('DB_PASSWORD is required for NTLM authentication');
+      throw new Error('DB_PASSWORD is required for database authentication');
     }
 
+    // Use NTLM authentication only if domain is explicitly provided
+    // Otherwise, use SQL Server authentication with username and password (default)
+    const useNtlm = domain && domain.trim() !== '';
+    
+    // Build connection config
     const config: sql.config = {
       server: dbHost,
       port: dbPort,
       database: dbName,
-    
-      authentication: {
-        type: 'ntlm',
-        options: {
-          domain,
-          userName: username,
-          password: password,
-        },
-      },
-    
+      // SQL Server authentication: use user and password properties
+      user: useNtlm ? undefined : username,
+      password: useNtlm ? undefined : password,
+      // NTLM authentication: use authentication object (only when domain is provided)
+      authentication: useNtlm
+        ? {
+            type: 'ntlm',
+            options: {
+              domain,
+              userName: username,
+              password: password,
+            },
+          }
+        : undefined,
       options: {
         encrypt: true,
         trustServerCertificate: true,
         enableArithAbort: true,
+        // Note: TLS ServerName deprecation warning when using IP addresses is a Node.js/Tedious issue
+        // This warning is harmless and doesn't affect functionality. It will be resolved in future library versions.
         requestTimeout: parseInt(
           this.configService.get<string>('DB_REQUEST_TIMEOUT') || '60000',
           10
@@ -67,7 +71,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ),
         packetSize: 32768,
       },
-    
       pool: {
         max: parseInt(this.configService.get<string>('DB_POOL_MAX') || '100', 10),
         min: parseInt(this.configService.get<string>('DB_POOL_MIN') || '20', 10),
@@ -78,19 +81,44 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       },
     };
     
+    // Log connection attempt (without password)
+    console.log(
+      `Attempting database connection: server=${dbHost}:${dbPort}, database=${dbName}, authType=${useNtlm ? 'NTLM' : 'SQL Server'}, user=${username}`
+    );
+
     try {
       this.pool = await sql.connect(config);
+      const authType = useNtlm ? 'NTLM' : 'SQL Server';
+      const authInfo = useNtlm ? `${domain}\\${username}` : username;
       console.log(
-        `Database connected using NTLM: ${domain}\\${username}`
+        `✓ Database connected successfully using ${authType} authentication: ${authInfo}`
       );
     } catch (err) {
-      console.error('Database connection failed:', err);
+      console.error('✗ Database connection failed:', err);
       console.error(
-        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain}, user=${username}`
+        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain || '(empty)'}, user=${username}, authType=${useNtlm ? 'NTLM' : 'SQL Server'}`
       );
+      
       if (err instanceof Error) {
+        const errorCode = (err as any).code || 'N/A';
         console.error(`Error message: ${err.message}`);
-        console.error(`Error code: ${(err as any).code || 'N/A'}`);
+        console.error(`Error code: ${errorCode}`);
+        
+        // Provide helpful troubleshooting information
+        if (errorCode === 'ELOGIN') {
+          console.error('\n=== Troubleshooting ELOGIN error ===');
+          console.error('Possible causes:');
+          console.error('1. Incorrect username or password');
+          console.error('2. SQL Server authentication mode not enabled on the server');
+          console.error('3. User account is locked or disabled');
+          console.error('4. Password contains special characters that need proper encoding');
+          console.error('5. Network/firewall blocking the connection');
+          console.error('\nTo enable SQL Server authentication:');
+          console.error('  - Open SQL Server Management Studio');
+          console.error('  - Right-click server -> Properties -> Security');
+          console.error('  - Select "SQL Server and Windows Authentication mode"');
+          console.error('  - Restart SQL Server service');
+        }
       }
       throw err;
     }
@@ -102,13 +130,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async query(sqlQuery: string, params: any[] = [], context?: QueryLogContext | string) {
+  async query(sqlQuery: string, params: any[] = []) {
     if (!this.pool) {
       throw new Error('Database not connected');
     }
-
-    const startedAt = Date.now();
-    const source = this.resolveQuerySource(context);
 
     try {
       const request = this.pool.request();
@@ -143,75 +168,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       }
 
       const result = await request.query(sqlQuery);
-      const elapsedMs = Date.now() - startedAt;
-
-      if (elapsedMs >= this.slowQueryThresholdMs) {
-        console.warn(
-          `[DatabaseService] Slow query detected (${elapsedMs}ms) [${source}]: ${this.summarizeQuery(sqlQuery)}`,
-          {
-            paramsCount: params?.length || 0,
-            rowCount: result.recordset?.length || 0,
-          }
-        );
-      }
-
       return result.recordset;
     } catch (error) {
-      const elapsedMs = Date.now() - startedAt;
-      console.error(
-        `[DatabaseService] Database query error after ${elapsedMs}ms [${source}]: ${this.summarizeQuery(sqlQuery)}`,
-        {
-          paramsCount: params?.length || 0,
-          error,
-        }
-      );
+      console.error('Database query error:', error);
       throw error;
     }
-  }
-
-  private summarizeQuery(sqlQuery: string): string {
-    const normalized = String(sqlQuery || '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (normalized.length <= 300) return normalized;
-    return `${normalized.slice(0, 300)}...`;
-  }
-
-  private resolveQuerySource(context?: QueryLogContext | string): string {
-    if (typeof context === 'string' && context.trim()) {
-      return context.trim();
-    }
-
-    if (
-      context &&
-      typeof context === 'object' &&
-      typeof context.label === 'string' &&
-      context.label.trim()
-    ) {
-      return context.label.trim();
-    }
-
-    const stack = new Error().stack || '';
-    const frames = stack
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const appFrame = frames.find(
-      (line) =>
-        line.includes('/src/') &&
-        !line.includes('/src/database/database.service.ts')
-    );
-
-    if (!appFrame) return 'unknown-source';
-
-    const normalized = appFrame
-      .replace(/^at\s+/, '')
-      .replace(process.cwd(), '')
-      .replace(/\\/g, '/');
-
-    return normalized;
   }
 
   async getConnection() {
