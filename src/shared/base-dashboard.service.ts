@@ -227,23 +227,36 @@ export abstract class BaseDashboardService {
       } else if (ctx.applyControlsFunctionFallback) {
         query = this.injectControlsFunctionFilterIntoQuery(query, ctx.functionFilter);
       }
+      const pageInt = Math.max(1, Number(page) || 1);
+      const limitInt = this.clampLimit(limit);
 
-      const result = await this.databaseService.query(query);
-      const rows = result.map((row: any) => {
-        const processedRow: any = {};
-        for (const column of table.columns) {
-          let value = row[column.key];
-          if (column.render) value = column.render(value);
-          else value = this.formatValue(value, column.type);
-          processedRow[column.key] = value;
-        }
-        return processedRow;
-      });
+      if (!orderByFunctionAsc) {
+        const countQuery = this.buildWrappedCountQuery(query);
+        const paginatedQuery = this.applySqlServerPagination(query, pageInt, limitInt);
+        const [result, countResult] = await Promise.all([
+          this.databaseService.query(paginatedQuery, [], `table:${tableId}:page`),
+          this.databaseService.query(countQuery, [], `table:${tableId}:count`),
+        ]);
+        const rows = result.map((row: any) => this.formatTableRow(row, table.columns));
+        const total = Number(countResult[0]?.total ?? 0);
+        const totalPages = Math.max(1, Math.ceil(total / limitInt));
+        return {
+          data: rows,
+          pagination: {
+            page: pageInt,
+            limit: limitInt,
+            total,
+            totalPages,
+            hasNext: pageInt < totalPages,
+            hasPrev: pageInt > 1,
+          },
+        };
+      }
 
-      const sortedRows = orderByFunctionAsc
-        ? sortRowsByFunctionAsc(rows as Record<string, unknown>[])
-        : rows;
-      return this.paginateRows(sortedRows, page, limit);
+      const result = await this.databaseService.query(query, [], `table:${tableId}:full`);
+      const rows = result.map((row: any) => this.formatTableRow(row, table.columns));
+      const sortedRows = sortRowsByFunctionAsc(rows as Record<string, unknown>[]);
+      return this.paginateRows(sortedRows, pageInt, limitInt);
     } catch (error) {
       console.error(`Error fetching table page ${tableId}:`, error);
       throw error;
@@ -604,7 +617,10 @@ export abstract class BaseDashboardService {
       } else if (applyControlsFunctionFallback) {
         query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
       }
-      const result = await this.databaseService.query(query);
+      if (table.pagination) {
+        query = this.applyDashboardPreviewLimit(query, this.getDefaultLimit());
+      }
+      const result = await this.databaseService.query(query, [], `table-preview:${table.id}`);
       const data = result.map((row: any) => {
         const processedRow: any = {};
         for (const column of table.columns) {
@@ -701,6 +717,35 @@ export abstract class BaseDashboardService {
     }
 
     return `${normalized} ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT ${limit} ROWS ONLY`;
+  }
+
+  private formatTableRow(row: any, columns: ColumnConfig[]): Record<string, unknown> {
+    const processedRow: Record<string, unknown> = {};
+    for (const column of columns) {
+      let value = row[column.key];
+      if (column.render) value = column.render(value);
+      else value = this.formatValue(value, column.type);
+      processedRow[column.key] = value;
+    }
+    return processedRow;
+  }
+
+  private buildWrappedCountQuery(query: string): string {
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    const withoutOrderBy = normalized.replace(/\border\s+by\b[\s\S]*$/i, '').trim();
+    return `SELECT COUNT(*) AS total FROM (${withoutOrderBy}) AS dashboard_count`;
+  }
+
+  private applySqlServerPagination(query: string, page: number, limit: number): string {
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    if (/\bFETCH\s+NEXT\b/i.test(normalized)) {
+      return normalized;
+    }
+    const offset = Math.max(0, (page - 1) * limit);
+    if (/\bORDER\s+BY\b/i.test(normalized)) {
+      return `${normalized} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
+    }
+    return `${normalized} ORDER BY (SELECT NULL) OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
   }
 
   private calculateChange(current: number, previous: number): string {
