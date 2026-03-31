@@ -58,8 +58,9 @@ export class GrcRisksController {
       norm(startDate) || undefined,
       norm(endDate) || undefined,
       parseGrcFunctionIdsFromQueries(functionId, functionIds),
+      ob,
     );
-    return sortPaginatedResponseIfNeeded(raw, ob);
+    return raw;
   }
 
   @Get('widget')
@@ -80,6 +81,7 @@ export class GrcRisksController {
     const end = norm(endDate) || undefined;
 
     if (kind === 'table') {
+      const ob = orderByFunctionFromRequest(req);
       return this.grcRisksService.getRisksDashboardTablePage(
         req.user,
         widgetId,
@@ -88,6 +90,7 @@ export class GrcRisksController {
         start,
         end,
         selectedFunctionIds,
+        ob,
       );
     }
 

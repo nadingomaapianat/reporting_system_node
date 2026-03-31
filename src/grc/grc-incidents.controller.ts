@@ -79,8 +79,9 @@ export class GrcIncidentsController {
       startDate,
       endDate,
       parseGrcFunctionIdsFromQueries(functionId, functionIds),
+      ob,
     );
-    return sortPaginatedResponseIfNeeded(raw, ob);
+    return raw;
   }
 
   @Get('widget')
@@ -98,6 +99,7 @@ export class GrcIncidentsController {
     const selectedFunctionIds = parseGrcFunctionIdsFromQueries(functionId, functionIds);
 
     if (kind === 'table') {
+      const ob = orderByFunctionFromRequest(req);
       return this.grcIncidentsService.getIncidentsDashboardTablePage(
         req.user,
         widgetId,
@@ -107,6 +109,7 @@ export class GrcIncidentsController {
         startDate,
         endDate,
         selectedFunctionIds,
+        ob,
       );
     }
 

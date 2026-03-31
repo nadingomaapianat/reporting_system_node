@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Response } from 'express';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
+import { sortRowsByFunctionAsc } from '../shared/order-by-function';
 
 const PYTHON_API_URL = process.env.PYTHON_API_URL || process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
 const DASHBOARD_PREVIEW_LIMIT = 10;
@@ -1276,6 +1277,7 @@ export class GrcIncidentsService {
     startDate?: string,
     endDate?: string,
     selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
   ) {
     const tablesPayload = await this.getIncidentsDashboard(
       user,
@@ -1302,7 +1304,10 @@ export class GrcIncidentsService {
       throw new Error(`Table ${tableId} not found`);
     }
 
-    return this.paginateRows(tableRows, page, limit);
+    const sortedRows = orderByFunctionAsc
+      ? sortRowsByFunctionAsc(tableRows as Record<string, unknown>[])
+      : tableRows;
+    return this.paginateRows(sortedRows, page, limit);
   }
 
   async exportIncidents(user: any, format: string, timeframe?: string) {

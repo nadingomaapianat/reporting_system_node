@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { fq } from './db-config';
-import { applyOrderByFunctionDeep, sortPaginatedResponseIfNeeded } from './order-by-function';
+import { applyOrderByFunctionDeep, sortRowsByFunctionAsc } from './order-by-function';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from './user-function-access.service';
 
@@ -240,8 +240,10 @@ export abstract class BaseDashboardService {
         return processedRow;
       });
 
-      const paginated = this.paginateRows(rows, page, limit);
-      return orderByFunctionAsc ? sortPaginatedResponseIfNeeded(paginated, true) : paginated;
+      const sortedRows = orderByFunctionAsc
+        ? sortRowsByFunctionAsc(rows as Record<string, unknown>[])
+        : rows;
+      return this.paginateRows(sortedRows, page, limit);
     } catch (error) {
       console.error(`Error fetching table page ${tableId}:`, error);
       throw error;
