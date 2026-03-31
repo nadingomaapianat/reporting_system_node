@@ -46,7 +46,7 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   // Control-specific card data with function filtering
-  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
@@ -196,9 +196,10 @@ export class GrcDashboardService extends BaseDashboardService {
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = this.clampLimit(limit);
       const offset = Math.floor((pageInt - 1) * limitInt);
-      const hasOrderBy = /\border\s+by\b/i.test(dataQuery);
-      const orderClause = hasOrderBy ? '' : ' ORDER BY c.createdAt DESC';
-      const paginatedQuery = `${dataQuery}${orderClause} OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
+      const normalizedDataQuery = dataQuery.trim().replace(/;$/, '');
+      const paginatedQuery = orderByFunctionAsc
+        ? `${normalizedDataQuery.replace(/\border\s+by\b[\s\S]*$/i, '').trim()} ORDER BY function_name ASC, c.createdAt DESC OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`
+        : `${normalizedDataQuery}${/\border\s+by\b/i.test(normalizedDataQuery) ? '' : ' ORDER BY c.createdAt DESC'} OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
       
       const [data, countResult] = await Promise.all([
         this.databaseService.query(paginatedQuery),
@@ -230,53 +231,53 @@ export class GrcDashboardService extends BaseDashboardService {
   }
 
   // Individual card data methods (for modals)
-  async getTotalControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTotalControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'total', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getUnmappedControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'unmapped', page, limit, startDate, endDate, selectedFunctionIds);
+  async getUnmappedControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'unmapped', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getPendingPreparerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'pendingPreparer', page, limit, startDate, endDate, selectedFunctionIds);
+  async getPendingPreparerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'pendingPreparer', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getPendingCheckerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'pendingChecker', page, limit, startDate, endDate, selectedFunctionIds);
+  async getPendingCheckerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'pendingChecker', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getPendingReviewerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'pendingReviewer', page, limit, startDate, endDate, selectedFunctionIds);
+  async getPendingReviewerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'pendingReviewer', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getPendingAcceptanceControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'pendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds);
+  async getPendingAcceptanceControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'pendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
   // Control Tests pending methods
-  async getTestsPendingPreparer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'testsPendingPreparer', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTestsPendingPreparer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'testsPendingPreparer', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getTestsPendingChecker(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'testsPendingChecker', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTestsPendingChecker(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'testsPendingChecker', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getTestsPendingReviewer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'testsPendingReviewer', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTestsPendingReviewer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'testsPendingReviewer', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getTestsPendingAcceptance(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'testsPendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds);
+  async getTestsPendingAcceptance(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'testsPendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getUnmappedIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'unmappedIcofrControls', page, limit, startDate, endDate, selectedFunctionIds);
+  async getUnmappedIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'unmappedIcofrControls', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
-  async getUnmappedNonIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    return this.getFilteredCardData(user, 'unmappedNonIcofrControls', page, limit, startDate, endDate, selectedFunctionIds);
+  async getUnmappedNonIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    return this.getFilteredCardData(user, 'unmappedNonIcofrControls', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
   // Get controls by quarter for detail modal

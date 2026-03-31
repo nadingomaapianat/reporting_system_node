@@ -1362,7 +1362,7 @@ export class GrcIncidentsService {
     }
   }
 
-  async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getTotalIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
@@ -1431,7 +1431,7 @@ export class GrcIncidentsService {
       LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
       LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
       ${whereSql}
-      ORDER BY i.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'functionName ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
@@ -1449,7 +1449,7 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
@@ -1482,7 +1482,7 @@ export class GrcIncidentsService {
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
-      ORDER BY i.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
@@ -1500,7 +1500,7 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
@@ -1539,7 +1539,7 @@ export class GrcIncidentsService {
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
-      ORDER BY i.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
@@ -1557,7 +1557,7 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
@@ -1596,7 +1596,7 @@ export class GrcIncidentsService {
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
-      ORDER BY i.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
@@ -1614,7 +1614,7 @@ export class GrcIncidentsService {
     }
   }
 
-  async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+  async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
@@ -1652,7 +1652,7 @@ export class GrcIncidentsService {
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
       ${whereSql}
-      ORDER BY i.createdAt DESC
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)

@@ -150,10 +150,7 @@ export class GrcKrisController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getTotalKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcKrisService.getTotalKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-preparer')
@@ -167,10 +164,7 @@ export class GrcKrisController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getPendingPreparerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcKrisService.getPendingPreparerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-checker')
@@ -184,10 +178,7 @@ export class GrcKrisController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getPendingCheckerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcKrisService.getPendingCheckerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-reviewer')
@@ -201,10 +192,7 @@ export class GrcKrisController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getPendingReviewerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcKrisService.getPendingReviewerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('pending-acceptance')
@@ -218,10 +206,7 @@ export class GrcKrisController {
     @Query('functionIds') functionIds?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcKrisService.getPendingAcceptanceKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob,
-    );
+    return this.grcKrisService.getPendingAcceptanceKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('by-status')
