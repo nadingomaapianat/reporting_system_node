@@ -234,8 +234,8 @@ export abstract class BaseDashboardService {
         const countQuery = this.buildWrappedCountQuery(query);
         const paginatedQuery = this.applySqlServerPagination(query, pageInt, limitInt);
         const [result, countResult] = await Promise.all([
-          this.databaseService.query(paginatedQuery, [], `table:${tableId}:page`),
-          this.databaseService.query(countQuery, [], `table:${tableId}:count`),
+          this.databaseService.query(paginatedQuery, []),
+          this.databaseService.query(countQuery, []),
         ]);
         const rows = result.map((row: any) => this.formatTableRow(row, table.columns));
         const total = Number(countResult[0]?.total ?? 0);
@@ -253,7 +253,7 @@ export abstract class BaseDashboardService {
         };
       }
 
-      const result = await this.databaseService.query(query, [], `table:${tableId}:full`);
+      const result = await this.databaseService.query(query, []);
       const rows = result.map((row: any) => this.formatTableRow(row, table.columns));
       const sortedRows = sortRowsByFunctionAsc(rows as Record<string, unknown>[]);
       return this.paginateRows(sortedRows, pageInt, limitInt);
@@ -620,7 +620,7 @@ export abstract class BaseDashboardService {
       if (table.pagination) {
         query = this.applyDashboardPreviewLimit(query, this.getDefaultLimit());
       }
-      const result = await this.databaseService.query(query, [], `table-preview:${table.id}`);
+      const result = await this.databaseService.query(query, []);
       const data = result.map((row: any) => {
         const processedRow: any = {};
         for (const column of table.columns) {
