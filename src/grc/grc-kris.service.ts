@@ -112,13 +112,47 @@ export class GrcKrisService {
     return results;
   }
 
-  private async getKriDetailsWithActionPlansGrouped(functionFilter: string, kriValueDateFilter: string) {
+  private async getKriDetailsWithActionPlansGrouped(access: UserFunctionAccess, selectedFunctionIds: string[] | undefined, kriValueDateFilter: string) {
+    const selected = selectedFunctionIds?.length
+      ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
+      : [];
+    const allowed = selected.length
+      ? selected
+      : access.isSuperAdmin
+        ? []
+        : access.functionIds;
+    const quotedIds = allowed.map((id) => `'${String(id).replace(/'/g, "''")}'`).join(', ');
+    const detailsFunctionFilter = selected.length
+      ? ` AND (
+            k.related_function_id IN (${quotedIds})
+            OR EXISTS (
+              SELECT 1
+              FROM KriFunctions kf_filter
+              WHERE kf_filter.kri_id = k.id
+                AND kf_filter.function_id IN (${quotedIds})
+                AND kf_filter.deletedAt IS NULL
+            )
+          )`
+      : access.isSuperAdmin
+        ? ''
+        : access.functionIds.length
+          ? ` AND (
+                k.related_function_id IN (${quotedIds})
+                OR EXISTS (
+                  SELECT 1
+                  FROM KriFunctions kf_filter
+                  WHERE kf_filter.kri_id = k.id
+                    AND kf_filter.function_id IN (${quotedIds})
+                    AND kf_filter.deletedAt IS NULL
+                )
+              )`
+          : (process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true' ? '' : ' AND 1 = 0');
     const kriDetailsWithActionPlansQuery = `
         WITH TopKris AS (
           SELECT k.id
           FROM Kris k
           WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
-            ${functionFilter}
+            ${detailsFunctionFilter}
           ORDER BY k.createdAt DESC, k.id DESC
         )
         SELECT
@@ -162,7 +196,7 @@ export class GrcKrisService {
           AND f_owner.deletedAt IS NULL
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
           ${kriValueDateFilter}
-          ${functionFilter}
+          ${detailsFunctionFilter}
         ORDER BY k.id, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
       `;
     const kriDetailsWithActionPlansRows = await this.runDashboardQuery<any[]>(
@@ -522,18 +556,24 @@ export class GrcKrisService {
       // Number of Deleted KRIs by Month
       const deletedKrisPerMonthQuery = `
         SELECT 
-          CAST(DATEFROMPARTS(YEAR(k.deletedAt), MONTH(k.deletedAt), 1) AS datetime2) AS deletedAt,
+          CAST(
+            DATEFROMPARTS(
+              YEAR(COALESCE(k.deletedAt, k.createdAt)),
+              MONTH(COALESCE(k.deletedAt, k.createdAt)),
+              1
+            ) AS datetime2
+          ) AS deletedMonth,
           COUNT(*) AS count
         FROM Kris k
         WHERE
           (k.isDeleted = 1 OR k.deletedAt IS NOT NULL)
-          AND k.deletedAt IS NOT NULL
+          AND COALESCE(k.deletedAt, k.createdAt) IS NOT NULL
         GROUP BY 
-          YEAR(k.deletedAt),
-          MONTH(k.deletedAt)
+          YEAR(COALESCE(k.deletedAt, k.createdAt)),
+          MONTH(COALESCE(k.deletedAt, k.createdAt))
         ORDER BY 
-          YEAR(k.deletedAt) ASC,
-          MONTH(k.deletedAt) ASC
+          YEAR(COALESCE(k.deletedAt, k.createdAt)) ASC,
+          MONTH(COALESCE(k.deletedAt, k.createdAt)) ASC
       `;
       const deletedKrisPerMonthTask = () => this.runDashboardQuery<any[]>('Deleted KRIs per month', deletedKrisPerMonthQuery, []);
 
@@ -906,7 +946,7 @@ export class GrcKrisService {
             count: item.count || 0,
           })),
           deletedKrisPerMonth: deletedKrisPerMonth.map((item) => ({
-            month: item.deletedAt ? new Date(item.deletedAt).toISOString().split('T')[0] : null,
+            month: item.deletedMonth ? new Date(item.deletedMonth).toISOString().split('T')[0] : null,
             count: item.count || 0,
           })),
           kriOverdueStatusCounts: kriOverdueStatusCountsRows.map((item) => ({
@@ -947,7 +987,8 @@ export class GrcKrisService {
           activeKrisDetailsTask,
         ]);
         const kriDetailsWithActionPlansGrouped = await this.getKriDetailsWithActionPlansGrouped(
-          functionFilter,
+          access,
+          selectedFunctionIds,
           kriValueDateFilter,
         );
 
@@ -1042,7 +1083,8 @@ export class GrcKrisService {
       const totalKris = Number(totalKrisResult[0]?.total || 0);
       const statusCountsRow = statusCountsResults[0] || {};
       const kriDetailsWithActionPlansGrouped = await this.getKriDetailsWithActionPlansGrouped(
-        functionFilter,
+        access,
+        selectedFunctionIds,
         kriValueDateFilter,
       );
 
@@ -1097,7 +1139,7 @@ export class GrcKrisService {
           count: item.count || 0
         })),
         deletedKrisPerMonth: deletedKrisPerMonth.map(item => ({
-          month: item.deletedAt ? new Date(item.deletedAt).toISOString().split('T')[0] : null,
+          month: item.deletedMonth ? new Date(item.deletedMonth).toISOString().split('T')[0] : null,
           count: item.count || 0
         })),
         kriOverdueStatusCounts: kriOverdueStatusCountsRows.map(item => ({
