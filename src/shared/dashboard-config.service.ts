@@ -636,13 +636,13 @@ export class DashboardConfigService {
           name: 'Key vs Non-Key Controls per Business Unit',
           query: `SELECT 
             f.name AS [Business Unit],
-            SUM(CASE WHEN c.keyControl = 1 THEN 1 ELSE 0 END) AS [Key Controls],
-            SUM(CASE WHEN c.keyControl = 0 THEN 1 ELSE 0 END) AS [Non-Key Controls],
-            COUNT(c.id) AS [Total Controls]
+            COUNT(DISTINCT CASE WHEN c.keyControl = 1 THEN c.id END) AS [Key Controls],
+            COUNT(DISTINCT CASE WHEN c.keyControl = 0 THEN c.id END) AS [Non-Key Controls],
+            COUNT(DISTINCT c.id) AS [Total Controls]
           FROM ${fq('ControlFunctions')} cf
           JOIN ${fq('Functions')} f ON cf.function_id = f.id
           JOIN ${fq('Controls')} c ON cf.control_id = c.id
-          WHERE c.isDeleted = 0 AND cf.deletedAt IS NULL {dateFilter} {functionFilter}
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND cf.deletedAt IS NULL {dateFilter} {functionFilter}
           GROUP BY f.name
           ORDER BY COUNT(DISTINCT c.id) DESC, f.name`,
           columns: [

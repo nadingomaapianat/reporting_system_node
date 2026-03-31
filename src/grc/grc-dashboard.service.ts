@@ -1333,7 +1333,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const keyControlValue = isKeyControl ? 1 : 0;
       
       const query = `
-        SELECT 
+        SELECT DISTINCT
           c.code as control_code,
           c.name as control_name,
           ${functionNameSubquery} AS function_name,
@@ -1342,6 +1342,7 @@ export class GrcDashboardService extends BaseDashboardService {
         JOIN dbo.[Functions] f ON cf.function_id = f.id
         JOIN dbo.[Controls] c ON cf.control_id = c.id
         WHERE c.isDeleted = 0
+          AND c.deletedAt IS NULL
           AND f.name = @param0
           AND c.keyControl = @param1
           ${dateFilter}
@@ -1354,11 +1355,12 @@ export class GrcDashboardService extends BaseDashboardService {
       const result = await this.databaseService.query(query, [businessUnit, keyControlValue, offset, limitInt]);
 
       const countQuery = `
-        SELECT COUNT(*) as total
+        SELECT COUNT(DISTINCT c.id) as total
         FROM dbo.[ControlFunctions] cf
         JOIN dbo.[Functions] f ON cf.function_id = f.id
         JOIN dbo.[Controls] c ON cf.control_id = c.id
         WHERE c.isDeleted = 0
+          AND c.deletedAt IS NULL
           AND f.name = @param0
           AND c.keyControl = @param1
           ${dateFilter}
