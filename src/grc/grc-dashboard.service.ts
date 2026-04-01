@@ -39,6 +39,23 @@ export class GrcDashboardService extends BaseDashboardService {
     return `(${base} AND cf.function_id IN (${ids}))`;
   }
 
+  private controlFunctionNamesCte(): string {
+    return `
+      WITH ControlFunctionNames AS (
+        SELECT
+          cf.control_id,
+          STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS function_name
+        FROM ${fq('ControlFunctions')} cf
+        INNER JOIN ${fq('Functions')} f
+          ON f.id = cf.function_id
+         AND f.deletedAt IS NULL
+         AND f.isDeleted = 0
+        WHERE cf.deletedAt IS NULL
+        GROUP BY cf.control_id
+      )
+    `;
+  }
+
   // Override specific methods if needed for custom logic
   async getControlsDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc?: boolean) {
     // Use base class method which now accepts functionId
@@ -87,7 +104,18 @@ export class GrcDashboardService extends BaseDashboardService {
       const functionNameSubquery = this.controlFunctionNameSubquery();
       
       if (cardType === 'total') {
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
+        dataQuery = `
+          ${this.controlFunctionNamesCte()}
+          SELECT
+            c.id,
+            c.name,
+            c.code,
+            ISNULL(cfn.function_name, 'Unknown') AS function_name
+          FROM ${fq('Controls')} c
+          LEFT JOIN ControlFunctionNames cfn ON cfn.control_id = c.id
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter}
+          ORDER BY c.createdAt DESC
+        `;
         countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter}`;
       } else if (cardType === 'unmapped') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;

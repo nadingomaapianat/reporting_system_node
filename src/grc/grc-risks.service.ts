@@ -850,16 +850,18 @@ export class GrcRisksService extends BaseDashboardService {
     switch (cardType) {
       case 'total': {
         dataQuery = `
+      WITH ${this.riskFunctionNamesCte()}
       SELECT 
             r.code as code,
-        r.name as risk_name,
-            ${this.riskFunctionNameSubquery()} AS function_name,
+            r.name as risk_name,
+            ISNULL(rfn.function_name, 'Unknown') AS function_name,
             CASE WHEN r.inherent_value IN ('High','Medium','Low') THEN r.inherent_value ELSE NULL END as inherent_level,
             CASE WHEN r.residual_value IN ('High','Medium','Low') THEN r.residual_value ELSE NULL END as residual_level,
-        r.createdAt as created_at
+            r.createdAt as created_at
           FROM dbo.[Risks] r
-      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
-      ORDER BY r.createdAt DESC
+          LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
+          WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
+          ORDER BY r.createdAt DESC
           OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY`;
         countQuery = `SELECT COUNT(*) as total FROM dbo.[Risks] r WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}`;
         break;
