@@ -1279,6 +1279,28 @@ export class GrcIncidentsService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc = false,
   ) {
+    if (tableId === 'overallStatuses') {
+      return this.getOverallStatusesTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'netLossAndRecovery') {
+      return this.getNetLossAndRecoveryTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'incidentsFinancialDetails') {
+      return this.getIncidentsFinancialDetailsTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'incidentsWithTimeframe') {
+      return this.getIncidentsWithTimeframeTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'incidentsWithFinancialAndFunction') {
+      return this.getIncidentsWithFinancialAndFunctionTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'incidentActionPlan') {
+      return this.getIncidentActionPlanTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, false, orderByFunctionAsc);
+    }
+    if (tableId === 'overdueIncidents') {
+      return this.getIncidentActionPlanTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, true, orderByFunctionAsc);
+    }
+
     const tablesPayload = await this.getIncidentsDashboard(
       user,
       timeframe,
@@ -1308,6 +1330,381 @@ export class GrcIncidentsService {
       ? sortRowsByFunctionAsc(tableRows as Record<string, unknown>[])
       : tableRows;
     return this.paginateRows(sortedRows, page, limit);
+  }
+
+  private buildPaginationMeta(page: number, limit: number, total: number) {
+    const safePage = Math.max(1, Math.floor(Number(page)) || 1);
+    const safeLimit = Math.max(1, Math.floor(Number(limit)) || 10);
+    const totalPages = Math.ceil(total / safeLimit);
+    return {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages,
+      hasNext: safePage < totalPages,
+      hasPrev: safePage > 1,
+    };
+  }
+
+  private async getOverallStatusesTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
+    const dataQuery = `
+      SELECT 
+        i.code,
+        i.title,
+        ISNULL(f.name, 'Unknown') AS function_name,
+        CASE 
+          WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+          WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+          WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+          WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
+          ELSE 'Other'
+        END as status,
+        FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
+      FROM Incidents i
+      LEFT JOIN Functions f ON i.function_id = f.id
+        AND f.isDeleted = 0
+        AND f.deletedAt IS NULL
+      WHERE i.isDeleted = 0 
+        AND i.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return { data, pagination: this.buildPaginationMeta(pageInt, limitInt, total) };
+  }
+
+  private async getNetLossAndRecoveryTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM Incidents i
+      WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+        AND (i.net_loss IS NOT NULL OR i.recovery_amount IS NOT NULL)
+    `;
+    const dataQuery = `
+      SELECT
+        i.title as incident_title,
+        i.net_loss,
+        i.recovery_amount,
+        ISNULL(f.name, 'Unknown') as function_name
+      FROM Incidents i
+      LEFT JOIN Functions f ON i.function_id = f.id
+        AND f.isDeleted = 0
+        AND f.deletedAt IS NULL
+      WHERE i.isDeleted = 0 
+        AND i.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+        AND (i.net_loss IS NOT NULL OR i.recovery_amount IS NOT NULL)
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        incident_title: item.incident_title || 'Unknown',
+        net_loss: item.net_loss || 0,
+        recovery_amount: item.recovery_amount || 0,
+        function_name: item.function_name || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getIncidentsFinancialDetailsTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
+    const dataQuery = `
+      SELECT 
+        i.title AS title, 
+        i.rootCause AS rootCause, 
+        ISNULL(f.name, 'Unknown') AS function_name, 
+        i.net_loss AS netLoss, 
+        i.total_loss AS totalLoss, 
+        i.recovery_amount AS recoveryAmount, 
+        (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount, 
+        CASE 
+          WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+          WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+          WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+          WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
+          ELSE 'Other'
+        END AS status 
+      FROM Incidents i
+      LEFT JOIN Functions f ON i.function_id = f.id
+        AND f.isDeleted = 0
+        AND f.deletedAt IS NULL
+      WHERE i.isDeleted = 0 
+        AND i.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        title: item.title || 'Unknown',
+        rootCause: item.rootCause || '',
+        function_name: item.function_name || 'Unknown',
+        netLoss: item.netLoss || 0,
+        totalLoss: item.totalLoss || 0,
+        recoveryAmount: item.recoveryAmount || 0,
+        grossAmount: item.grossAmount || 0,
+        status: item.status || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getIncidentsWithTimeframeTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 ${dateFilter} ${functionFilter} AND i.deletedAt IS NULL`;
+    const dataQuery = `
+      SELECT 
+        i.title AS incident_name, 
+        i.timeFrame AS time_frame,
+        ISNULL(f.name, 'Unknown') AS function_name
+      FROM Incidents i
+      LEFT JOIN Functions f ON i.function_id = f.id
+        AND f.isDeleted = 0
+        AND f.deletedAt IS NULL
+      WHERE i.isDeleted = 0 ${dateFilter}
+        ${functionFilter}
+        AND i.deletedAt IS NULL
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        incident_name: item.incident_name || 'Unknown',
+        time_frame: item.time_frame || '',
+        function_name: item.function_name || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getIncidentsWithFinancialAndFunctionTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 ${dateFilter} ${functionFilter} AND i.deletedAt IS NULL`;
+    const dataQuery = `
+      SELECT 
+        i.title AS title, 
+        ISNULL(fi.name, 'Unknown') AS financial_impact_name, 
+        ISNULL(f.name, 'Unknown') AS function_name 
+      FROM Incidents i
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id
+        AND fi.isDeleted = 0
+        AND fi.deletedAt IS NULL
+      LEFT JOIN Functions f ON i.function_id = f.id
+        AND f.isDeleted = 0
+        AND f.deletedAt IS NULL
+      WHERE i.isDeleted = 0 ${dateFilter}
+        ${functionFilter}
+        AND i.deletedAt IS NULL
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        title: item.title || 'Unknown',
+        financial_impact_name: item.financial_impact_name || 'Unknown',
+        function_name: item.function_name || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getIncidentActionPlanTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    overdueOnly = false,
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const actionOwnerFunctionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'a',
+      'actionOwner',
+      access,
+      selectedFunctionIds,
+    );
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const overdueFilter = overdueOnly
+      ? `
+          AND a.implementation_date IS NOT NULL
+          AND CAST(a.implementation_date AS DATE) < CAST(GETDATE() AS DATE)
+          AND LOWER(LTRIM(RTRIM(ISNULL(a.business_unit, N'')))) IN (N'pending', N'overdue')
+        `
+      : '';
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM dbo.[Actionplans] a
+      INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
+      WHERE a.deletedAt IS NULL
+        AND a.[from] = 'incident'
+        AND i.isDeleted = 0
+        AND i.deletedAt IS NULL
+        ${dateFilter}
+        ${actionOwnerFunctionFilter}
+        ${overdueFilter}
+    `;
+    const dataQuery = `
+      SELECT 
+        i.code AS incident_code,
+        i.title AS incident_title,
+        ISNULL(f_inc.name, 'N/A') AS incident_function_name,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
+        a.control_procedure AS action_taken,
+        f_owner.name AS action_owner_name,
+        a.business_unit AS business_unit_status,
+        a.implementation_date AS expected_implementation_date
+      FROM dbo.[Actionplans] a
+      INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
+      LEFT JOIN dbo.[Functions] f_inc ON i.function_id = f_inc.id
+        AND f_inc.isDeleted = 0
+        AND f_inc.deletedAt IS NULL
+      LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
+        AND f_owner.isDeleted = 0
+        AND f_owner.deletedAt IS NULL
+      WHERE a.deletedAt IS NULL
+        AND a.[from] = 'incident'
+        AND i.isDeleted = 0
+        AND i.deletedAt IS NULL
+        ${dateFilter}
+        ${actionOwnerFunctionFilter}
+        ${overdueFilter}
+      ORDER BY ${orderByFunctionAsc ? 'incident_function_name ASC, a.createdAt DESC' : 'a.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((row: any) => ({
+        code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+        incident_name: row.incident_title || 'N/A',
+        incident_department: row.incident_function_name || 'N/A',
+        root_cause: row.incident_root_cause || '',
+        description: row.incident_description || '',
+        action_taken: row.action_taken || row.control_procedure || '',
+        action_owner: row.action_owner_name || '',
+        status: row.business_unit_status || '',
+        expected_implementation_date: row.expected_implementation_date || null,
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
   }
 
   async exportIncidents(user: any, format: string, timeframe?: string) {
