@@ -134,9 +134,12 @@ export class GrcComplyService {
       }
       return ` AND EXISTS (
         SELECT 1
-        FROM ${fq('Domains')} parent
-        WHERE parent.id = D.parentId
-          AND parent.code = '${selectedFunctionId}'
+        FROM ${fq('controlDomains')} cd_filter
+        JOIN ${fq('ControlFunctions')} cf
+          ON cf.control_id = cd_filter.control_id
+         AND cf.deletedAt IS NULL
+        WHERE cd_filter.domain_id = D.id
+          AND cf.function_id = '${selectedFunctionId}'
       )`;
     }
 
@@ -150,9 +153,12 @@ export class GrcComplyService {
     const ids = access.functionIds.map((id) => `'${id}'`).join(', ');
     return ` AND EXISTS (
       SELECT 1
-      FROM ${fq('Domains')} parent
-      WHERE parent.id = D.parentId
-        AND parent.code IN (${ids})
+      FROM ${fq('controlDomains')} cd_filter
+      JOIN ${fq('ControlFunctions')} cf
+        ON cf.control_id = cd_filter.control_id
+       AND cf.deletedAt IS NULL
+      WHERE cd_filter.domain_id = D.id
+        AND cf.function_id IN (${ids})
     )`;
   }
 
