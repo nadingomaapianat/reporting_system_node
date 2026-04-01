@@ -132,7 +132,12 @@ export class GrcComplyService {
       if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
         return ' AND 1 = 0';
       }
-      return ` AND D.code = '${selectedFunctionId}'`;
+      return ` AND EXISTS (
+        SELECT 1
+        FROM ${fq('Domains')} parent
+        WHERE parent.id = D.parentId
+          AND parent.code = '${selectedFunctionId}'
+      )`;
     }
 
     // If no specific function selected, super admins see everything
@@ -143,7 +148,12 @@ export class GrcComplyService {
     }
 
     const ids = access.functionIds.map((id) => `'${id}'`).join(', ');
-    return ` AND D.code IN (${ids})`;
+    return ` AND EXISTS (
+      SELECT 1
+      FROM ${fq('Domains')} parent
+      WHERE parent.id = D.parentId
+        AND parent.code IN (${ids})
+    )`;
   }
 
   /**
@@ -514,8 +524,7 @@ SELECT DISTINCT
   C.[createdAt]
 FROM ${fq('Compliances')} C
 LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
 WHERE C.[deletedAt] IS NULL ${complianceDateFilter} ${complianceFunctionFilter}
 ORDER BY C.[code]
 `;
@@ -938,8 +947,7 @@ SELECT
   C.[complianceStatus]
 FROM ${fq('Compliances')} C
 LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
 WHERE C.[deletedAt] IS NULL ${complianceStatusDateFilter} ${complianceStatusFunctionFilter}
 GROUP BY C.[complianceStatus];
 `;
@@ -953,8 +961,7 @@ SELECT
   C.[progressStatus]
 FROM ${fq('Compliances')} C
 LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
 WHERE C.[deletedAt] IS NULL ${progressStatusDateFilter} ${progressStatusFunctionFilter}
 GROUP BY C.[progressStatus];
 `;
@@ -968,8 +975,7 @@ SELECT
   C.[approval_status]
 FROM ${fq('Compliances')} C
 LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
 WHERE C.[deletedAt] IS NULL ${complianceApprovalStatusDateFilter} ${complianceApprovalStatusFunctionFilter}
 GROUP BY C.[approval_status];
 `;
@@ -1480,8 +1486,7 @@ ORDER BY month;
         D.[en_name] AS Domain
       FROM ${fq('Compliances')} C
       LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
       LEFT JOIN ControlReferences CRE ON CR.reference_id = CRE.id
       WHERE C.[deletedAt] IS NULL 
         AND C.[complianceStatus] = '${status.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
@@ -1493,8 +1498,7 @@ ORDER BY month;
       SELECT COUNT(DISTINCT C.[id]) as total
       FROM ${fq('Compliances')} C
       LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
       WHERE C.[deletedAt] IS NULL 
         AND C.[complianceStatus] = '${status.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
     `;
@@ -1558,8 +1562,7 @@ ORDER BY month;
         D.[en_name] AS Domain
       FROM ${fq('Compliances')} C
       LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
       LEFT JOIN ControlReferences CRE ON CR.reference_id = CRE.id
       WHERE C.[deletedAt] IS NULL 
         AND C.[progressStatus] = '${progressStatus.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
@@ -1571,8 +1574,7 @@ ORDER BY month;
       SELECT COUNT(DISTINCT C.[id]) as total
       FROM ${fq('Compliances')} C
       LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
       WHERE C.[deletedAt] IS NULL 
         AND C.[progressStatus] = '${progressStatus.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
     `;
@@ -1636,8 +1638,7 @@ ORDER BY month;
         D.[en_name] AS Domain
       FROM ${fq('Compliances')} C
       LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
       LEFT JOIN ControlReferences CRE ON CR.reference_id = CRE.id
       WHERE C.[deletedAt] IS NULL 
         AND C.[approval_status] = '${approvalStatus.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
@@ -1649,8 +1650,7 @@ ORDER BY month;
       SELECT COUNT(DISTINCT C.[id]) as total
       FROM ${fq('Compliances')} C
       LEFT JOIN ${fq('complianceReferences')} CR ON C.id = CR.compliance_id
-      LEFT JOIN ${fq('controlDomains')} CD ON CR.reference_id = CD.domain_id
-      LEFT JOIN ${fq('Domains')} D ON CD.domain_id = D.id
+      LEFT JOIN ${fq('Domains')} D ON D.standard_id = CR.reference_id
       WHERE C.[deletedAt] IS NULL 
         AND C.[approval_status] = '${approvalStatus.replace(/'/g, "''")}' ${dateFilter} ${functionFilter}
     `;
