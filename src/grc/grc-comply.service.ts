@@ -213,7 +213,13 @@ export class GrcComplyService {
     );
   }
 
-  async runReport(report: GrcComplyReportKey, startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
+  async runReport(
+    report: GrcComplyReportKey,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    accessOrUser?: UserFunctionAccess | any,
+  ) {
     // Debug logging for report 26 to verify filters are being passed
     if (report === '26') {
       // console.log('[GrcComplyService.runReport] Report 26 - Impacted Areas Trend Over Time');
@@ -221,7 +227,7 @@ export class GrcComplyService {
     }
     
     // If access not provided, create a default (super admin) access
-    const userAccess = access || { isSuperAdmin: true, functionIds: [] };
+    const userAccess = (await this.resolveAccess(accessOrUser)) || { isSuperAdmin: true, functionIds: [] };
     
     const sqlQuery = this.getSqlForReport(report, startDate, endDate, functionId, userAccess);
 
@@ -237,12 +243,23 @@ export class GrcComplyService {
     return this.databaseService.query(sqlQuery);
   }
 
-  async runAllReports(startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
-    return this.runReportsByKeys(this.getDashboardReportKeys(), startDate, endDate, functionId, access);
+  async runAllReports(
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    accessOrUser?: UserFunctionAccess | any,
+  ) {
+    return this.runReportsByKeys(this.getDashboardReportKeys(), startDate, endDate, functionId, accessOrUser);
   }
 
-  async runDashboardSection(section: DashboardSection, startDate?: string, endDate?: string, functionId?: string, access?: UserFunctionAccess) {
-    return this.runReportsByKeys(this.getDashboardReportKeys(section), startDate, endDate, functionId, access);
+  async runDashboardSection(
+    section: DashboardSection,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    accessOrUser?: UserFunctionAccess | any,
+  ) {
+    return this.runReportsByKeys(this.getDashboardReportKeys(section), startDate, endDate, functionId, accessOrUser);
   }
 
   async getDashboardTablePage(
@@ -329,7 +346,7 @@ export class GrcComplyService {
     startDate?: string,
     endDate?: string,
     functionId?: string,
-    access?: UserFunctionAccess,
+    accessOrUser?: UserFunctionAccess | any,
   ) {
     // Log filters for debugging - always log to see what's being received
     /* console.log('[GrcComplyService.runAllReports] Called with filters:', { 
@@ -343,7 +360,7 @@ export class GrcComplyService {
     });*/
     
     // If access not provided, create a default (super admin) access
-    const userAccess = access || { isSuperAdmin: true, functionIds: [] };
+    const userAccess = (await this.resolveAccess(accessOrUser)) || { isSuperAdmin: true, functionIds: [] };
     
     const reportNames: Record<GrcComplyReportKey, string> = {
       '1': 'Survey Completion Rate',
