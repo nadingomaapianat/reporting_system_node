@@ -77,7 +77,7 @@ export class GrcComplyController {
       start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
       end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
       id,
-      undefined,
+      req.user,
       ob,
     );
     return raw;
@@ -108,7 +108,7 @@ export class GrcComplyController {
         start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
         end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
         id,
-        undefined,
+        req.user,
         ob,
       );
     }

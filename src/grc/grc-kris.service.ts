@@ -1240,6 +1240,25 @@ export class GrcKrisService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc = false,
   ) {
+    if (tableId === 'overallKris') {
+      return this.getOverallKrisTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'allKrisSubmittedByFunction') {
+      return this.getAllKrisSubmittedByFunctionTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'activeKrisDetails') {
+      return this.getActiveKrisDetailsTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'overdueKrisByDepartment') {
+      return this.getOverdueKrisByDepartmentTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'kriWithoutLinkedRisks') {
+      return this.getKriWithoutLinkedRisksTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'kriRiskRelationships') {
+      return this.getKriRiskRelationshipsTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+
     const tablesPayload = await this.getKrisDashboard(
       user,
       timeframe,
@@ -1267,6 +1286,421 @@ export class GrcKrisService {
       ? sortRowsByFunctionAsc(tableRows as Record<string, unknown>[])
       : tableRows;
     return this.paginateRows(sortedRows, page, limit);
+  }
+
+  private buildPaginationMeta(page: number, limit: number, total: number) {
+    const safePage = Math.max(1, Math.floor(Number(page)) || 1);
+    const safeLimit = Math.max(1, Math.floor(Number(limit)) || 10);
+    const totalPages = Math.ceil(total / safeLimit);
+    return {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages,
+      hasNext: safePage < totalPages,
+      hasPrev: safePage > 1,
+    };
+  }
+
+  private async getOverallKrisTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const countQuery = `SELECT COUNT(*) as total FROM Kris k WHERE k.isDeleted = 0 AND k.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
+    const dataQuery = `
+      SELECT
+        k.code AS code,
+        k.kriName AS kri_name,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        k.createdAt AS createdAt,
+        CASE 
+          WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+          WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+          WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+          WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
+          ELSE 'Unknown'
+        END AS status
+      FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      WHERE k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        code: item.code || null,
+        kri_name: item.kri_name || 'Unknown',
+        function_name: item.function_name || 'Unknown',
+        status: item.status || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getAllKrisSubmittedByFunctionTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const groupedQuery = `
+      SELECT
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function Name],
+        MAX(k.createdAt) AS latest_created_at,
+        COUNT(k.id) AS [Total KRIs],
+        COUNT(CASE
+          WHEN ISNULL(k.preparerStatus, '') = 'sent'
+           AND ISNULL(k.acceptanceStatus, '') = 'approved'
+          THEN 1 END) AS [Submitted KRIs],
+        CASE
+          WHEN COUNT(k.id) = COUNT(CASE
+            WHEN ISNULL(k.preparerStatus, '') = 'sent'
+             AND ISNULL(k.acceptanceStatus, '') = 'approved'
+            THEN 1 END)
+          THEN 'Yes' ELSE 'No'
+        END AS [All KRIs Submitted?]
+      FROM Kris AS k
+      LEFT JOIN KriFunctions AS kf
+        ON k.id = kf.kri_id
+        AND kf.deletedAt IS NULL
+      LEFT JOIN Functions AS fkf
+        ON fkf.id = kf.function_id
+        AND fkf.isDeleted = 0
+        AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions AS frel
+        ON frel.id = k.related_function_id
+        AND frel.isDeleted = 0
+        AND frel.deletedAt IS NULL
+      WHERE
+        k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+      GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
+    `;
+    const countQuery = `SELECT COUNT(*) as total FROM (${groupedQuery}) as grouped_kris`;
+    const dataQuery = `
+      ${groupedQuery}
+      ORDER BY ${orderByFunctionAsc ? '[Function Name] ASC' : 'latest_created_at DESC, [Function Name] ASC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        function_name: item['Function Name'] || 'Unknown',
+        all_submitted: item['All KRIs Submitted?'] || 'No',
+        total_kris: item['Total KRIs'] || 0,
+        submitted_kris: item['Submitted KRIs'] || 0,
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getActiveKrisDetailsTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const countQuery = `SELECT COUNT(*) as total FROM Kris k WHERE k.isDeleted = 0 AND k.deletedAt IS NULL AND k.status = 'active' ${dateFilter} ${functionFilter}`;
+    const dataQuery = `
+      SELECT
+        k.kriName AS kriName,
+        CASE 
+          WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+          WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
+          WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+          WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
+          ELSE 'Unknown'
+        END AS combined_status,
+        u.name AS assignedPersonId,
+        u2.name AS addedBy,
+        k.status AS status,
+        k.frequency AS frequency,
+        k.threshold AS threshold,
+        k.high_from AS high_from,
+        k.medium_from AS medium_from,
+        k.low_from AS low_from,
+        ISNULL(f.name, NULL) AS function_name,
+        k.createdAt AS createdAt
+      FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions f ON f.id = kf.function_id AND f.isDeleted = 0 AND f.deletedAt IS NULL
+      LEFT JOIN users u ON k.assignedPersonId = u.id AND u.deletedAt IS NULL
+      LEFT JOIN users u2 ON k.addedBy = u2.id AND u2.deletedAt IS NULL
+      WHERE k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        AND k.status = 'active'
+        ${dateFilter}
+        ${functionFilter}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        kriName: item.kriName || 'Unknown',
+        combined_status: item.combined_status || 'Unknown',
+        assignedPersonId: item.assignedPersonId || null,
+        addedBy: item.addedBy || null,
+        status: item.status || 'Unknown',
+        frequency: item.frequency || 'Unknown',
+        threshold: item.threshold || null,
+        high_from: item.high_from || null,
+        medium_from: item.medium_from || null,
+        low_from: item.low_from || null,
+        function_name: item.function_name || null,
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getOverdueKrisByDepartmentTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const baseQuery = `
+      SELECT DISTINCT 
+        k.code AS [KRI Code], 
+        k.kriName AS [KRI Name], 
+        k.createdAt AS createdAt,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function]
+      FROM Kris AS k
+      INNER JOIN Actionplans AS ap
+        ON ap.kri_id = k.id
+        AND ap.deletedAt IS NULL
+        AND ap.implementation_date < GETDATE()
+        AND (ap.done = 0 OR ap.done IS NULL)
+      LEFT JOIN KriFunctions AS kf
+        ON k.id = kf.kri_id
+        AND kf.deletedAt IS NULL
+      LEFT JOIN Functions AS fkf
+        ON fkf.id = kf.function_id
+        AND fkf.isDeleted = 0
+        AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions AS frel
+        ON frel.id = k.related_function_id
+        AND frel.isDeleted = 0
+        AND frel.deletedAt IS NULL
+      WHERE k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+    `;
+    const countQuery = `SELECT COUNT(*) as total FROM (${baseQuery}) as overdue_kris`;
+    const dataQuery = `
+      ${baseQuery}
+      ORDER BY ${orderByFunctionAsc ? '[Function] ASC, createdAt DESC' : 'createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        kriCode: item['KRI Code'] || null,
+        kriName: item['KRI Name'] || 'Unknown',
+        function_name: item['Function'] || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getKriWithoutLinkedRisksTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM Kris AS k
+      WHERE k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM KriRisks AS kr
+          WHERE kr.kri_id = k.id
+            AND kr.deletedAt IS NULL
+        )
+    `;
+    const dataQuery = `
+      SELECT 
+        k.kriName AS kriName, 
+        k.code AS kriCode,
+        k.createdAt AS createdAt,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
+      FROM Kris AS k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      WHERE k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM KriRisks AS kr
+          WHERE kr.kri_id = k.id
+            AND kr.deletedAt IS NULL
+        )
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        kriName: item.kriName || 'Unknown',
+        kriCode: item.kriCode || null,
+        function_name: item.function_name || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getKriRiskRelationshipsTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const baseQuery = `
+      SELECT
+        k.code AS kri_code,
+        k.kriName AS kri_name,
+        k.createdAt AS createdAt,
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        r.code AS risk_code,
+        r.name AS risk_name
+      FROM Kris k
+      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      INNER JOIN KriRisks kr
+        ON kr.kri_id = k.id
+        AND kr.deletedAt IS NULL
+      INNER JOIN Risks r
+        ON r.id = kr.risk_id
+        AND r.isDeleted = 0
+        AND r.deletedAt IS NULL
+      WHERE k.isDeleted = 0
+        AND k.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+    `;
+    const countQuery = `SELECT COUNT(*) as total FROM (${baseQuery}) as kri_risk_relationships`;
+    const dataQuery = `
+      ${baseQuery}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC, kri_name ASC, risk_name ASC' : 'createdAt DESC, kri_name ASC, risk_name ASC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        kri_code: item.kri_code || null,
+        kri_name: item.kri_name || 'Unknown',
+        function_name: item.function_name || 'Unknown',
+        risk_code: item.risk_code || null,
+        risk_name: item.risk_name || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
   }
 
   async getTotalKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {

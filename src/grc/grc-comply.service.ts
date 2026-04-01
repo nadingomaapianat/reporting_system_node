@@ -252,9 +252,23 @@ export class GrcComplyService {
     startDate?: string,
     endDate?: string,
     functionId?: string,
-    access?: UserFunctionAccess,
+    accessOrUser?: UserFunctionAccess | any,
     orderByFunctionAsc = false,
   ) {
+    const access = await this.resolveAccess(accessOrUser);
+
+    if (!orderByFunctionAsc) {
+      if (tableId === 'complianceDetails') {
+        return this.getPaginatedReportWithAccess('6', page, limit, startDate, endDate, functionId, access);
+      }
+      if (tableId === 'surveyCompletionRate') {
+        return this.getPaginatedReportWithAccess('1', page, limit, startDate, endDate, functionId, access);
+      }
+      if (tableId === 'bankQuestionsDetails') {
+        return this.getPaginatedReportWithAccess('2', page, limit, startDate, endDate, functionId, access);
+      }
+    }
+
     const tablesPayload = await this.runDashboardSection('tables', startDate, endDate, functionId, access) as Record<string, any[]>;
 
     const tableRows = {
@@ -271,6 +285,18 @@ export class GrcComplyService {
       ? sortRowsByFunctionAsc(tableRows as Record<string, unknown>[])
       : tableRows;
     return this.paginateRows(sortedRows, page, limit);
+  }
+
+  private async resolveAccess(accessOrUser?: UserFunctionAccess | any): Promise<UserFunctionAccess | undefined> {
+    if (!accessOrUser) return undefined;
+    if (
+      typeof accessOrUser === 'object' &&
+      typeof accessOrUser.isSuperAdmin === 'boolean' &&
+      Array.isArray(accessOrUser.functionIds)
+    ) {
+      return accessOrUser as UserFunctionAccess;
+    }
+    return this.userFunctionAccess.getUserFunctionAccess(accessOrUser);
   }
 
   private getDashboardReportKeys(section?: DashboardSection): GrcComplyReportKey[] {
@@ -1236,12 +1262,22 @@ ORDER BY month;
     endDate?: string,
     functionId?: string
   ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    return this.getPaginatedReportWithAccess(report, page, limit, startDate, endDate, functionId, access);
+  }
+
+  private async getPaginatedReportWithAccess(
+    report: GrcComplyReportKey,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    functionId?: string,
+    access?: UserFunctionAccess,
+  ) {
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
-
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
 
     // Get the SQL query
     const sqlQuery = this.getSqlForReport(report, startDate, endDate, functionId, access);

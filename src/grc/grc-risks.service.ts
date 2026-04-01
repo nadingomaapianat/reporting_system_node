@@ -25,8 +25,38 @@ export class GrcRisksService extends BaseDashboardService {
     return `(SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[RiskFunctions] rf INNER JOIN dbo.[Functions] f ON f.id = rf.function_id WHERE rf.risk_id = r.id AND rf.deletedAt IS NULL)`;
   }
 
-  private previewRows<T>(rows: T[]): T[] {
-    return Array.isArray(rows) ? rows.slice(0, DASHBOARD_PREVIEW_LIMIT) : [];
+  private riskFunctionNamesCte(): string {
+    return `
+      RiskFunctionNames AS (
+        SELECT
+          rf.risk_id,
+          STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS function_name
+        FROM dbo.[RiskFunctions] rf
+        INNER JOIN dbo.[Functions] f
+          ON f.id = rf.function_id
+         AND f.isDeleted = 0
+         AND f.deletedAt IS NULL
+        WHERE rf.deletedAt IS NULL
+        GROUP BY rf.risk_id
+      )
+    `;
+  }
+
+  private controlFunctionNamesCte(): string {
+    return `
+      ControlFunctionNames AS (
+        SELECT
+          cf.control_id,
+          STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS function_name
+        FROM dbo.[ControlFunctions] cf
+        INNER JOIN dbo.[Functions] f
+          ON f.id = cf.function_id
+         AND f.isDeleted = 0
+         AND f.deletedAt IS NULL
+        WHERE cf.deletedAt IS NULL
+        GROUP BY cf.control_id
+      )
+    `;
   }
 
   private async runQueryBatches<T>(tasks: Array<() => Promise<T>>, batchSize = 4): Promise<T[]> {
@@ -80,6 +110,11 @@ export class GrcRisksService extends BaseDashboardService {
         }
       };
 
+      const includeCards = !section || section === 'cards';
+      const includeCharts = !section || section === 'charts';
+      const includeTables = !section || section === 'tables';
+      const applyTablePreview = section === 'tables';
+
       const totalRisksTask = () => queryOrFallback<any[]>('totalRisks', `
           SELECT COUNT(*) as total
           FROM dbo.[Risks] r
@@ -99,6 +134,7 @@ export class GrcRisksService extends BaseDashboardService {
           WHERE r.isDeleted = 0
             ${functionFilter}
           ORDER BY r.createdAt DESC
+        ${applyTablePreview ? `OFFSET 0 ROWS FETCH NEXT ${DASHBOARD_PREVIEW_LIMIT} ROWS ONLY` : ''}
         `, []);
       const risksByEventTypeTask = () => queryOrFallback<any[]>('risksByEventType', `
           SELECT
@@ -247,35 +283,60 @@ export class GrcRisksService extends BaseDashboardService {
           WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
           GROUP BY f.name
           ORDER BY [count] DESC, f.name ASC
+          ${applyTablePreview ? `OFFSET 0 ROWS FETCH NEXT ${DASHBOARD_PREVIEW_LIMIT} ROWS ONLY` : ''}
         `, []);
 
-      const [
-        totalRisksResult,
-        allRisks,
-        risksByEventType,
-        risksByCategory,
-        levelsAgg,
-        riskReductionCountResult,
-        newRisks,
-        riskApprovalStatusDistribution,
-        riskDistributionByFinancialImpact,
-        quarterlyRiskCreationTrends,
-        createdDeletedRisksPerQuarter,
-        risksPerDepartment,
-      ] = await this.runQueryBatches<any[]>([
-        totalRisksTask,
-        allRisksTask,
-        risksByEventTypeTask,
-        risksByCategoryTask,
-        levelsAggTask,
-        riskReductionCountTask,
-        newRisksTask,
-        riskApprovalStatusDistributionTask,
-        riskDistributionByFinancialImpactTask,
-        quarterlyRiskCreationTrendsTask,
-        createdDeletedRisksPerQuarterTask,
-        risksPerDepartmentTask,
-      ]);
+      let totalRisksResult: any[] = [];
+      let allRisks: any[] = [];
+      let risksByEventType: any[] = [];
+      let risksByCategory: any[] = [];
+      let levelsAgg: any[] = [];
+      let riskReductionCountResult: any[] = [];
+      let newRisks: any[] = [];
+      let riskApprovalStatusDistribution: any[] = [];
+      let riskDistributionByFinancialImpact: any[] = [];
+      let quarterlyRiskCreationTrends: any[] = [];
+      let createdDeletedRisksPerQuarter: any[] = [];
+      let risksPerDepartment: any[] = [];
+
+      if (includeCards) {
+        [
+          totalRisksResult,
+          levelsAgg,
+          riskReductionCountResult,
+          newRisks,
+        ] = await this.runQueryBatches<any[]>([
+          totalRisksTask,
+          levelsAggTask,
+          riskReductionCountTask,
+          newRisksTask,
+        ]);
+      }
+
+      if (includeCharts) {
+        [
+          risksByEventType,
+          risksByCategory,
+          riskApprovalStatusDistribution,
+          riskDistributionByFinancialImpact,
+          quarterlyRiskCreationTrends,
+          createdDeletedRisksPerQuarter,
+        ] = await this.runQueryBatches<any[]>([
+          risksByEventTypeTask,
+          risksByCategoryTask,
+          riskApprovalStatusDistributionTask,
+          riskDistributionByFinancialImpactTask,
+          quarterlyRiskCreationTrendsTask,
+          createdDeletedRisksPerQuarterTask,
+        ]);
+      }
+
+      if (includeTables) {
+        [allRisks, risksPerDepartment] = await this.runQueryBatches<any[]>([
+          allRisksTask,
+          risksPerDepartmentTask,
+        ]);
+      }
 
       const totalRisks = totalRisksResult[0]?.total || 0;
       const riskLevels = [
@@ -319,23 +380,26 @@ export class GrcRisksService extends BaseDashboardService {
           JOIN dbo.[Risks] r ON rp.risk_id = r.id
           WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
           GROUP BY p.name ORDER BY risk_count DESC, p.name ASC
+          ${applyTablePreview ? `OFFSET 0 ROWS FETCH NEXT ${DASHBOARD_PREVIEW_LIMIT} ROWS ONLY` : ''}
         `, []);
       const inherentResidualRiskComparisonTask = () => queryOrFallback<any[]>('inherentResidualRiskComparison', `
-          SELECT r.name AS [Risk Name], f.name AS [Department Name], r.inherent_value AS [Inherent Value], rr.residual_value AS [Residual Value]
+          WITH ${this.riskFunctionNamesCte()}
+          SELECT r.name AS [Risk Name], ISNULL(rfn.function_name, 'Unknown') AS [Department Name], r.inherent_value AS [Inherent Value], rr.residual_value AS [Residual Value]
           FROM dbo.[Risks] r
-          JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id
-          LEFT JOIN dbo.[RiskFunctions] rf ON r.id = rf.risk_id
-          LEFT JOIN dbo.[Functions] f ON rf.function_id = f.id
+          JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id AND rr.isDeleted = 0
+          LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
           WHERE r.isDeleted = 0 AND rr.isDeleted = 0 ${dateFilter} ${functionFilter}
           ORDER BY r.createdAt DESC
+          ${applyTablePreview ? `OFFSET 0 ROWS FETCH NEXT ${DASHBOARD_PREVIEW_LIMIT} ROWS ONLY` : ''}
         `, []);
       const highResidualRiskOverviewTask = () => queryOrFallback<any[]>('highResidualRiskOverview', `
+          WITH ${this.riskFunctionNamesCte()}
           SELECT risk_name AS [Risk Name], function_name AS [function_name], residual_level AS [Residual Level], inherent_value AS [Inherent Value],
             inherent_frequency_label AS [Inherent Frequency], inherent_financial_label AS [Inherent Financial],
             residual_frequency_label AS [Residual Frequency], residual_financial_label AS [Residual Financial],
             quarter AS [Quarter], year AS [Year]
           FROM (
-            SELECT r.name AS risk_name, ${this.riskFunctionNameSubquery()} AS function_name, rr.residual_value AS residual_level, r.inherent_value AS inherent_value,
+            SELECT r.name AS risk_name, ISNULL(rfn.function_name, 'Unknown') AS function_name, rr.residual_value AS residual_level, r.inherent_value AS inherent_value,
               r.inherent_frequency, r.inherent_financial_value, rr.residual_frequency, rr.residual_financial_value,
               rr.quarter, rr.year,
               CASE WHEN r.inherent_frequency = 1 THEN 'Once in Three Years' WHEN r.inherent_frequency = 2 THEN 'Annually' WHEN r.inherent_frequency = 3 THEN 'Half Yearly' WHEN r.inherent_frequency = 4 THEN 'Quarterly' WHEN r.inherent_frequency = 5 THEN 'Monthly' ELSE 'Unknown' END AS inherent_frequency_label,
@@ -344,53 +408,66 @@ export class GrcRisksService extends BaseDashboardService {
               CASE WHEN rr.residual_financial_value = 1 THEN '0 - 10,000' WHEN rr.residual_financial_value = 2 THEN '10,000 - 100,000' WHEN rr.residual_financial_value = 3 THEN '100,000 - 1,000,000' WHEN rr.residual_financial_value = 4 THEN '1,000,000 - 10,000,000' WHEN rr.residual_financial_value = 5 THEN '> 10,000,000' ELSE 'Unknown' END AS residual_financial_label
             FROM dbo.[ResidualRisks] rr
             JOIN dbo.[Risks] r ON rr.riskId = r.id
+            LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
             WHERE r.isDeleted = 0 AND rr.residual_value = 'High' ${dateFilter} ${functionFilter}
           ) AS vt
           ORDER BY year DESC, quarter DESC, inherent_value DESC
+          ${applyTablePreview ? `OFFSET 0 ROWS FETCH NEXT ${DASHBOARD_PREVIEW_LIMIT} ROWS ONLY` : ''}
         `, []);
       const risksAndControlsCountTask = () => queryOrFallback<any[]>('risksAndControlsCount', `
-          SELECT r.name AS risk_name, ${this.riskFunctionNameSubquery()} AS function_name, COUNT(DISTINCT rc.control_id) AS control_count
+          WITH ${this.riskFunctionNamesCte()}
+          SELECT r.name AS risk_name, ISNULL(rfn.function_name, 'Unknown') AS function_name, COUNT(DISTINCT rc.control_id) AS control_count
           FROM dbo.[Risks] r
+          LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
           LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
           LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
           WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}
-          GROUP BY r.id, r.name ORDER BY control_count DESC
+          GROUP BY r.id, r.name, rfn.function_name ORDER BY control_count DESC, r.name
+          ${applyTablePreview ? `OFFSET 0 ROWS FETCH NEXT ${DASHBOARD_PREVIEW_LIMIT} ROWS ONLY` : ''}
         `, []);
       const controlsAndRiskCountTask = () => queryOrFallback<any[]>('controlsAndRiskCount', `
-          SELECT c.name AS [Controls__name], (SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL) AS function_name, COUNT(DISTINCT r.id) AS [count]
+          WITH ${this.controlFunctionNamesCte()}
+          SELECT c.name AS [Controls__name], ISNULL(cfn.function_name, 'Unknown') AS function_name, COUNT(DISTINCT r.id) AS [count]
           FROM dbo.[Controls] c
-          INNER JOIN (SELECT DISTINCT rc.control_id FROM dbo.[RiskControls] rc INNER JOIN dbo.[Risks] r0 ON rc.risk_id = r0.id AND r0.isDeleted = 0 AND r0.deletedAt IS NULL ${dateFilter.replace('r.', 'r0.')}) rc0 ON c.id = rc0.control_id
-          LEFT JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
-          LEFT JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
+          LEFT JOIN ControlFunctionNames cfn ON cfn.control_id = c.id
+          INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
+          INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
           WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
-          GROUP BY c.id, c.name ORDER BY [count] DESC, c.name ASC
+          GROUP BY c.id, c.name, cfn.function_name ORDER BY [count] DESC, c.name ASC
+          ${applyTablePreview ? `OFFSET 0 ROWS FETCH NEXT ${DASHBOARD_PREVIEW_LIMIT} ROWS ONLY` : ''}
         `, []);
       const risksDetailsTask = () => queryOrFallback<any[]>('risksDetails', `
+          WITH ${this.riskFunctionNamesCte()}
           SELECT r.name AS [RiskName], r.description AS [RiskDesc], et.name AS [RiskEventName], r.approve AS [RiskApprove],
             r.inherent_value AS [InherentValue], r.residual_value AS [ResidualValue], r.inherent_frequency AS [InherentFrequency],
-            r.inherent_financial_value AS [InherentFinancialValue], rr.residual_value AS [RiskResidualValue], rr.quarter AS [ResidualQuarter], rr.year AS [ResidualYear]
+            r.inherent_financial_value AS [InherentFinancialValue], rr.residual_value AS [RiskResidualValue], rr.quarter AS [ResidualQuarter], rr.year AS [ResidualYear],
+            ISNULL(rfn.function_name, 'Unknown') AS [function_name]
           FROM dbo.[Risks] r
           INNER JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id AND rr.isDeleted = 0
           INNER JOIN dbo.[EventTypes] et ON et.id = r.event
+          LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
           WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
           ORDER BY r.createdAt DESC
+          ${applyTablePreview ? `OFFSET 0 ROWS FETCH NEXT ${DASHBOARD_PREVIEW_LIMIT} ROWS ONLY` : ''}
         `, []);
 
-      [
-        risksPerBusinessProcess,
-        inherentResidualRiskComparison,
-        highResidualRiskOverview,
-        risksAndControlsCount,
-        controlsAndRiskCount,
-        risksDetails,
-      ] = await this.runQueryBatches<any[]>([
-        risksPerBusinessProcessTask,
-        inherentResidualRiskComparisonTask,
-        highResidualRiskOverviewTask,
-        risksAndControlsCountTask,
-        controlsAndRiskCountTask,
-        risksDetailsTask,
-      ]);
+      if (includeTables) {
+        [
+          risksPerBusinessProcess,
+          inherentResidualRiskComparison,
+          highResidualRiskOverview,
+          risksAndControlsCount,
+          controlsAndRiskCount,
+          risksDetails,
+        ] = await this.runQueryBatches<any[]>([
+          risksPerBusinessProcessTask,
+          inherentResidualRiskComparisonTask,
+          highResidualRiskOverviewTask,
+          risksAndControlsCountTask,
+          controlsAndRiskCountTask,
+          risksDetailsTask,
+        ]);
+      }
 
       if (section === 'tables') {
         return {
@@ -441,6 +518,19 @@ export class GrcRisksService extends BaseDashboardService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc = false,
   ) {
+    if (tableId === 'allRisks') {
+      return this.getAllRisksTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'risksAndControlsCount') {
+      return this.getRisksAndControlsCountTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'controlsAndRiskCount') {
+      return this.getControlsAndRiskCountTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'highResidualRiskOverview') {
+      return this.getHighResidualRiskOverviewTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+
     const tablesPayload = await this.getRisksDashboard(
       user,
       startDate,
@@ -466,6 +556,272 @@ export class GrcRisksService extends BaseDashboardService {
       ? sortRowsByFunctionAsc(tableRows as Record<string, unknown>[])
       : tableRows;
     return this.paginateRows(sortedRows, page, limit);
+  }
+
+  private buildPaginationMeta(page: number, limit: number, total: number) {
+    const safePage = Math.max(1, Math.floor(Number(page)) || 1);
+    const safeLimit = Math.max(1, Math.floor(Number(limit)) || 10);
+    const totalPages = Math.ceil(total / safeLimit);
+    return {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages,
+      hasNext: safePage < totalPages,
+      hasPrev: safePage > 1,
+    };
+  }
+
+  private async getAllRisksTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM dbo.[Risks] r
+      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
+    `;
+
+    const dataQuery = `
+      WITH ${this.riskFunctionNamesCte()}
+      SELECT
+        r.name AS [RiskName],
+        r.description AS [RiskDesc],
+        'Event' AS [RiskEventName],
+        r.approve AS [RiskApprove],
+        r.inherent_value AS [InherentValue],
+        r.inherent_frequency AS [InherentFrequency],
+        r.inherent_financial_value AS [InherentFinancialValue],
+        ISNULL(rfn.function_name, 'Unknown') AS function_name,
+        r.createdAt AS created_at
+      FROM dbo.[Risks] r
+      LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
+      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'created_at DESC'}
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+
+    const [data, count] = await Promise.all([
+      this.databaseService.query(dataQuery, [offset, limitInt]),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(count?.[0]?.total ?? 0);
+    return {
+      data: (data || []).map((row: any) => ({
+        RiskName: row.RiskName,
+        RiskDesc: row.RiskDesc,
+        RiskEventName: row.RiskEventName,
+        RiskApprove: row.RiskApprove,
+        InherentValue: row.InherentValue,
+        InherentFrequency: row.InherentFrequency,
+        InherentFinancialValue: row.InherentFinancialValue,
+        function_name: row.function_name,
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getRisksAndControlsCountTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+
+    const countQuery = `
+      WITH ${this.riskFunctionNamesCte()}
+      SELECT COUNT(*) AS total
+      FROM (
+        SELECT r.id
+        FROM dbo.[Risks] r
+        LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
+        LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
+        LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
+        WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}
+        GROUP BY r.id
+      ) AS dashboard_count
+    `;
+
+    const dataQuery = `
+      WITH ${this.riskFunctionNamesCte()}
+      SELECT
+        r.name AS risk_name,
+        ISNULL(rfn.function_name, 'Unknown') AS function_name,
+        COUNT(DISTINCT rc.control_id) AS control_count,
+        MAX(r.createdAt) AS created_at
+      FROM dbo.[Risks] r
+      LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
+      LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
+      LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
+      WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}
+      GROUP BY r.id, r.name, rfn.function_name
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'created_at DESC'}
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+
+    const [data, count] = await Promise.all([
+      this.databaseService.query(dataQuery, [offset, limitInt]),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(count?.[0]?.total ?? 0);
+    return {
+      data: (data || []).map((row: any) => ({
+        risk_name: row.risk_name,
+        function_name: row.function_name,
+        control_count: row.control_count,
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getControlsAndRiskCountTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+
+    const countQuery = `
+      WITH ${this.controlFunctionNamesCte()}
+      SELECT COUNT(*) AS total
+      FROM (
+        SELECT c.id
+        FROM dbo.[Controls] c
+        LEFT JOIN ControlFunctionNames cfn ON cfn.control_id = c.id
+        INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
+        INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
+        WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
+        GROUP BY c.id
+      ) AS dashboard_count
+    `;
+
+    const dataQuery = `
+      WITH ${this.controlFunctionNamesCte()}
+      SELECT
+        c.name AS [Controls__name],
+        ISNULL(cfn.function_name, 'Unknown') AS function_name,
+        COUNT(DISTINCT r.id) AS [count],
+        MAX(c.createdAt) AS created_at
+      FROM dbo.[Controls] c
+      LEFT JOIN ControlFunctionNames cfn ON cfn.control_id = c.id
+      INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
+      INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
+      WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
+      GROUP BY c.id, c.name, cfn.function_name
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'created_at DESC'}
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+
+    const [data, count] = await Promise.all([
+      this.databaseService.query(dataQuery, [offset, limitInt]),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(count?.[0]?.total ?? 0);
+    return {
+      data: (data || []).map((row: any) => ({
+        Controls__name: row.Controls__name,
+        function_name: row.function_name,
+        count: row.count,
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getHighResidualRiskOverviewTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(startDate, endDate);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM dbo.[ResidualRisks] rr
+      JOIN dbo.[Risks] r ON rr.riskId = r.id
+      WHERE r.isDeleted = 0 AND rr.isDeleted = 0 AND rr.residual_value = 'High' ${dateFilter} ${functionFilter}
+    `;
+
+    const dataQuery = `
+      WITH ${this.riskFunctionNamesCte()}
+      SELECT
+        r.name AS [Risk Name],
+        ISNULL(rfn.function_name, 'Unknown') AS [function_name],
+        rr.residual_value AS [Residual Level],
+        r.inherent_value AS [Inherent Value],
+        CASE WHEN r.inherent_frequency = 1 THEN 'Once in Three Years' WHEN r.inherent_frequency = 2 THEN 'Annually' WHEN r.inherent_frequency = 3 THEN 'Half Yearly' WHEN r.inherent_frequency = 4 THEN 'Quarterly' WHEN r.inherent_frequency = 5 THEN 'Monthly' ELSE 'Unknown' END AS [Inherent Frequency],
+        CASE WHEN r.inherent_financial_value = 1 THEN '0 - 10,000' WHEN r.inherent_financial_value = 2 THEN '10,000 - 100,000' WHEN r.inherent_financial_value = 3 THEN '100,000 - 1,000,000' WHEN r.inherent_financial_value = 4 THEN '1,000,000 - 10,000,000' WHEN r.inherent_financial_value = 5 THEN '> 10,000,000' ELSE 'Unknown' END AS [Inherent Financial],
+        CASE WHEN rr.residual_frequency = 1 THEN 'Once in Three Years' WHEN rr.residual_frequency = 2 THEN 'Annually' WHEN rr.residual_frequency = 3 THEN 'Half Yearly' WHEN rr.residual_frequency = 4 THEN 'Quarterly' WHEN rr.residual_frequency = 5 THEN 'Monthly' ELSE 'Unknown' END AS [Residual Frequency],
+        CASE WHEN rr.residual_financial_value = 1 THEN '0 - 10,000' WHEN rr.residual_financial_value = 2 THEN '10,000 - 100,000' WHEN rr.residual_financial_value = 3 THEN '100,000 - 1,000,000' WHEN rr.residual_financial_value = 4 THEN '1,000,000 - 10,000,000' WHEN rr.residual_financial_value = 5 THEN '> 10,000,000' ELSE 'Unknown' END AS [Residual Financial],
+        rr.quarter AS [Quarter],
+        rr.year AS [Year],
+        r.createdAt AS created_at
+      FROM dbo.[ResidualRisks] rr
+      JOIN dbo.[Risks] r ON rr.riskId = r.id
+      LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
+      WHERE r.isDeleted = 0 AND rr.isDeleted = 0 AND rr.residual_value = 'High' ${dateFilter} ${functionFilter}
+      ORDER BY ${orderByFunctionAsc ? '[function_name] ASC, created_at DESC' : 'created_at DESC'}
+      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+    `;
+
+    const [data, count] = await Promise.all([
+      this.databaseService.query(dataQuery, [offset, limitInt]),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(count?.[0]?.total ?? 0);
+    return {
+      data: (data || []).map((row: any) => ({
+        'Risk Name': row['Risk Name'],
+        function_name: row.function_name,
+        'Residual Level': row['Residual Level'],
+        'Inherent Value': row['Inherent Value'],
+        'Inherent Frequency': row['Inherent Frequency'],
+        'Inherent Financial': row['Inherent Financial'],
+        'Residual Frequency': row['Residual Frequency'],
+        'Residual Financial': row['Residual Financial'],
+        Quarter: row.Quarter,
+        Year: row.Year,
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
   }
 
   async getTotalRisks(user: any, page: number, limit: number, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
