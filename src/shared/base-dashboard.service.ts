@@ -730,9 +730,28 @@ export abstract class BaseDashboardService {
     return processedRow;
   }
 
-  private buildWrappedCountQuery(query: string): string {
+  protected stripTrailingOrderBy(query: string): string {
     const normalized = query.trim().replace(/;+\s*$/, '');
-    const withoutOrderBy = normalized.replace(/\border\s+by\b[\s\S]*$/i, '').trim();
+    const upper = normalized.toUpperCase();
+    const lastOrderByIndex = upper.lastIndexOf('ORDER BY');
+    if (lastOrderByIndex === -1) {
+      return normalized;
+    }
+    return normalized.slice(0, lastOrderByIndex).trim();
+  }
+
+  private hasTrailingOrderBy(query: string): boolean {
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    const upper = normalized.toUpperCase();
+    const lastOrderByIndex = upper.lastIndexOf('ORDER BY');
+    if (lastOrderByIndex === -1) {
+      return false;
+    }
+    return lastOrderByIndex > upper.lastIndexOf(')');
+  }
+
+  private buildWrappedCountQuery(query: string): string {
+    const withoutOrderBy = this.stripTrailingOrderBy(query);
     return `SELECT COUNT(*) AS total FROM (${withoutOrderBy}) AS dashboard_count`;
   }
 
@@ -742,7 +761,7 @@ export abstract class BaseDashboardService {
       return normalized;
     }
     const offset = Math.max(0, (page - 1) * limit);
-    if (/\bORDER\s+BY\b/i.test(normalized)) {
+    if (this.hasTrailingOrderBy(normalized)) {
       return `${normalized} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
     }
     return `${normalized} ORDER BY (SELECT NULL) OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`;
