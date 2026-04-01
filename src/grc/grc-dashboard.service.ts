@@ -56,6 +56,16 @@ export class GrcDashboardService extends BaseDashboardService {
     `;
   }
 
+  private stripTrailingOrderBy(query: string): string {
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    const upper = normalized.toUpperCase();
+    const lastOrderByIndex = upper.lastIndexOf('ORDER BY');
+    if (lastOrderByIndex === -1) {
+      return normalized;
+    }
+    return normalized.slice(0, lastOrderByIndex).trim();
+  }
+
   // Override specific methods if needed for custom logic
   async getControlsDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc?: boolean) {
     // Use base class method which now accepts functionId
@@ -226,7 +236,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const offset = Math.floor((pageInt - 1) * limitInt);
       const normalizedDataQuery = dataQuery.trim().replace(/;$/, '');
       const paginatedQuery = orderByFunctionAsc
-        ? `${normalizedDataQuery.replace(/\border\s+by\b[\s\S]*$/i, '').trim()} ORDER BY function_name ASC, c.createdAt DESC OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`
+        ? `${this.stripTrailingOrderBy(normalizedDataQuery)} ORDER BY function_name ASC, c.createdAt DESC OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`
         : `${normalizedDataQuery}${/\border\s+by\b/i.test(normalizedDataQuery) ? '' : ' ORDER BY c.createdAt DESC'} OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
       
       const [data, countResult] = await Promise.all([
