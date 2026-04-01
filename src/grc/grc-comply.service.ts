@@ -79,6 +79,79 @@ export class GrcComplyService {
     return results;
   }
 
+  private getTrailingOuterOrderByIndex(query: string): number {
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    let depth = 0;
+    let inString = false;
+    let index = -1;
+
+    for (let i = 0; i < normalized.length; i += 1) {
+      const char = normalized[i];
+
+      if (inString) {
+        if (char === "'") {
+          if (normalized[i + 1] === "'") {
+            i += 1;
+          } else {
+            inString = false;
+          }
+        }
+        continue;
+      }
+
+      if (char === "'") {
+        inString = true;
+        continue;
+      }
+
+      if (char === '(') {
+        depth += 1;
+        continue;
+      }
+
+      if (char === ')') {
+        depth = Math.max(0, depth - 1);
+        continue;
+      }
+
+      if (depth !== 0) {
+        continue;
+      }
+
+      if (
+        /^ORDER\s+BY\b/i.test(normalized.slice(i)) &&
+        (i === 0 || /\s/.test(normalized[i - 1]))
+      ) {
+        index = i;
+      }
+    }
+
+    return index;
+  }
+
+  private stripTrailingOuterOrderBy(query: string): string {
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    const index = this.getTrailingOuterOrderByIndex(normalized);
+    return index === -1 ? normalized : normalized.slice(0, index).trim();
+  }
+
+  private getTrailingOuterOrderByClause(query: string): string | null {
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    const index = this.getTrailingOuterOrderByIndex(normalized);
+    if (index === -1) {
+      return null;
+    }
+    return normalized.slice(index + 'ORDER BY'.length).trim();
+  }
+
+  private stripTrailingPagination(query: string): string {
+    return query
+      .trim()
+      .replace(/;+\s*$/, '')
+      .replace(/\s+OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY\s*$/i, '')
+      .trim();
+  }
+
   /**
    * Build date filter clause for SQL queries
    */
@@ -1115,9 +1188,8 @@ ORDER BY month;
     // Use report 6 query as base with filters
     let query = this.getSqlForReport('6', startDate, endDate, functionId, access);
     
-    // Remove ORDER BY and OFFSET/FETCH from query for use in subqueries
-    const queryWithoutOrderBy = query.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim();
-    const queryWithoutPagination = queryWithoutOrderBy.replace(/OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY/gi, '').trim();
+    // Remove only the final outer ORDER BY / OFFSET-FETCH from the query.
+    const queryWithoutPagination = this.stripTrailingPagination(this.stripTrailingOuterOrderBy(query));
     
     // Add pagination - wrap the query without ORDER BY
     const paginatedQuery = `
@@ -1175,9 +1247,8 @@ ORDER BY month;
     // Use report 1 query as base with filters
     let query = this.getSqlForReport('1', startDate, endDate, functionId, access);
     
-    // Remove ORDER BY and OFFSET/FETCH from query for use in subqueries
-    const queryWithoutOrderBy = query.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim();
-    const queryWithoutPagination = queryWithoutOrderBy.replace(/OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY/gi, '').trim();
+    // Remove only the final outer ORDER BY / OFFSET-FETCH from the query.
+    const queryWithoutPagination = this.stripTrailingPagination(this.stripTrailingOuterOrderBy(query));
     
     const paginatedQuery = `
       SELECT * FROM (
@@ -1236,9 +1307,8 @@ ORDER BY month;
     // Use report 13 query as base with filters
     let query = this.getSqlForReport('13', startDate, endDate, functionId, access);
     
-    // Remove ORDER BY and OFFSET/FETCH from query for use in subqueries
-    const queryWithoutOrderBy = query.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim();
-    const queryWithoutPagination = queryWithoutOrderBy.replace(/OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY/gi, '').trim();
+    // Remove only the final outer ORDER BY / OFFSET-FETCH from the query.
+    const queryWithoutPagination = this.stripTrailingPagination(this.stripTrailingOuterOrderBy(query));
     
     const paginatedQuery = `
       SELECT * FROM (
@@ -1319,21 +1389,14 @@ ORDER BY month;
       throw new BadRequestException(`Unknown report id: ${report}`);
     }
 
-    // Remove ORDER BY from the query for use in subqueries (SQL Server doesn't allow ORDER BY in subqueries)
-    // Also remove OFFSET/FETCH if present
-    const orderByMatch = sqlQuery.match(/ORDER\s+BY\s+([^;]+?)(?:\s*;)?$/i);
-    const queryWithoutOrderBy = orderByMatch 
-      ? sqlQuery.replace(/ORDER\s+BY\s+[^;]+(?:\s*;)?$/i, '').trim()
-      : sqlQuery.trim();
-    
-    // Remove OFFSET/FETCH if present
-    const queryWithoutPagination = queryWithoutOrderBy.replace(/OFFSET\s+\d+\s+ROWS\s+FETCH\s+NEXT\s+\d+\s+ROWS\s+ONLY/gi, '').trim();
+    // Remove only the final outer ORDER BY / OFFSET-FETCH from the query.
+    const orderByClause = this.getTrailingOuterOrderByClause(sqlQuery);
+    const queryWithoutPagination = this.stripTrailingPagination(this.stripTrailingOuterOrderBy(sqlQuery));
 
     // Add pagination to the query
     let paginatedQuery: string;
-    if (orderByMatch) {
+    if (orderByClause) {
       // Query originally had ORDER BY, add it back with OFFSET/FETCH
-      const orderByClause = orderByMatch[1].trim();
       paginatedQuery = `
         ${queryWithoutPagination}
         ORDER BY ${orderByClause}
