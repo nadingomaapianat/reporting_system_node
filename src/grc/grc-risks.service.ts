@@ -59,16 +59,6 @@ export class GrcRisksService extends BaseDashboardService {
     `;
   }
 
-  private stripTrailingOrderBy(query: string): string {
-    const normalized = query.trim().replace(/;+\s*$/, '');
-    const upper = normalized.toUpperCase();
-    const lastOrderByIndex = upper.lastIndexOf('ORDER BY');
-    if (lastOrderByIndex === -1) {
-      return normalized;
-    }
-    return normalized.slice(0, lastOrderByIndex).trim();
-  }
-
   private async runQueryBatches<T>(tasks: Array<() => Promise<T>>, batchSize = 4): Promise<T[]> {
     const results: T[] = [];
     for (let index = 0; index < tasks.length; index += batchSize) {

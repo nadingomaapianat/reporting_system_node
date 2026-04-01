@@ -56,16 +56,6 @@ export class GrcDashboardService extends BaseDashboardService {
     `;
   }
 
-  private stripTrailingOrderBy(query: string): string {
-    const normalized = query.trim().replace(/;+\s*$/, '');
-    const upper = normalized.toUpperCase();
-    const lastOrderByIndex = upper.lastIndexOf('ORDER BY');
-    if (lastOrderByIndex === -1) {
-      return normalized;
-    }
-    return normalized.slice(0, lastOrderByIndex).trim();
-  }
-
   // Override specific methods if needed for custom logic
   async getControlsDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc?: boolean) {
     // Use base class method which now accepts functionId
