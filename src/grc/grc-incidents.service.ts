@@ -471,43 +471,76 @@ export class GrcIncidentsService {
       `;
       const incidentsWithFinancialAndFunctionTask = () => this.runDashboardQuery<any[]>('Incidents with financial impact and function', incidentsWithFinancialAndFunctionQuery, []);
 
-      const [
-        totalIncidentsResult,
-        statusCountsResults,
-        incidentsByStatusDistribution,
-        incidentsByCategory,
-        topFinancialImpacts,
-        netLossAndRecovery,
-        monthlyTrend,
-        incidentsByStatus,
-        statusOverview,
-        incidentsFinancialDetails,
-        incidentsByEventType,
-        incidentsByFinancialImpact,
-        incidentsTimeSeries,
-        newIncidentsByMonth,
-        incidentsWithTimeframe,
-        incidentsWithFinancialAndFunction,
-      ] = await this.runQueryBatches<any[]>([
-        totalIncidentsTask,
-        statusCountsTask,
-        incidentsByStatusDistributionTask,
-        incidentsByCategoryTask,
-        topFinancialImpactsTask,
-        netLossAndRecoveryTask,
-        monthlyTrendTask,
-        incidentsByStatusTask,
-        statusOverviewTask,
-        incidentsFinancialDetailsTask,
-        incidentsByEventTypeTask,
-        incidentsByFinancialImpactTask,
-        incidentsTimeSeriesTask,
-        newIncidentsByMonthTask,
-        incidentsWithTimeframeTask,
-        incidentsWithFinancialAndFunctionTask,
-      ]);
-      const totalIncidents = totalIncidentsResult[0]?.total || 0;
-      const statusCountsRow = statusCountsResults[0] || {};
+      const needsCards = !section || section === 'cards';
+      const needsCharts = !section || section === 'charts';
+      const needsTables = !section || section === 'tables';
+
+      let totalIncidents = 0;
+      let statusCountsRow: any = {};
+      let incidentsByStatusDistribution: any[] = [];
+      let incidentsByCategory: any[] = [];
+      let topFinancialImpacts: any[] = [];
+      let netLossAndRecovery: any[] = [];
+      let monthlyTrend: any[] = [];
+      let incidentsByStatus: any[] = [];
+      let statusOverview: any[] = [];
+      let incidentsFinancialDetails: any[] = [];
+      let incidentsByEventType: any[] = [];
+      let incidentsByFinancialImpact: any[] = [];
+      let incidentsTimeSeries: any[] = [];
+      let newIncidentsByMonth: any[] = [];
+      let incidentsWithTimeframe: any[] = [];
+      let incidentsWithFinancialAndFunction: any[] = [];
+
+      if (needsCards || needsCharts) {
+        const [totalIncidentsResult, statusCountsResults] = await this.runQueryBatches<any[]>([
+          totalIncidentsTask,
+          statusCountsTask,
+        ], 2);
+        totalIncidents = totalIncidentsResult[0]?.total || 0;
+        statusCountsRow = statusCountsResults[0] || {};
+      }
+
+      if (needsCharts) {
+        [
+          incidentsByStatusDistribution,
+          incidentsByCategory,
+          topFinancialImpacts,
+          monthlyTrend,
+          incidentsByStatus,
+          incidentsByEventType,
+          incidentsByFinancialImpact,
+          incidentsTimeSeries,
+          newIncidentsByMonth,
+        ] = await this.runQueryBatches<any[]>([
+          incidentsByStatusDistributionTask,
+          incidentsByCategoryTask,
+          topFinancialImpactsTask,
+          monthlyTrendTask,
+          incidentsByStatusTask,
+          incidentsByEventTypeTask,
+          incidentsByFinancialImpactTask,
+          incidentsTimeSeriesTask,
+          newIncidentsByMonthTask,
+        ]);
+      }
+
+      if (needsTables) {
+        [
+          netLossAndRecovery,
+          statusOverview,
+          incidentsFinancialDetails,
+          incidentsWithTimeframe,
+          incidentsWithFinancialAndFunction,
+        ] = await this.runQueryBatches<any[]>([
+          netLossAndRecoveryTask,
+          statusOverviewTask,
+          incidentsFinancialDetailsTask,
+          incidentsWithTimeframeTask,
+          incidentsWithFinancialAndFunctionTask,
+        ]);
+      }
+
       const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
       const pendingChecker = statusCountsRow?.pendingChecker || 0;
       const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
@@ -688,41 +721,59 @@ export class GrcIncidentsService {
       `;
       const peopleErrorLossTask = () => this.runDashboardQuery<any[]>('People error loss', peopleErrorLossQuery, []);
 
-      const [
-        operationalLossValue,
-        atmTheftResult,
-        avgRecognitionTimeResult,
-        internalFraudResult,
-        internalFraudLossResult,
-        externalFraudResult,
-        externalFraudLossResult,
-        physicalAssetDamageResult,
-        physicalAssetLossResult,
-        peopleErrorResult,
-        peopleErrorLossResult,
-      ] = await this.runQueryBatches<any[]>([
-        operationalLossValueTask,
-        atmTheftTask,
-        avgRecognitionTimeTask,
-        internalFraudTask,
-        internalFraudLossTask,
-        externalFraudTask,
-        externalFraudLossTask,
-        physicalAssetDamageTask,
-        physicalAssetLossTask,
-        peopleErrorTask,
-        peopleErrorLossTask,
-      ]);
-      const atmTheftCount = atmTheftResult[0]?.ATMTheftCount || 0;
-      const avgRecognitionTime = avgRecognitionTimeResult[0]?.AvgRecognitionTimeMonths || 0;
-      const internalFraudCount = internalFraudResult[0]?.InternalFraudCount || 0;
-      const internalFraudLoss = internalFraudLossResult[0]?.TotalInternalFraudLoss || 0;
-      const externalFraudCount = externalFraudResult[0]?.ExternalFraudCount || 0;
-      const externalFraudLoss = externalFraudLossResult[0]?.TotalExternalFraudLoss || 0;
-      const physicalAssetDamageCount = physicalAssetDamageResult[0]?.PhysicalAssetDamageCount || 0;
-      const physicalAssetLoss = physicalAssetLossResult[0]?.TotalPhysicalAssetLoss || 0;
-      const peopleErrorCount = peopleErrorResult[0]?.PeopleErrorCount || 0;
-      const peopleErrorLoss = peopleErrorLossResult[0]?.TotalPeopleErrorLoss || 0;
+      let operationalLossValue: any[] = [];
+      let atmTheftCount = 0;
+      let avgRecognitionTime = 0;
+      let internalFraudCount = 0;
+      let internalFraudLoss = 0;
+      let externalFraudCount = 0;
+      let externalFraudLoss = 0;
+      let physicalAssetDamageCount = 0;
+      let physicalAssetLoss = 0;
+      let peopleErrorCount = 0;
+      let peopleErrorLoss = 0;
+
+      if (needsCards) {
+        const [
+          atmTheftResult,
+          avgRecognitionTimeResult,
+          internalFraudResult,
+          internalFraudLossResult,
+          externalFraudResult,
+          externalFraudLossResult,
+          physicalAssetDamageResult,
+          physicalAssetLossResult,
+          peopleErrorResult,
+          peopleErrorLossResult,
+        ] = await this.runQueryBatches<any[]>([
+          atmTheftTask,
+          avgRecognitionTimeTask,
+          internalFraudTask,
+          internalFraudLossTask,
+          externalFraudTask,
+          externalFraudLossTask,
+          physicalAssetDamageTask,
+          physicalAssetLossTask,
+          peopleErrorTask,
+          peopleErrorLossTask,
+        ]);
+        atmTheftCount = atmTheftResult[0]?.ATMTheftCount || 0;
+        avgRecognitionTime = avgRecognitionTimeResult[0]?.AvgRecognitionTimeMonths || 0;
+        internalFraudCount = internalFraudResult[0]?.InternalFraudCount || 0;
+        internalFraudLoss = internalFraudLossResult[0]?.TotalInternalFraudLoss || 0;
+        externalFraudCount = externalFraudResult[0]?.ExternalFraudCount || 0;
+        externalFraudLoss = externalFraudLossResult[0]?.TotalExternalFraudLoss || 0;
+        physicalAssetDamageCount = physicalAssetDamageResult[0]?.PhysicalAssetDamageCount || 0;
+        physicalAssetLoss = physicalAssetLossResult[0]?.TotalPhysicalAssetLoss || 0;
+        peopleErrorCount = peopleErrorResult[0]?.PeopleErrorCount || 0;
+        peopleErrorLoss = peopleErrorLossResult[0]?.TotalPeopleErrorLoss || 0;
+      }
+
+      if (needsCharts) {
+        [operationalLossValue] = await this.runQueryBatches<any[]>([
+          operationalLossValueTask,
+        ], 1);
+      }
 
       if (section === 'cards') {
         return {
@@ -972,21 +1023,33 @@ export class GrcIncidentsService {
       `;
       const comprehensiveOperationalLossTask = () => this.runDashboardQuery<any[]>('Comprehensive operational loss', comprehensiveOperationalLossQuery, []);
 
-      const [
-        monthlyTrendByType,
-        lossByRiskCategory,
-        incidentActionPlan,
-        incidentActionPlanByStatus,
-        overdueIncidentsRows,
-        comprehensiveOperationalLoss,
-      ] = await this.runQueryBatches<any[]>([
-        monthlyTrendByTypeTask,
-        lossByRiskCategoryTask,
-        incidentActionPlanTask,
-        incidentActionPlanByStatusTask,
-        overdueIncidentsTask,
-        comprehensiveOperationalLossTask,
-      ]);
+      let monthlyTrendByType: any[] = [];
+      let lossByRiskCategory: any[] = [];
+      let incidentActionPlan: any[] = [];
+      let incidentActionPlanByStatus: any[] = [];
+      let overdueIncidentsRows: any[] = [];
+      let comprehensiveOperationalLoss: any[] = [];
+
+      if (needsCharts) {
+        [monthlyTrendByType, incidentActionPlanByStatus] = await this.runQueryBatches<any[]>([
+          monthlyTrendByTypeTask,
+          incidentActionPlanByStatusTask,
+        ], 2);
+      }
+
+      if (needsTables) {
+        [
+          lossByRiskCategory,
+          incidentActionPlan,
+          overdueIncidentsRows,
+          comprehensiveOperationalLoss,
+        ] = await this.runQueryBatches<any[]>([
+          lossByRiskCategoryTask,
+          incidentActionPlanTask,
+          overdueIncidentsTask,
+          comprehensiveOperationalLossTask,
+        ]);
+      }
 
       if (section === 'charts') {
         return {

@@ -111,38 +111,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const source = this.resolveQuerySource(context);
 
     try {
-      const request = this.pool.request();
-
-      if (params && params.length > 0) {
-        params.forEach((param, index) => {
-          const paramPlaceholder = `@param${index}`;
-          const offsetPattern = new RegExp(
-            `OFFSET\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
-            'i'
-          );
-          const fetchPattern = new RegExp(
-            `FETCH\\s+NEXT\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
-            'i'
-          );
-
-          const isOffsetOrFetch =
-            offsetPattern.test(sqlQuery) ||
-            fetchPattern.test(sqlQuery);
-
-          if (
-            isOffsetOrFetch &&
-            (typeof param === 'number' || !isNaN(Number(param)))
-          ) {
-            request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
-          } else if (typeof param === 'string') {
-            request.input(`param${index}`, sql.NVarChar(4000), param);
-          } else {
-            request.input(`param${index}`, param);
-          }
-        });
-      }
-
-      const result = await request.query(sqlQuery);
+      const result = await this.executeQuery(sqlQuery, params);
       const elapsedMs = Date.now() - startedAt;
 
       if (elapsedMs >= this.slowQueryThresholdMs) {
@@ -157,6 +126,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
       return result.recordset;
     } catch (error) {
+      const offsetFetchFallback = this.extractOffsetFetchFallback(sqlQuery, params);
+      if (offsetFetchFallback && this.isOffsetFetchCompatibilityError(error)) {
+        console.warn(
+          `[DatabaseService] Retrying query without OFFSET/FETCH [${source}]: ${this.summarizeQuery(sqlQuery)}`
+        );
+        const fallbackResult = await this.executeQuery(offsetFetchFallback.sqlQuery, params);
+        return fallbackResult.recordset.slice(
+          offsetFetchFallback.offset,
+          offsetFetchFallback.offset + offsetFetchFallback.limit,
+        );
+      }
+
       const elapsedMs = Date.now() - startedAt;
       console.error(
         `[DatabaseService] Database query error after ${elapsedMs}ms [${source}]: ${this.summarizeQuery(sqlQuery)}`,
@@ -167,6 +148,84 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       );
       throw error;
     }
+  }
+
+  private async executeQuery(sqlQuery: string, params: any[] = []) {
+    const request = this.pool.request();
+
+    if (params && params.length > 0) {
+      params.forEach((param, index) => {
+        const paramPlaceholder = `@param${index}`;
+        const offsetPattern = new RegExp(
+          `OFFSET\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
+          'i'
+        );
+        const fetchPattern = new RegExp(
+          `FETCH\\s+NEXT\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
+          'i'
+        );
+
+        const isOffsetOrFetch =
+          offsetPattern.test(sqlQuery) ||
+          fetchPattern.test(sqlQuery);
+
+        if (
+          isOffsetOrFetch &&
+          (typeof param === 'number' || !isNaN(Number(param)))
+        ) {
+          request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
+        } else if (typeof param === 'string') {
+          request.input(`param${index}`, sql.NVarChar(4000), param);
+        } else {
+          request.input(`param${index}`, param);
+        }
+      });
+    }
+
+    return request.query(sqlQuery);
+  }
+
+  private extractOffsetFetchFallback(sqlQuery: string, params: any[]) {
+    const normalized = String(sqlQuery || '').trim().replace(/;+\s*$/, '');
+    const match = normalized.match(
+      /\sOFFSET\s+([^\s]+)\s+ROWS\s+FETCH\s+NEXT\s+([^\s]+)\s+ROWS\s+ONLY\s*$/i
+    );
+    if (!match) return null;
+
+    const offset = this.resolvePaginationToken(match[1], params);
+    const limit = this.resolvePaginationToken(match[2], params);
+    if (offset == null || limit == null) return null;
+
+    return {
+      sqlQuery: normalized.slice(0, match.index).trim(),
+      offset,
+      limit,
+    };
+  }
+
+  private resolvePaginationToken(token: string, params: any[]): number | null {
+    const trimmed = String(token || '').trim();
+    const paramMatch = trimmed.match(/^@param(\d+)$/i);
+    if (paramMatch) {
+      const raw = params?.[Number(paramMatch[1])];
+      const parsed = Math.floor(Number(raw));
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    }
+
+    const parsed = Math.floor(Number(trimmed));
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  }
+
+  private isOffsetFetchCompatibilityError(error: unknown): boolean {
+    const message = [
+      (error as any)?.message,
+      (error as any)?.originalError?.info?.message,
+      (error as any)?.precedingErrors?.map((item: any) => item?.message).join(' '),
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return /incorrect syntax near ['"]?offset['"]?|invalid usage of the option next|invalid usage of the option first|fetch statement/i.test(message);
   }
 
   private summarizeQuery(sqlQuery: string): string {
