@@ -267,6 +267,12 @@ export class GrcComplyService {
       if (tableId === 'bankQuestionsDetails') {
         return this.getPaginatedReportWithAccess('2', page, limit, startDate, endDate, functionId, access);
       }
+      if (tableId === 'complianceManagementDetails') {
+        return this.getPaginatedReportWithAccess('12', page, limit, startDate, endDate, functionId, access);
+      }
+      if (tableId === 'complianceWithoutEvidence') {
+        return this.getPaginatedReportWithAccess('13', page, limit, startDate, endDate, functionId, access);
+      }
     }
 
     const tablesPayload = await this.runDashboardSection('tables', startDate, endDate, functionId, access) as Record<string, any[]>;
@@ -275,6 +281,8 @@ export class GrcComplyService {
       complianceDetails: tablesPayload['Compliance Details'] || [],
       surveyCompletionRate: tablesPayload['Survey Completion Rate'] || [],
       bankQuestionsDetails: tablesPayload['Bank Questions details'] || [],
+      complianceManagementDetails: tablesPayload['Compliance managment details'] || [],
+      complianceWithoutEvidence: tablesPayload['Compliance controls without evidence'] || [],
     }[tableId];
 
     if (!tableRows) {
@@ -307,7 +315,7 @@ export class GrcComplyService {
       return ['14', '15', '16', '17', '20', '21', '23', '24', '26'];
     }
     if (section === 'tables') {
-      return ['1', '2', '6'];
+      return ['1', '2', '6', '12', '13'];
     }
     return [
       '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
@@ -581,60 +589,48 @@ ORDER BY total_questions DESC
         return `
 SELECT DISTINCT
   C.[code] AS ComplianceCode,
-  [complianceItem_en],
-  [complianceStatus],
-  [progress],
-  [progressStatus],
-  [quarter],
-  [year],
-  [approval_status],
-  cre.code AS StandardCode,
+  C.[complianceItem_en],
+  C.[complianceStatus],
+  C.[progress],
+  C.[progressStatus],
+  C.[quarter],
+  C.[year],
+  C.[approval_status],
+  CRE.code AS StandardCode,
   CRE.NAME AS StandardName,
-  (SELECT CODE FROM ${fq('Domains')} WHERE id = D.id) AS FunctionID,
-  (SELECT [en_name]
-   FROM ${fq('Domains')}
-   WHERE ID IN (SELECT parentId FROM ${fq('Domains')} WHERE id = D.id)
+  D.[code] AS FunctionID,
+  (
+    SELECT parent.[en_name]
+    FROM ${fq('Domains')} parent
+    WHERE parent.id = D.parentId
   ) AS Functionn,
   D.[en_name] AS Domain,
-  Controls.CODE AS ControlCode,
-  Controls.name AS ControlName
-FROM ${fq('Compliances')} C,
-     ${fq('complianceReferences')} CR,
-     ControlReferences CRE,
-     ${fq('Domains')} D,
-     ${fq('controlDomains')} CD,
-     ${fq('Controls')} Controls
-WHERE C.id = CR.compliance_id
-  AND CR.reference_id = CRE.id
-  AND CR.reference_id = D.standard_id
-  AND CD.domain_id = D.id
-  AND CD.control_id = Controls.id
+  Ctrl.CODE AS ControlCode,
+  Ctrl.name AS ControlName
+FROM ${fq('Compliances')} C
+LEFT JOIN ${fq('complianceReferences')} CR
+  ON C.id = CR.compliance_id
+LEFT JOIN ControlReferences CRE
+  ON CR.reference_id = CRE.id
+LEFT JOIN ${fq('Domains')} D
+  ON D.standard_id = CR.reference_id
+LEFT JOIN ${fq('controlDomains')} CD
+  ON CD.domain_id = D.id
+LEFT JOIN ${fq('Controls')} Ctrl
+  ON CD.control_id = Ctrl.id
+ AND Ctrl.[deletedAt] IS NULL
+WHERE 1 = 1
   AND C.[deletedAt] IS NULL ${complianceDetailDateFilter} ${complianceDetailFunctionFilter}
 ORDER BY C.code,
-         cre.code,
+         CRE.code,
          FunctionID,
          Domain,
-         Controls.CODE
+         Ctrl.CODE
 `;
 
       case '13':
-        const complianceEvidenceDateFilter = this.buildDateFilter(startDate, endDate, `${fq('ComplianceControlActions')}.[createdAt]`);
-        // Build function filter for compliance evidence - filter via Domains
-        let complianceEvidenceFunctionFilter = '';
-        if (functionId) {
-          if (!userAccess.isSuperAdmin && !userAccess.functionIds.includes(functionId)) {
-            complianceEvidenceFunctionFilter = ' AND 1 = 0';
-          } else {
-            complianceEvidenceFunctionFilter = ` AND D.[code] = '${functionId}'`;
-          }
-        } else if (!userAccess.isSuperAdmin) {
-          if (!userAccess.functionIds.length) {
-            complianceEvidenceFunctionFilter = ' AND 1 = 0';
-          } else {
-            const ids = userAccess.functionIds.map((id) => `'${id}'`).join(', ');
-            complianceEvidenceFunctionFilter = ` AND D.[code] IN (${ids})`;
-          }
-        }
+        const complianceEvidenceDateFilter = this.buildDateFilter(startDate, endDate, 'CCA.[createdAt]');
+        const complianceEvidenceFunctionFilter = this.buildComplianceFunctionFilter(userAccess, functionId);
         return `
 SELECT DISTINCT
   C.[code] AS ComplianceCode,
@@ -643,23 +639,31 @@ SELECT DISTINCT
   D.[en_name] AS DomainName,
   Ctrl.[code] AS ControlCode,
   Ctrl.[name] AS ControlName,
-  CCA.[evidence]
-FROM (
-  SELECT 
-    compliance_id,
-    domain_id,
-    control_id,
-    [evidence],
-    MIN([createdAt]) AS [createdAt]
-  FROM ${fq('ComplianceControlActions')}
-  WHERE [evidence] IS NULL
-    AND [deletedAt] IS NULL ${complianceEvidenceDateFilter}
-  GROUP BY compliance_id, domain_id, control_id, [evidence]
-) AS CCA
-JOIN ${fq('Compliances')} C ON C.id = CCA.compliance_id
-LEFT JOIN ${fq('Domains')} D ON D.id = CCA.domain_id
-LEFT JOIN ${fq('Controls')} Ctrl ON Ctrl.id = CCA.control_id
-WHERE C.[deletedAt] IS NULL ${complianceEvidenceFunctionFilter}
+  LatestEvidence.[evidence]
+FROM ${fq('Compliances')} C
+LEFT JOIN ${fq('complianceReferences')} CR
+  ON C.id = CR.compliance_id
+LEFT JOIN ${fq('Domains')} D
+  ON D.standard_id = CR.reference_id
+LEFT JOIN ${fq('controlDomains')} CD
+  ON CD.domain_id = D.id
+LEFT JOIN ${fq('Controls')} Ctrl
+  ON Ctrl.id = CD.control_id
+ AND Ctrl.[deletedAt] IS NULL
+OUTER APPLY (
+  SELECT TOP 1
+    CCA.[evidence],
+    CCA.[createdAt]
+  FROM ${fq('ComplianceControlActions')} CCA
+  WHERE CCA.[deletedAt] IS NULL
+    AND CCA.compliance_id = C.id
+    AND CCA.domain_id = D.id
+    AND CCA.control_id = Ctrl.id ${complianceEvidenceDateFilter}
+  ORDER BY CCA.[createdAt] DESC, CCA.id DESC
+) AS LatestEvidence
+WHERE C.[deletedAt] IS NULL
+  AND Ctrl.id IS NOT NULL ${complianceEvidenceFunctionFilter}
+  AND NULLIF(LTRIM(RTRIM(COALESCE(LatestEvidence.[evidence], ''))), '') IS NULL
 ORDER BY ComplianceCode,
          DomainCode,
          ControlCode

@@ -41,13 +41,13 @@ export class GrcComplyController {
     if (report) {
       const reportKey = report as GrcComplyReportKey;
       const ob = orderByFunctionFromRequest(req);
-      const raw = await this.grcComplyService.runReport(reportKey, startDate, endDate, functionId);
+      const raw = await this.grcComplyService.runReport(reportKey, startDate, endDate, functionId, req.user);
       return ob ? applyOrderByFunctionDeep(raw) : raw;
     }
 
     const ob = orderByFunctionFromRequest(req);
     if (section) {
-      const raw = await this.grcComplyService.runDashboardSection(section, startDate, endDate, functionId);
+      const raw = await this.grcComplyService.runDashboardSection(section, startDate, endDate, functionId, req.user);
       return ob ? applyOrderByFunctionDeep(raw) : raw;
     }
 
@@ -119,6 +119,7 @@ export class GrcComplyController {
       start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
       end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
       id,
+      req.user,
     ) as Record<string, any>;
 
     const widgetPayload: Record<string, any> = {
@@ -163,7 +164,8 @@ export class GrcComplyController {
     const raw = await this.grcComplyService.runAllReports(
       start && /^\d{4}-\d{2}-\d{2}/.test(start) ? start : undefined,
       end && /^\d{4}-\d{2}-\d{2}/.test(end) ? end : undefined,
-      id && id.length > 0 ? id : undefined
+      id && id.length > 0 ? id : undefined,
+      req.user,
     );
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
