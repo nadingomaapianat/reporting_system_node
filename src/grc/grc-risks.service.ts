@@ -42,6 +42,44 @@ export class GrcRisksService extends BaseDashboardService {
     `;
   }
 
+  private riskFunctionNamesApply(riskIdExpression: string, alias = 'rfn'): string {
+    return `
+      OUTER APPLY (
+        SELECT STUFF((
+          SELECT ', ' + f2.name
+          FROM dbo.[RiskFunctions] rf2
+          INNER JOIN dbo.[Functions] f2
+            ON f2.id = rf2.function_id
+           AND f2.isDeleted = 0
+           AND f2.deletedAt IS NULL
+          WHERE rf2.risk_id = ${riskIdExpression}
+            AND rf2.deletedAt IS NULL
+          ORDER BY f2.name
+          FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS function_name
+      ) ${alias}
+    `;
+  }
+
+  private controlFunctionNamesApply(controlIdExpression: string, alias = 'cfn'): string {
+    return `
+      OUTER APPLY (
+        SELECT STUFF((
+          SELECT ', ' + f2.name
+          FROM dbo.[ControlFunctions] cf2
+          INNER JOIN dbo.[Functions] f2
+            ON f2.id = cf2.function_id
+           AND f2.isDeleted = 0
+           AND f2.deletedAt IS NULL
+          WHERE cf2.control_id = ${controlIdExpression}
+            AND cf2.deletedAt IS NULL
+          ORDER BY f2.name
+          FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS function_name
+      ) ${alias}
+    `;
+  }
+
   private controlFunctionNamesCte(): string {
     return `
       ControlFunctionNames AS (
@@ -586,7 +624,6 @@ export class GrcRisksService extends BaseDashboardService {
     const dateFilter = this.buildDateFilter(startDate, endDate);
     const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
     const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
-    const offset = (pageInt - 1) * limitInt;
 
     const countQuery = `
       SELECT COUNT(*) as total
@@ -594,27 +631,65 @@ export class GrcRisksService extends BaseDashboardService {
       WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
     `;
 
+    if (orderByFunctionAsc) {
+      const rows = await this.databaseService.query(`
+        SELECT
+          r.name AS [RiskName],
+          r.description AS [RiskDesc],
+          'Event' AS [RiskEventName],
+          r.approve AS [RiskApprove],
+          r.inherent_value AS [InherentValue],
+          r.inherent_frequency AS [InherentFrequency],
+          r.inherent_financial_value AS [InherentFinancialValue],
+          ISNULL(rfn.function_name, 'Unknown') AS function_name
+        FROM dbo.[Risks] r
+        ${this.riskFunctionNamesApply('r.id')}
+        WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
+      `);
+      const sortedRows = sortRowsByFunctionAsc((rows || []).map((row: any) => ({
+        RiskName: row.RiskName,
+        RiskDesc: row.RiskDesc,
+        RiskEventName: row.RiskEventName,
+        RiskApprove: row.RiskApprove,
+        InherentValue: row.InherentValue,
+        InherentFrequency: row.InherentFrequency,
+        InherentFinancialValue: row.InherentFinancialValue,
+        function_name: row.function_name,
+      })) as Record<string, unknown>[]);
+      return this.paginateRows(sortedRows, pageInt, limitInt);
+    }
+
     const dataQuery = `
-      WITH ${this.riskFunctionNamesCte()}
+      WITH PagedRisks AS (
+        SELECT
+          r.id,
+          r.name,
+          r.description,
+          r.approve,
+          r.inherent_value,
+          r.inherent_frequency,
+          r.inherent_financial_value,
+          ROW_NUMBER() OVER (ORDER BY r.createdAt DESC, r.name ASC) AS rn
+        FROM dbo.[Risks] r
+        WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
+      )
       SELECT
-        r.name AS [RiskName],
-        r.description AS [RiskDesc],
+        pr.name AS [RiskName],
+        pr.description AS [RiskDesc],
         'Event' AS [RiskEventName],
-        r.approve AS [RiskApprove],
-        r.inherent_value AS [InherentValue],
-        r.inherent_frequency AS [InherentFrequency],
-        r.inherent_financial_value AS [InherentFinancialValue],
-        ISNULL(rfn.function_name, 'Unknown') AS function_name,
-        r.createdAt AS created_at
-      FROM dbo.[Risks] r
-      LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
-      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'created_at DESC'}
-      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+        pr.approve AS [RiskApprove],
+        pr.inherent_value AS [InherentValue],
+        pr.inherent_frequency AS [InherentFrequency],
+        pr.inherent_financial_value AS [InherentFinancialValue],
+        ISNULL(rfn.function_name, 'Unknown') AS function_name
+      FROM PagedRisks pr
+      ${this.riskFunctionNamesApply('pr.id')}
+      WHERE pr.rn BETWEEN @param0 AND @param1
+      ORDER BY pr.rn
     `;
 
     const [data, count] = await Promise.all([
-      this.databaseService.query(dataQuery, [offset, limitInt]),
+      this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
       this.databaseService.query(countQuery),
     ]);
     const total = Number(count?.[0]?.total ?? 0);
@@ -642,20 +717,55 @@ export class GrcRisksService extends BaseDashboardService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc = false,
   ) {
+    if (orderByFunctionAsc) {
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+      const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
+      const dateFilter = this.buildDateFilter(startDate, endDate);
+      const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+      const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+
+      const countQuery = `
+        SELECT COUNT(*) AS total
+        FROM (
+          SELECT r.id
+          FROM dbo.[Risks] r
+          LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
+          LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
+          WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}
+          GROUP BY r.id
+        ) AS dashboard_count
+      `;
+
+      const rows = await this.databaseService.query(`
+        SELECT
+          r.name AS risk_name,
+          ISNULL(rfn.function_name, 'Unknown') AS function_name,
+          COUNT(DISTINCT rc.control_id) AS control_count
+        FROM dbo.[Risks] r
+        ${this.riskFunctionNamesApply('r.id')}
+        LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
+        LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
+        WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}
+        GROUP BY r.id, r.name, rfn.function_name
+      `);
+      return this.paginateRows(sortRowsByFunctionAsc((rows || []).map((row: any) => ({
+        risk_name: row.risk_name,
+        function_name: row.function_name,
+        control_count: row.control_count,
+      })) as Record<string, unknown>[]), pageInt, limitInt);
+    }
+
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
     const dateFilter = this.buildDateFilter(startDate, endDate);
     const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
     const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
-    const offset = (pageInt - 1) * limitInt;
 
     const countQuery = `
-      WITH ${this.riskFunctionNamesCte()}
       SELECT COUNT(*) AS total
       FROM (
         SELECT r.id
         FROM dbo.[Risks] r
-        LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
         LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
         LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
         WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}
@@ -664,24 +774,35 @@ export class GrcRisksService extends BaseDashboardService {
     `;
 
     const dataQuery = `
-      WITH ${this.riskFunctionNamesCte()}
+      WITH RiskCounts AS (
+        SELECT
+          r.id,
+          r.name AS risk_name,
+          COUNT(DISTINCT rc.control_id) AS control_count,
+          MAX(r.createdAt) AS created_at
+        FROM dbo.[Risks] r
+        LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
+        LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
+        WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}
+        GROUP BY r.id, r.name
+      ),
+      PagedRiskCounts AS (
+        SELECT *,
+          ROW_NUMBER() OVER (ORDER BY control_count DESC, risk_name ASC) AS rn
+        FROM RiskCounts
+      )
       SELECT
-        r.name AS risk_name,
+        prc.risk_name,
         ISNULL(rfn.function_name, 'Unknown') AS function_name,
-        COUNT(DISTINCT rc.control_id) AS control_count,
-        MAX(r.createdAt) AS created_at
-      FROM dbo.[Risks] r
-      LEFT JOIN RiskFunctionNames rfn ON rfn.risk_id = r.id
-      LEFT JOIN dbo.[RiskControls] rc ON r.id = rc.risk_id
-      LEFT JOIN dbo.[Controls] c ON rc.control_id = c.id
-      WHERE r.isDeleted = 0 AND r.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilter} ${functionFilter}
-      GROUP BY r.id, r.name, rfn.function_name
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'created_at DESC'}
-      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+        prc.control_count
+      FROM PagedRiskCounts prc
+      ${this.riskFunctionNamesApply('prc.id')}
+      WHERE prc.rn BETWEEN @param0 AND @param1
+      ORDER BY prc.rn
     `;
 
     const [data, count] = await Promise.all([
-      this.databaseService.query(dataQuery, [offset, limitInt]),
+      this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
       this.databaseService.query(countQuery),
     ]);
     const total = Number(count?.[0]?.total ?? 0);
@@ -704,20 +825,55 @@ export class GrcRisksService extends BaseDashboardService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc = false,
   ) {
+    if (orderByFunctionAsc) {
+      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+      const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
+      const dateFilter = this.buildDateFilter(startDate, endDate);
+      const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+      const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+
+      const countQuery = `
+        SELECT COUNT(*) AS total
+        FROM (
+          SELECT c.id
+          FROM dbo.[Controls] c
+          INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
+          INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
+          GROUP BY c.id
+        ) AS dashboard_count
+      `;
+
+      const rows = await this.databaseService.query(`
+        SELECT
+          c.name AS [Controls__name],
+          ISNULL(cfn.function_name, 'Unknown') AS function_name,
+          COUNT(DISTINCT r.id) AS [count]
+        FROM dbo.[Controls] c
+        ${this.controlFunctionNamesApply('c.id')}
+        INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
+        INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
+        WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
+        GROUP BY c.id, c.name, cfn.function_name
+      `);
+      return this.paginateRows(sortRowsByFunctionAsc((rows || []).map((row: any) => ({
+        Controls__name: row.Controls__name,
+        function_name: row.function_name,
+        count: row.count,
+      })) as Record<string, unknown>[]), pageInt, limitInt);
+    }
+
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
     const dateFilter = this.buildDateFilter(startDate, endDate);
     const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
     const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
-    const offset = (pageInt - 1) * limitInt;
 
     const countQuery = `
-      WITH ${this.controlFunctionNamesCte()}
       SELECT COUNT(*) AS total
       FROM (
         SELECT c.id
         FROM dbo.[Controls] c
-        LEFT JOIN ControlFunctionNames cfn ON cfn.control_id = c.id
         INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
         INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
         WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
@@ -726,24 +882,35 @@ export class GrcRisksService extends BaseDashboardService {
     `;
 
     const dataQuery = `
-      WITH ${this.controlFunctionNamesCte()}
+      WITH ControlRiskCounts AS (
+        SELECT
+          c.id,
+          c.name AS [Controls__name],
+          COUNT(DISTINCT r.id) AS [count],
+          MAX(c.createdAt) AS created_at
+        FROM dbo.[Controls] c
+        INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
+        INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
+        WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
+        GROUP BY c.id, c.name
+      ),
+      PagedControlRiskCounts AS (
+        SELECT *,
+          ROW_NUMBER() OVER (ORDER BY [count] DESC, [Controls__name] ASC) AS rn
+        FROM ControlRiskCounts
+      )
       SELECT
-        c.name AS [Controls__name],
+        pcrc.[Controls__name],
         ISNULL(cfn.function_name, 'Unknown') AS function_name,
-        COUNT(DISTINCT r.id) AS [count],
-        MAX(c.createdAt) AS created_at
-      FROM dbo.[Controls] c
-      LEFT JOIN ControlFunctionNames cfn ON cfn.control_id = c.id
-      INNER JOIN dbo.[RiskControls] rc ON c.id = rc.control_id
-      INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL ${dateFilter} ${functionFilter}
-      WHERE c.isDeleted = 0 AND c.deletedAt IS NULL
-      GROUP BY c.id, c.name, cfn.function_name
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, created_at DESC' : 'created_at DESC'}
-      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
+        pcrc.[count]
+      FROM PagedControlRiskCounts pcrc
+      ${this.controlFunctionNamesApply('pcrc.id')}
+      WHERE pcrc.rn BETWEEN @param0 AND @param1
+      ORDER BY pcrc.rn
     `;
 
     const [data, count] = await Promise.all([
-      this.databaseService.query(dataQuery, [offset, limitInt]),
+      this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
       this.databaseService.query(countQuery),
     ]);
     const total = Number(count?.[0]?.total ?? 0);

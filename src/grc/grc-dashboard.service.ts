@@ -4,6 +4,7 @@ import { DashboardConfigService } from '../shared/dashboard-config.service';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
 import { fq } from '../shared/db-config';
+import { sortRowsByFunctionAsc } from '../shared/order-by-function';
 
 @Injectable()
 export class GrcDashboardService extends BaseDashboardService {
@@ -18,9 +19,42 @@ export class GrcDashboardService extends BaseDashboardService {
     return DashboardConfigService.getControlsConfig();
   }
 
+  private buildPaginationMeta(page: number, limit: number, total: number) {
+    const safePage = Math.max(1, Math.floor(Number(page)) || 1);
+    const safeLimit = Math.max(1, Math.floor(Number(limit)) || 10);
+    const totalPages = Math.max(1, Math.ceil(total / safeLimit));
+    return {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages,
+      hasNext: safePage < totalPages,
+      hasPrev: safePage > 1,
+    };
+  }
+
   /** Subquery for control function name(s) - used in control list queries. Uses dbo.[] to match outer query and bracket reserved word. */
   private controlFunctionNameSubquery(): string {
     return `(SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL)`;
+  }
+
+  private controlFunctionNamesApply(controlIdExpression: string, alias = 'cfn'): string {
+    return `
+      OUTER APPLY (
+        SELECT STUFF((
+          SELECT ', ' + f2.name
+          FROM dbo.[ControlFunctions] cf2
+          INNER JOIN dbo.[Functions] f2
+            ON f2.id = cf2.function_id
+           AND f2.isDeleted = 0
+           AND f2.deletedAt IS NULL
+          WHERE cf2.control_id = ${controlIdExpression}
+            AND cf2.deletedAt IS NULL
+          ORDER BY f2.name
+          FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS function_name
+      ) ${alias}
+    `;
   }
 
   /** Scope displayed function names to selected/allowed functions when function filter is active. */
@@ -60,6 +94,290 @@ export class GrcDashboardService extends BaseDashboardService {
   async getControlsDashboard(user: any, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc?: boolean) {
     // Use base class method which now accepts functionId
     return this.getDashboardData(user, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+  }
+
+  async getDashboardTablePage(
+    user: any,
+    tableId: string,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc?: boolean,
+  ) {
+    if (tableId === 'controlsNotMappedToAssertions') {
+      return this.getControlsNotMappedToAssertionsTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, !!orderByFunctionAsc);
+    }
+    if (tableId === 'controlsNotMappedToPrinciples') {
+      return this.getControlsNotMappedToPrinciplesTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, !!orderByFunctionAsc);
+    }
+    if (tableId === 'controlSubmissionStatusByQuarterFunction') {
+      return this.getControlSubmissionStatusByQuarterFunctionTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, !!orderByFunctionAsc);
+    }
+    return super.getDashboardTablePage(user, tableId, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+  }
+
+  private async getControlsNotMappedToAssertionsTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM ${fq('Controls')} c
+      WHERE c.icof_id IS NULL
+        AND c.isDeleted = 0
+        AND c.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+    `;
+
+    if (orderByFunctionAsc) {
+      const rows = await this.databaseService.query(`
+        SELECT
+          c.name AS [Control Name],
+          ISNULL(cfn.function_name, 'Unknown') AS [Function Name]
+        FROM ${fq('Controls')} c
+        ${this.controlFunctionNamesApply('c.id')}
+        WHERE c.icof_id IS NULL
+          AND c.isDeleted = 0
+          AND c.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
+      `);
+      const sortedRows = sortRowsByFunctionAsc((rows || []).map((row: any) => ({
+        'Control Name': row['Control Name'],
+        'Function Name': row['Function Name'],
+      })) as Record<string, unknown>[]);
+      return this.paginateRows(sortedRows, pageInt, limitInt);
+    }
+
+    const dataQuery = `
+      WITH PagedControls AS (
+        SELECT
+          c.id,
+          c.name,
+          ROW_NUMBER() OVER (ORDER BY c.createdAt DESC, c.name ASC) AS rn
+        FROM ${fq('Controls')} c
+        WHERE c.icof_id IS NULL
+          AND c.isDeleted = 0
+          AND c.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
+      )
+      SELECT
+        pc.name AS [Control Name],
+        ISNULL(cfn.function_name, 'Unknown') AS [Function Name]
+      FROM PagedControls pc
+      ${this.controlFunctionNamesApply('pc.id')}
+      WHERE pc.rn BETWEEN @param0 AND @param1
+      ORDER BY pc.rn
+    `;
+
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: (rows || []).map((row: any) => ({
+        'Control Name': row['Control Name'],
+        'Function Name': row['Function Name'],
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getControlsNotMappedToPrinciplesTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(startDate, endDate, 'c.createdAt');
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM ${fq('Controls')} c
+      WHERE c.isDeleted = 0
+        AND c.deletedAt IS NULL
+        ${dateFilter}
+        ${functionFilter}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ${fq('ControlCosos')} ccx
+          WHERE ccx.control_id = c.id
+            AND ccx.deletedAt IS NULL
+        )
+    `;
+
+    if (orderByFunctionAsc) {
+      const rows = await this.databaseService.query(`
+        SELECT
+          c.name AS [Control Name],
+          ISNULL(cfn.function_name, 'Unknown') AS [Function Name]
+        FROM ${fq('Controls')} c
+        ${this.controlFunctionNamesApply('c.id')}
+        WHERE c.isDeleted = 0
+          AND c.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ${fq('ControlCosos')} ccx
+            WHERE ccx.control_id = c.id
+              AND ccx.deletedAt IS NULL
+          )
+      `);
+      const sortedRows = sortRowsByFunctionAsc((rows || []).map((row: any) => ({
+        'Control Name': row['Control Name'],
+        'Function Name': row['Function Name'],
+      })) as Record<string, unknown>[]);
+      return this.paginateRows(sortedRows, pageInt, limitInt);
+    }
+
+    const dataQuery = `
+      WITH PagedControls AS (
+        SELECT
+          c.id,
+          c.name,
+          ROW_NUMBER() OVER (ORDER BY c.createdAt DESC, c.name ASC) AS rn
+        FROM ${fq('Controls')} c
+        WHERE c.isDeleted = 0
+          AND c.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM ${fq('ControlCosos')} ccx
+            WHERE ccx.control_id = c.id
+              AND ccx.deletedAt IS NULL
+          )
+      )
+      SELECT
+        pc.name AS [Control Name],
+        ISNULL(cfn.function_name, 'Unknown') AS [Function Name]
+      FROM PagedControls pc
+      ${this.controlFunctionNamesApply('pc.id')}
+      WHERE pc.rn BETWEEN @param0 AND @param1
+      ORDER BY pc.rn
+    `;
+
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: (rows || []).map((row: any) => ({
+        'Control Name': row['Control Name'],
+        'Function Name': row['Function Name'],
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getControlSubmissionStatusByQuarterFunctionTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, selectedFunctionIds);
+    const dateFilterCdt = this.buildDateFilter(startDate, endDate, 'cdt.createdAt');
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+
+    const baseQuery = `
+      SELECT
+        c.name AS [Control Name],
+        f.name AS [Function Name],
+        CASE WHEN cdt.quarter = 'quarterOne' THEN 1
+             WHEN cdt.quarter = 'quarterTwo' THEN 2
+             WHEN cdt.quarter = 'quarterThree' THEN 3
+             WHEN cdt.quarter = 'quarterFour' THEN 4
+             ELSE NULL END AS [Quarter],
+        cdt.year AS [Year],
+        CASE WHEN (c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved')
+             THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Control Submitted?],
+        CASE WHEN (cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved')
+             THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Test Approved?],
+        cdt.createdAt AS created_at
+      FROM ${fq('ControlDesignTests')} cdt
+      INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id
+      INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id
+      WHERE c.isDeleted = 0
+        AND c.deletedAt IS NULL
+        AND cdt.deletedAt IS NULL
+        ${dateFilterCdt}
+        ${functionFilterCdt}
+    `;
+
+    const countQuery = `SELECT COUNT(*) AS total FROM (${baseQuery}) AS dashboard_count`;
+
+    if (orderByFunctionAsc) {
+      const rows = await this.databaseService.query(baseQuery);
+      const sortedRows = sortRowsByFunctionAsc((rows || []).map((row: any) => ({
+        'Control Name': row['Control Name'],
+        'Function Name': row['Function Name'],
+        Quarter: row['Quarter'],
+        Year: row['Year'],
+        'Control Submitted?': row['Control Submitted?'],
+        'Test Approved?': row['Test Approved?'],
+      })) as Record<string, unknown>[]);
+      return this.paginateRows(sortedRows, pageInt, limitInt);
+    }
+
+    const dataQuery = `
+      WITH RankedRows AS (
+        SELECT *,
+          ROW_NUMBER() OVER (ORDER BY created_at DESC, [Control Name] ASC) AS rn
+        FROM (${baseQuery}) AS base_rows
+      )
+      SELECT *
+      FROM RankedRows
+      WHERE rn BETWEEN @param0 AND @param1
+      ORDER BY rn
+    `;
+
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: (rows || []).map((row: any) => ({
+        'Control Name': row['Control Name'],
+        'Function Name': row['Function Name'],
+        Quarter: row['Quarter'],
+        Year: row['Year'],
+        'Control Submitted?': row['Control Submitted?'],
+        'Test Approved?': row['Test Approved?'],
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
   }
 
   // Control-specific card data with function filtering
