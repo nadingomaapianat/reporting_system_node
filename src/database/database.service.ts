@@ -22,7 +22,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const password = this.configService.get<string>('DB_PASSWORD');
     const domain =
       this.configService.get<string>('DB_DOMAIN') ?? '';
-    const authType = (this.configService.get<string>('DB_AUTH_TYPE') || 'sql')
+    const configuredAuthType = this.configService.get<string>('DB_AUTH_TYPE');
+    const authType = (configuredAuthType || (domain.trim() ? 'ntlm' : 'sql'))
       .trim()
       .toLowerCase();
 
@@ -31,6 +32,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
     if (!password) {
       throw new Error('DB_PASSWORD is required');
+    }
+    if (authType === 'ntlm' && !domain.trim()) {
+      throw new Error('DB_DOMAIN is required when DB_AUTH_TYPE is ntlm');
     }
 
     const config: sql.config = {
