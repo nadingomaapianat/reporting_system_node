@@ -231,26 +231,9 @@ export abstract class BaseDashboardService {
       const limitInt = this.clampLimit(limit);
 
       if (!orderByFunctionAsc) {
-        const countQuery = this.buildWrappedCountQuery(query);
-        const paginatedQuery = this.applySqlServerPagination(query, pageInt, limitInt);
-        const [result, countResult] = await Promise.all([
-          this.databaseService.query(paginatedQuery, []),
-          this.databaseService.query(countQuery, []),
-        ]);
+        const result = await this.databaseService.query(query, []);
         const rows = result.map((row: any) => this.formatTableRow(row, table.columns));
-        const total = Number(countResult[0]?.total ?? 0);
-        const totalPages = Math.max(1, Math.ceil(total / limitInt));
-        return {
-          data: rows,
-          pagination: {
-            page: pageInt,
-            limit: limitInt,
-            total,
-            totalPages,
-            hasNext: pageInt < totalPages,
-            hasPrev: pageInt > 1,
-          },
-        };
+        return this.paginateRows(rows, pageInt, limitInt);
       }
 
       const result = await this.databaseService.query(query, []);
