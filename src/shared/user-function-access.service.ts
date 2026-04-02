@@ -7,16 +7,20 @@ export interface UserFunctionAccess {
   functionIds: string[];
 }
 
+type UserFunctionItem = { id: string; name: string };
+
 @Injectable()
 export class UserFunctionAccessService {
   private readonly accessCacheTtlMs =
     Number(process.env.USER_FUNCTION_ACCESS_CACHE_TTL) > 0
       ? Number(process.env.USER_FUNCTION_ACCESS_CACHE_TTL)
-      : 30000;
+      : 5 * 60 * 1000;
   private readonly accessCache = new Map<string, { expiresAt: number; value: UserFunctionAccess }>();
   private readonly accessInflight = new Map<string, Promise<UserFunctionAccess>>();
-  private readonly userFunctionsCache = new Map<string, { expiresAt: number; value: Array<{ id: string; name: string }> }>();
-  private readonly userFunctionsInflight = new Map<string, Promise<Array<{ id: string; name: string }>>>();
+  private readonly userFunctionsCache = new Map<string, { expiresAt: number; value: UserFunctionItem[] }>();
+  private readonly userFunctionsInflight = new Map<string, Promise<UserFunctionItem[]>>();
+  private allFunctionsCache: { expiresAt: number; value: UserFunctionItem[] } | null = null;
+  private allFunctionsInflight: Promise<UserFunctionItem[]> | null = null;
 
   constructor(private readonly db: DatabaseService) {}
 
@@ -90,6 +94,87 @@ export class UserFunctionAccessService {
     return value;
   }
 
+  private normalizeFunctionRows(rows: any[]): UserFunctionItem[] {
+    return (rows || []).map((r: any) => ({
+      id: this.normalizeFunctionId(r.id),
+      name: String(r.name ?? ''),
+    }));
+  }
+
+  private setAssignedFunctionsCaches(cacheKey: string, rows: any[]): UserFunctionItem[] {
+    const functions = this.normalizeFunctionRows(rows);
+    this.setCachedValue(this.userFunctionsCache, cacheKey, functions);
+    this.setCachedValue(this.accessCache, cacheKey, {
+      isSuperAdmin: false,
+      functionIds: functions.map((item) => item.id),
+    });
+    return functions;
+  }
+
+  private async getAllFunctions(): Promise<UserFunctionItem[]> {
+    if (this.allFunctionsCache && this.allFunctionsCache.expiresAt > Date.now()) {
+      return this.allFunctionsCache.value;
+    }
+    if (this.allFunctionsInflight) {
+      return this.allFunctionsInflight;
+    }
+
+    const query = `
+      SELECT f.id, f.name
+      FROM ${fq('Functions')} f
+      WHERE f.isDeleted = 0
+        AND f.deletedAt IS NULL
+      ORDER BY f.name
+    `;
+
+    this.allFunctionsInflight = this.db.query(query)
+      .then((rows) => this.normalizeFunctionRows(rows))
+      .then((functions) => {
+        this.allFunctionsCache = {
+          expiresAt: Date.now() + this.accessCacheTtlMs,
+          value: functions,
+        };
+        return functions;
+      })
+      .finally(() => {
+        this.allFunctionsInflight = null;
+      });
+
+    return this.allFunctionsInflight;
+  }
+
+  private async getAssignedFunctions(cacheKey: string, userId: string): Promise<UserFunctionItem[]> {
+    const cached = this.getCachedValue(this.userFunctionsCache, cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const inFlight = this.userFunctionsInflight.get(cacheKey);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const query = `
+      SELECT f.id, f.name
+      FROM ${fq('UserFunction')} uf
+      JOIN ${fq('Functions')} f ON f.id = uf.functionId
+      WHERE uf.userId = @param0
+        AND uf.deletedAt IS NULL
+        AND f.isDeleted = 0
+        AND f.deletedAt IS NULL
+      ORDER BY f.name
+    `;
+
+    const promise = this.db.query(query, [userId])
+      .then((rows) => this.setAssignedFunctionsCaches(cacheKey, rows))
+      .finally(() => {
+        this.userFunctionsInflight.delete(cacheKey);
+      });
+
+    this.userFunctionsInflight.set(cacheKey, promise);
+    return promise;
+  }
+
   /**
    * Get the list of function IDs a user has access to, plus super-admin flag.
    * Admin: all data when no function selected; filter list shows all functions.
@@ -121,36 +206,15 @@ export class UserFunctionAccessService {
       return inFlight;
     }
 
-    // Match UserFunction / Functions structure in the main backend
-    const query = `
-      SELECT uf.functionId AS id
-      FROM ${fq('UserFunction')} uf
-      JOIN ${fq('Functions')} f ON f.id = uf.functionId
-      WHERE uf.userId = @param0
-        AND uf.deletedAt IS NULL
-        AND f.isDeleted = 0
-        AND f.deletedAt IS NULL
-    `;
-
     const promise = (async () => {
       try {
-        const rows = await this.db.query(query, [userId]);
-        const functionIds = [
-          ...new Set(
-            rows
-              .map((r: any) => this.normalizeFunctionId(r.id))
-              .filter(Boolean),
-          ),
-        ];
-
-        return this.setCachedValue(this.accessCache, cacheKey, {
+        const functions = await this.getAssignedFunctions(cacheKey, userId);
+        return {
           isSuperAdmin: false,
-          functionIds,
-        });
+          functionIds: functions.map((item) => item.id),
+        };
       } catch (e: any) {
         const msg = (e?.message || String(e)) as string;
-        // If the UserFunction table does not exist in this database (common in UAT where only NEWDCC-V4-UAT is present),
-        // fall back to a configurable behaviour so the dashboards still work.
         if (msg.includes('Invalid object name') && msg.includes('UserFunction')) {
           const seeAll = process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true';
           if (seeAll) {
@@ -370,7 +434,7 @@ export class UserFunctionAccessService {
     groupName?: string,
     role?: string,
     isAdminFlag?: boolean,
-  ): Promise<Array<{ id: string; name: string }>> {
+  ): Promise<UserFunctionItem[]> {
     const userId = typeof userIdOrUser === 'object' ? userIdOrUser.id : userIdOrUser;
     const g = typeof userIdOrUser === 'object' ? (userIdOrUser.groupName ?? userIdOrUser.group) : groupName;
     const r = typeof userIdOrUser === 'object' ? (userIdOrUser.role ?? userIdOrUser.title) : role;
@@ -378,75 +442,27 @@ export class UserFunctionAccessService {
     const isSuperAdmin = this.isAdmin(userId, g, r, adm);
     const cacheKey = this.buildCacheKey(userId, g, r, adm);
 
-    const cached = this.getCachedValue(this.userFunctionsCache, cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const inFlight = this.userFunctionsInflight.get(cacheKey);
-    if (inFlight) {
-      return inFlight;
-    }
-
     const promise = (async () => {
       try {
         if (isSuperAdmin) {
-          const query = `
-            SELECT f.id, f.name
-            FROM ${fq('Functions')} f
-            WHERE f.isDeleted = 0
-              AND f.deletedAt IS NULL
-            ORDER BY f.name
-          `;
-          const rows = await this.db.query(query);
-          return this.setCachedValue(this.userFunctionsCache, cacheKey, rows.map((r: any) => ({
-            id: this.normalizeFunctionId(r.id),
-            name: r.name,
-          })));
+          const allFunctions = await this.getAllFunctions();
+          return this.setCachedValue(this.userFunctionsCache, cacheKey, allFunctions);
         }
 
-        const query = `
-          SELECT f.id, f.name
-          FROM ${fq('UserFunction')} uf
-          JOIN ${fq('Functions')} f ON f.id = uf.functionId
-          WHERE uf.userId = @param0
-            AND uf.deletedAt IS NULL
-            AND f.isDeleted = 0
-            AND f.deletedAt IS NULL
-          ORDER BY f.name
-        `;
-
-        const rows = await this.db.query(query, [userId]);
-        return this.setCachedValue(this.userFunctionsCache, cacheKey, rows.map((r: any) => ({
-          id: this.normalizeFunctionId(r.id),
-          name: r.name,
-        })));
+        return await this.getAssignedFunctions(cacheKey, userId);
       } catch (e: any) {
         const msg = (e?.message || String(e)) as string;
         if (msg.includes('Invalid object name') && msg.includes('UserFunction')) {
           if (process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true') {
-            const allQuery = `
-              SELECT f.id, f.name
-              FROM ${fq('Functions')} f
-              WHERE f.isDeleted = 0
-                AND f.deletedAt IS NULL
-              ORDER BY f.name
-            `;
-            const rows = await this.db.query(allQuery);
-            return this.setCachedValue(this.userFunctionsCache, cacheKey, rows.map((r: any) => ({
-              id: this.normalizeFunctionId(r.id),
-              name: r.name,
-            })));
+            const allFunctions = await this.getAllFunctions();
+            return this.setCachedValue(this.userFunctionsCache, cacheKey, allFunctions);
           }
           return this.setCachedValue(this.userFunctionsCache, cacheKey, []);
         }
         throw e;
-      } finally {
-        this.userFunctionsInflight.delete(cacheKey);
       }
     })();
 
-    this.userFunctionsInflight.set(cacheKey, promise);
     return promise;
   }
 }
