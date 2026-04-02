@@ -101,49 +101,121 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async query(sqlQuery: string, params: any[] = []) {
+  async query(sqlQuery: string, params: any[] = [], context?: string) {
     if (!this.pool) {
       throw new Error('Database not connected');
     }
 
     try {
-      const request = this.pool.request();
-
-      if (params && params.length > 0) {
-        params.forEach((param, index) => {
-          const paramPlaceholder = `@param${index}`;
-          const offsetPattern = new RegExp(
-            `OFFSET\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
-            'i'
-          );
-          const fetchPattern = new RegExp(
-            `FETCH\\s+NEXT\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
-            'i'
-          );
-
-          const isOffsetOrFetch =
-            offsetPattern.test(sqlQuery) ||
-            fetchPattern.test(sqlQuery);
-
-          if (
-            isOffsetOrFetch &&
-            (typeof param === 'number' || !isNaN(Number(param)))
-          ) {
-            request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
-          } else if (typeof param === 'string') {
-            request.input(`param${index}`, sql.NVarChar(4000), param);
-          } else {
-            request.input(`param${index}`, param);
-          }
-        });
-      }
-
-      const result = await request.query(sqlQuery);
+      const result = await this.executeQuery(sqlQuery, params);
       return result.recordset;
     } catch (error) {
+      const fallback = this.extractOffsetFetchFallback(sqlQuery, params);
+      if (fallback && this.isOffsetFetchCompatibilityError(error)) {
+        console.warn(
+          `[DatabaseService] Retrying query without OFFSET/FETCH${context ? ` [${context}]` : ''}`
+        );
+        const fallbackResult = await this.executeQuery(fallback.sqlQuery, params);
+        return fallbackResult.recordset.slice(
+          fallback.offset,
+          fallback.offset + fallback.limit,
+        );
+      }
       console.error('Database query error:', error);
       throw error;
     }
+  }
+
+  private async executeQuery(sqlQuery: string, params: any[] = []) {
+    const request = this.pool.request();
+
+    if (params && params.length > 0) {
+      params.forEach((param, index) => {
+        const paramPlaceholder = `@param${index}`;
+        const offsetPattern = new RegExp(
+          `OFFSET\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
+          'i'
+        );
+        const fetchPattern = new RegExp(
+          `FETCH\\s+NEXT\\s+${paramPlaceholder.replace('@', '\\@')}\\s+ROWS`,
+          'i'
+        );
+
+        const isOffsetOrFetch =
+          offsetPattern.test(sqlQuery) ||
+          fetchPattern.test(sqlQuery);
+
+        if (
+          isOffsetOrFetch &&
+          (typeof param === 'number' || !isNaN(Number(param)))
+        ) {
+          request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
+        } else if (typeof param === 'string') {
+          request.input(`param${index}`, sql.NVarChar(4000), param);
+        } else {
+          request.input(`param${index}`, param);
+        }
+      });
+    }
+
+    return request.query(sqlQuery);
+  }
+
+  private extractOffsetFetchFallback(sqlQuery: string, params: any[]) {
+    const offsetFetchRegex =
+      /\s+OFFSET\s+(@param\d+|\d+)\s+ROWS\s+FETCH\s+NEXT\s+(@param\d+|\d+)\s+ROWS\s+ONLY\s*;?\s*$/i;
+    const match = sqlQuery.match(offsetFetchRegex);
+    if (!match) {
+      return null;
+    }
+
+    const offset = this.resolvePaginationToken(match[1], params);
+    const limit = this.resolvePaginationToken(match[2], params);
+    if (offset == null || limit == null) {
+      return null;
+    }
+
+    return {
+      sqlQuery: sqlQuery.replace(offsetFetchRegex, '').trim(),
+      offset,
+      limit,
+    };
+  }
+
+  private resolvePaginationToken(token: string, params: any[]) {
+    const trimmed = String(token).trim();
+    if (/^@param\d+$/i.test(trimmed)) {
+      const index = Number(trimmed.replace(/[^0-9]/g, ''));
+      const value = params[index];
+      if (value == null || Number.isNaN(Number(value))) {
+        return null;
+      }
+      return Math.max(0, Math.floor(Number(value)));
+    }
+
+    if (Number.isNaN(Number(trimmed))) {
+      return null;
+    }
+    return Math.max(0, Math.floor(Number(trimmed)));
+  }
+
+  private isOffsetFetchCompatibilityError(error: any): boolean {
+    const messages = [
+      error?.message,
+      error?.originalError?.message,
+      ...(Array.isArray(error?.precedingErrors)
+        ? error.precedingErrors.map((item: any) => item?.message)
+        : []),
+    ]
+      .filter(Boolean)
+      .map((message: string) => message.toLowerCase());
+
+    return messages.some(
+      (message) =>
+        message.includes("invalid usage of the option next in the fetch statement") ||
+        message.includes("incorrect syntax near 'offset'") ||
+        message.includes("incorrect syntax near the keyword 'order'"),
+    );
   }
 
   async getConnection() {
