@@ -17,32 +17,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
     const dbName =
       this.configService.get<string>('DB_NAME') ;
-
-    // Tedious requires domain to be a string for NTLM; use empty string if not set
-    const domain =
-      this.configService.get<string>('DB_DOMAIN') ?? '';
     const username =
       this.configService.get<string>('DB_USERNAME') ;
     const password = this.configService.get<string>('DB_PASSWORD');
+    const domain =
+      this.configService.get<string>('DB_DOMAIN') ?? '';
+    const authType = (this.configService.get<string>('DB_AUTH_TYPE') || 'sql')
+      .trim()
+      .toLowerCase();
 
+    if (!username) {
+      throw new Error('DB_USERNAME is required');
+    }
     if (!password) {
-      throw new Error('DB_PASSWORD is required for NTLM authentication');
+      throw new Error('DB_PASSWORD is required');
     }
 
     const config: sql.config = {
       server: dbHost,
       port: dbPort,
       database: dbName,
-    
-      authentication: {
-            type: 'ntlm',
-            options: {
-              domain,
-              userName: username,
-              password: password,
-            },
-      },
-    
       options: {
         encrypt: true,
         trustServerCertificate: true,
@@ -67,18 +61,33 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       },
     };
 
+    if (authType === 'ntlm') {
+      config.authentication = {
+        type: 'ntlm',
+        options: {
+          domain,
+          userName: username,
+          password,
+        },
+      };
+    } else {
+      config.user = username;
+      config.password = password;
+    }
+
     try {
       this.pool = await sql.connect(config);
       console.log(
-        `Database connected using NTLM: ${domain}\\${username}`
+        authType === 'ntlm'
+          ? `Database connected using NTLM: ${domain}\\${username}`
+          : `Database connected using SQL authentication: ${username}`
       );
     } catch (err) {
       console.error('Database connection failed:', err);
       console.error(
-        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain}, user=${username}`
+        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, authType=${authType}, domain=${domain}, user=${username}`
       );
       if (err instanceof Error) {
-        const errorCode = (err as any).code || 'N/A';
         console.error(`Error message: ${err.message}`);
         console.error(`Error code: ${(err as any).code || 'N/A'}`);
       }
