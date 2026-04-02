@@ -230,11 +230,14 @@ export abstract class BaseDashboardService {
       const pageInt = Math.max(1, Number(page) || 1);
       const limitInt = this.clampLimit(limit);
 
-      const result = await this.databaseService.query(query, []);
-      const rows = result.map((row: any) => this.formatTableRow(row, table.columns));
       if (!orderByFunctionAsc) {
+        const result = await this.databaseService.query(query, []);
+        const rows = result.map((row: any) => this.formatTableRow(row, table.columns));
         return this.paginateRows(rows, pageInt, limitInt);
       }
+
+      const result = await this.databaseService.query(query, []);
+      const rows = result.map((row: any) => this.formatTableRow(row, table.columns));
       const sortedRows = sortRowsByFunctionAsc(rows as Record<string, unknown>[]);
       return this.paginateRows(sortedRows, pageInt, limitInt);
     } catch (error) {
@@ -597,11 +600,11 @@ export abstract class BaseDashboardService {
       } else if (applyControlsFunctionFallback) {
         query = this.injectControlsFunctionFilterIntoQuery(query, functionFilter);
       }
+      if (table.pagination) {
+        query = this.applyDashboardPreviewLimit(query, this.getDefaultLimit());
+      }
       const result = await this.databaseService.query(query, []);
-      const previewRows = table.pagination
-        ? result.slice(0, this.getDefaultLimit())
-        : result;
-      const data = previewRows.map((row: any) => {
+      const data = result.map((row: any) => {
         const processedRow: any = {};
         for (const column of table.columns) {
           let value = row[column.key];
@@ -692,7 +695,7 @@ export abstract class BaseDashboardService {
       return normalized;
     }
 
-    if (this.hasTrailingOrderBy(normalized)) {
+    if (/\bORDER\s+BY\b/i.test(normalized)) {
       return `${normalized} OFFSET 0 ROWS FETCH NEXT ${limit} ROWS ONLY`;
     }
 
@@ -710,59 +713,10 @@ export abstract class BaseDashboardService {
     return processedRow;
   }
 
-  protected getTrailingOuterOrderByIndex(query: string): number {
-    const normalized = query.trim().replace(/;+\s*$/, '');
-    let depth = 0;
-    let inString = false;
-    let index = -1;
-
-    for (let i = 0; i < normalized.length; i += 1) {
-      const char = normalized[i];
-
-      if (inString) {
-        if (char === "'") {
-          if (normalized[i + 1] === "'") {
-            i += 1;
-          } else {
-            inString = false;
-          }
-        }
-        continue;
-      }
-
-      if (char === "'") {
-        inString = true;
-        continue;
-      }
-
-      if (char === '(') {
-        depth += 1;
-        continue;
-      }
-
-      if (char === ')') {
-        depth = Math.max(0, depth - 1);
-        continue;
-      }
-
-      if (depth !== 0) {
-        continue;
-      }
-
-      if (
-        /^ORDER\s+BY\b/i.test(normalized.slice(i)) &&
-        (i === 0 || /\s/.test(normalized[i - 1]))
-      ) {
-        index = i;
-      }
-    }
-
-    return index;
-  }
-
   protected stripTrailingOrderBy(query: string): string {
     const normalized = query.trim().replace(/;+\s*$/, '');
-    const lastOrderByIndex = this.getTrailingOuterOrderByIndex(normalized);
+    const upper = normalized.toUpperCase();
+    const lastOrderByIndex = upper.lastIndexOf('ORDER BY');
     if (lastOrderByIndex === -1) {
       return normalized;
     }
@@ -770,7 +724,13 @@ export abstract class BaseDashboardService {
   }
 
   private hasTrailingOrderBy(query: string): boolean {
-    return this.getTrailingOuterOrderByIndex(query) !== -1;
+    const normalized = query.trim().replace(/;+\s*$/, '');
+    const upper = normalized.toUpperCase();
+    const lastOrderByIndex = upper.lastIndexOf('ORDER BY');
+    if (lastOrderByIndex === -1) {
+      return false;
+    }
+    return lastOrderByIndex > upper.lastIndexOf(')');
   }
 
   private buildWrappedCountQuery(query: string): string {
@@ -1000,17 +960,25 @@ export abstract class BaseDashboardService {
         }
       }
       
+      // Add pagination (ensure ORDER BY exists for SQL Server OFFSET)
+      // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = this.clampLimit(limit);
-      const result = await this.databaseService.query(dataQuery);
-      const total = Array.isArray(result) ? result.length : 0;
-      const pagedRows = Array.isArray(result)
-        ? result.slice((pageInt - 1) * limitInt, pageInt * limitInt)
-        : [];
-      const totalPages = Math.max(1, Math.ceil(total / limitInt));
-
+      const offset = Math.floor((pageInt - 1) * limitInt);
+      const hasOrderBy = /\border\s+by\b/i.test(dataQuery);
+      const orderClause = hasOrderBy ? '' : ' ORDER BY createdAt DESC';
+      const paginatedQuery = `${dataQuery}${orderClause} OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
+      
+      const [data, countResult] = await Promise.all([
+        this.databaseService.query(paginatedQuery),
+        this.databaseService.query(countQuery)
+      ]);
+      
+      const total = countResult[0]?.total || countResult[0]?.count || 0;
+      const totalPages = Math.ceil(total / limitInt);
+      
       return {
-        data: pagedRows.map((row, index) => ({
+        data: data.map((row, index) => ({
           control_code: row.code || `CTRL-${row.control_id}`,
           control_name: row.name || `Control ${row.control_id}`,
           ...row
