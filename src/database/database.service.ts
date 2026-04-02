@@ -2,21 +2,11 @@ import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sql from 'mssql';
 
-type QueryLogContext = {
-  label?: string;
-};
-
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: sql.ConnectionPool;
-  private readonly slowQueryThresholdMs: number;
 
-  constructor(private configService: ConfigService) {
-    this.slowQueryThresholdMs = parseInt(
-      this.configService.get<string>('DB_SLOW_QUERY_THRESHOLD') || '5000',
-      10
-    );
-  }
+  constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
     const dbHost =
@@ -27,32 +17,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     );
     const dbName =
       this.configService.get<string>('DB_NAME') ;
-
-    // Tedious requires domain to be a string for NTLM; use empty string if not set
-    const domain =
-      this.configService.get<string>('DB_DOMAIN') ?? '';
     const username =
       this.configService.get<string>('DB_USERNAME') ;
     const password = this.configService.get<string>('DB_PASSWORD');
+    const domain =
+      this.configService.get<string>('DB_DOMAIN') ?? '';
+    const authType = (this.configService.get<string>('DB_AUTH_TYPE') || 'sql')
+      .trim()
+      .toLowerCase();
 
+    if (!username) {
+      throw new Error('DB_USERNAME is required');
+    }
     if (!password) {
-      throw new Error('DB_PASSWORD is required for NTLM authentication');
+      throw new Error('DB_PASSWORD is required');
     }
 
     const config: sql.config = {
       server: dbHost,
       port: dbPort,
       database: dbName,
-    
-      authentication: {
-        type: 'ntlm',
-        options: {
-          domain,
-          userName: username,
-          password: password,
-        },
-      },
-    
       options: {
         encrypt: true,
         trustServerCertificate: true,
@@ -67,7 +51,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ),
         packetSize: 32768,
       },
-    
       pool: {
         max: parseInt(this.configService.get<string>('DB_POOL_MAX') || '100', 10),
         min: parseInt(this.configService.get<string>('DB_POOL_MIN') || '20', 10),
@@ -77,16 +60,32 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ),
       },
     };
-    
+
+    if (authType === 'ntlm') {
+      config.authentication = {
+        type: 'ntlm',
+        options: {
+          domain,
+          userName: username,
+          password,
+        },
+      };
+    } else {
+      config.user = username;
+      config.password = password;
+    }
+
     try {
       this.pool = await sql.connect(config);
       console.log(
-        `Database connected using NTLM: ${domain}\\${username}`
+        authType === 'ntlm'
+          ? `Database connected using NTLM: ${domain}\\${username}`
+          : `Database connected using SQL authentication: ${username}`
       );
     } catch (err) {
       console.error('Database connection failed:', err);
       console.error(
-        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, domain=${domain}, user=${username}`
+        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, authType=${authType}, domain=${domain}, user=${username}`
       );
       if (err instanceof Error) {
         console.error(`Error message: ${err.message}`);
@@ -102,50 +101,27 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async query(sqlQuery: string, params: any[] = [], context?: QueryLogContext | string) {
+  async query(sqlQuery: string, params: any[] = [], context?: string) {
     if (!this.pool) {
       throw new Error('Database not connected');
     }
 
-    const startedAt = Date.now();
-    const source = this.resolveQuerySource(context);
-
     try {
       const result = await this.executeQuery(sqlQuery, params);
-      const elapsedMs = Date.now() - startedAt;
-
-      if (elapsedMs >= this.slowQueryThresholdMs) {
-        console.warn(
-          `[DatabaseService] Slow query detected (${elapsedMs}ms) [${source}]: ${this.summarizeQuery(sqlQuery)}`,
-          {
-            paramsCount: params?.length || 0,
-            rowCount: result.recordset?.length || 0,
-          }
-        );
-      }
-
       return result.recordset;
     } catch (error) {
-      const offsetFetchFallback = this.extractOffsetFetchFallback(sqlQuery, params);
-      if (offsetFetchFallback && this.isOffsetFetchCompatibilityError(error)) {
+      const fallback = this.extractOffsetFetchFallback(sqlQuery, params);
+      if (fallback && this.isOffsetFetchCompatibilityError(error)) {
         console.warn(
-          `[DatabaseService] Retrying query without OFFSET/FETCH [${source}]: ${this.summarizeQuery(sqlQuery)}`
+          `[DatabaseService] Retrying query without OFFSET/FETCH${context ? ` [${context}]` : ''}`
         );
-        const fallbackResult = await this.executeQuery(offsetFetchFallback.sqlQuery, params);
+        const fallbackResult = await this.executeQuery(fallback.sqlQuery, params);
         return fallbackResult.recordset.slice(
-          offsetFetchFallback.offset,
-          offsetFetchFallback.offset + offsetFetchFallback.limit,
+          fallback.offset,
+          fallback.offset + fallback.limit,
         );
       }
-
-      const elapsedMs = Date.now() - startedAt;
-      console.error(
-        `[DatabaseService] Database query error after ${elapsedMs}ms [${source}]: ${this.summarizeQuery(sqlQuery)}`,
-        {
-          paramsCount: params?.length || 0,
-          error,
-        }
-      );
+      console.error('Database query error:', error);
       throw error;
     }
   }
@@ -186,91 +162,60 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   private extractOffsetFetchFallback(sqlQuery: string, params: any[]) {
-    const normalized = String(sqlQuery || '').trim().replace(/;+\s*$/, '');
-    const match = normalized.match(
-      /\sOFFSET\s+([^\s]+)\s+ROWS\s+FETCH\s+NEXT\s+([^\s]+)\s+ROWS\s+ONLY\s*$/i
-    );
-    if (!match) return null;
+    const offsetFetchRegex =
+      /\s+OFFSET\s+(@param\d+|\d+)\s+ROWS\s+FETCH\s+NEXT\s+(@param\d+|\d+)\s+ROWS\s+ONLY\s*;?\s*$/i;
+    const match = sqlQuery.match(offsetFetchRegex);
+    if (!match) {
+      return null;
+    }
 
     const offset = this.resolvePaginationToken(match[1], params);
     const limit = this.resolvePaginationToken(match[2], params);
-    if (offset == null || limit == null) return null;
+    if (offset == null || limit == null) {
+      return null;
+    }
 
     return {
-      sqlQuery: normalized.slice(0, match.index).trim(),
+      sqlQuery: sqlQuery.replace(offsetFetchRegex, '').trim(),
       offset,
       limit,
     };
   }
 
-  private resolvePaginationToken(token: string, params: any[]): number | null {
-    const trimmed = String(token || '').trim();
-    const paramMatch = trimmed.match(/^@param(\d+)$/i);
-    if (paramMatch) {
-      const raw = params?.[Number(paramMatch[1])];
-      const parsed = Math.floor(Number(raw));
-      return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  private resolvePaginationToken(token: string, params: any[]) {
+    const trimmed = String(token).trim();
+    if (/^@param\d+$/i.test(trimmed)) {
+      const index = Number(trimmed.replace(/[^0-9]/g, ''));
+      const value = params[index];
+      if (value == null || Number.isNaN(Number(value))) {
+        return null;
+      }
+      return Math.max(0, Math.floor(Number(value)));
     }
 
-    const parsed = Math.floor(Number(trimmed));
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    if (Number.isNaN(Number(trimmed))) {
+      return null;
+    }
+    return Math.max(0, Math.floor(Number(trimmed)));
   }
 
-  private isOffsetFetchCompatibilityError(error: unknown): boolean {
-    const message = [
-      (error as any)?.message,
-      (error as any)?.originalError?.info?.message,
-      (error as any)?.precedingErrors?.map((item: any) => item?.message).join(' '),
+  private isOffsetFetchCompatibilityError(error: any): boolean {
+    const messages = [
+      error?.message,
+      error?.originalError?.message,
+      ...(Array.isArray(error?.precedingErrors)
+        ? error.precedingErrors.map((item: any) => item?.message)
+        : []),
     ]
       .filter(Boolean)
-      .join(' ');
+      .map((message: string) => message.toLowerCase());
 
-    return /incorrect syntax near ['"]?offset['"]?|invalid usage of the option next|invalid usage of the option first|fetch statement/i.test(message);
-  }
-
-  private summarizeQuery(sqlQuery: string): string {
-    const normalized = String(sqlQuery || '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (normalized.length <= 300) return normalized;
-    return `${normalized.slice(0, 300)}...`;
-  }
-
-  private resolveQuerySource(context?: QueryLogContext | string): string {
-    if (typeof context === 'string' && context.trim()) {
-      return context.trim();
-    }
-
-    if (
-      context &&
-      typeof context === 'object' &&
-      typeof context.label === 'string' &&
-      context.label.trim()
-    ) {
-      return context.label.trim();
-    }
-
-    const stack = new Error().stack || '';
-    const frames = stack
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const appFrame = frames.find(
-      (line) =>
-        line.includes('/src/') &&
-        !line.includes('/src/database/database.service.ts')
+    return messages.some(
+      (message) =>
+        message.includes("invalid usage of the option next in the fetch statement") ||
+        message.includes("incorrect syntax near 'offset'") ||
+        message.includes("incorrect syntax near the keyword 'order'"),
     );
-
-    if (!appFrame) return 'unknown-source';
-
-    const normalized = appFrame
-      .replace(/^at\s+/, '')
-      .replace(process.cwd(), '')
-      .replace(/\\/g, '/');
-
-    return normalized;
   }
 
   async getConnection() {
