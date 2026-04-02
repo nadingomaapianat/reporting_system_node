@@ -22,7 +22,7 @@ export class GrcRisksService extends BaseDashboardService {
 
   /** Subquery for risk function name(s) - Risks have many-to-many with Functions via RiskFunctions */
   private riskFunctionNameSubquery(): string {
-    return `(SELECT STUFF((SELECT ', ' + f_agg.name FROM dbo.[RiskFunctions] rf_agg INNER JOIN dbo.[Functions] f_agg ON f_agg.id = rf_agg.function_id AND f_agg.isDeleted = 0 AND f_agg.deletedAt IS NULL WHERE rf_agg.risk_id = r.id AND rf_agg.deletedAt IS NULL ORDER BY f_agg.name FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, ''))`;
+    return `(SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[RiskFunctions] rf INNER JOIN dbo.[Functions] f ON f.id = rf.function_id WHERE rf.risk_id = r.id AND rf.deletedAt IS NULL)`;
   }
 
   private riskFunctionNamesCte(): string {
@@ -30,19 +30,12 @@ export class GrcRisksService extends BaseDashboardService {
       RiskFunctionNames AS (
         SELECT
           rf.risk_id,
-          STUFF((
-            SELECT ', ' + f2.name
-            FROM dbo.[RiskFunctions] rf2
-            INNER JOIN dbo.[Functions] f2
-              ON f2.id = rf2.function_id
-             AND f2.isDeleted = 0
-             AND f2.deletedAt IS NULL
-            WHERE rf2.risk_id = rf.risk_id
-              AND rf2.deletedAt IS NULL
-            ORDER BY f2.name
-            FOR XML PATH(''), TYPE
-          ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS function_name
+          STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS function_name
         FROM dbo.[RiskFunctions] rf
+        INNER JOIN dbo.[Functions] f
+          ON f.id = rf.function_id
+         AND f.isDeleted = 0
+         AND f.deletedAt IS NULL
         WHERE rf.deletedAt IS NULL
         GROUP BY rf.risk_id
       )
@@ -54,19 +47,12 @@ export class GrcRisksService extends BaseDashboardService {
       ControlFunctionNames AS (
         SELECT
           cf.control_id,
-          STUFF((
-            SELECT ', ' + f2.name
-            FROM dbo.[ControlFunctions] cf2
-            INNER JOIN dbo.[Functions] f2
-              ON f2.id = cf2.function_id
-             AND f2.isDeleted = 0
-             AND f2.deletedAt IS NULL
-            WHERE cf2.control_id = cf.control_id
-              AND cf2.deletedAt IS NULL
-            ORDER BY f2.name
-            FOR XML PATH(''), TYPE
-          ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS function_name
+          STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS function_name
         FROM dbo.[ControlFunctions] cf
+        INNER JOIN dbo.[Functions] f
+          ON f.id = cf.function_id
+         AND f.isDeleted = 0
+         AND f.deletedAt IS NULL
         WHERE cf.deletedAt IS NULL
         GROUP BY cf.control_id
       )
@@ -532,12 +518,6 @@ export class GrcRisksService extends BaseDashboardService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc = false,
   ) {
-    if (tableId === 'risksPerDepartment') {
-      return this.getRisksPerDepartmentTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-    }
-    if (tableId === 'risksPerBusinessProcess') {
-      return this.getRisksPerBusinessProcessTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-    }
     if (tableId === 'allRisks') {
       return this.getAllRisksTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
     }
@@ -589,111 +569,6 @@ export class GrcRisksService extends BaseDashboardService {
       totalPages,
       hasNext: safePage < totalPages,
       hasPrev: safePage > 1,
-    };
-  }
-
-  private async getRisksPerDepartmentTablePage(
-    user: any,
-    page = 1,
-    limit = 10,
-    startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[],
-    orderByFunctionAsc = false,
-  ) {
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
-    const dateFilter = this.buildDateFilter(startDate, endDate);
-    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
-    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
-    const offset = (pageInt - 1) * limitInt;
-
-    const baseQuery = `
-      SELECT
-        ISNULL(f.name, 'Unknown') AS [Functions__name],
-        COUNT(DISTINCT r.id) AS [count],
-        MAX(r.createdAt) AS created_at
-      FROM dbo.[Risks] r
-      LEFT JOIN dbo.[RiskFunctions] rf
-        ON rf.risk_id = r.id
-       AND rf.deletedAt IS NULL
-      LEFT JOIN dbo.[Functions] f
-        ON f.id = rf.function_id
-       AND f.isDeleted = 0
-       AND f.deletedAt IS NULL
-      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
-      GROUP BY ISNULL(f.name, 'Unknown')
-    `;
-
-    const countQuery = `SELECT COUNT(*) AS total FROM (${baseQuery}) AS risk_groups`;
-    const dataQuery = `
-      ${baseQuery}
-      ORDER BY ${orderByFunctionAsc ? '[Functions__name] ASC, created_at DESC' : '[count] DESC, [Functions__name] ASC'}
-      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
-    `;
-
-    const [rows, countResult] = await Promise.all([
-      this.databaseService.query(dataQuery, [offset, limitInt]),
-      this.databaseService.query(countQuery),
-    ]);
-    const total = Number(countResult?.[0]?.total ?? 0);
-    return {
-      data: (rows || []).map((item: any) => ({
-        Functions__name: item.Functions__name || 'Unknown',
-        count: Number(item.count ?? 0),
-      })),
-      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
-    };
-  }
-
-  private async getRisksPerBusinessProcessTablePage(
-    user: any,
-    page = 1,
-    limit = 10,
-    startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[],
-    orderByFunctionAsc = false,
-  ) {
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
-    const dateFilter = this.buildDateFilter(startDate, endDate);
-    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
-    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
-    const offset = (pageInt - 1) * limitInt;
-
-    const baseQuery = `
-      SELECT
-        p.name AS process_name,
-        COUNT(DISTINCT r.id) AS risk_count,
-        MAX(r.createdAt) AS created_at
-      FROM dbo.[RiskProcesses] rp
-      INNER JOIN dbo.[Processes] p
-        ON p.id = rp.process_id
-      INNER JOIN dbo.[Risks] r
-        ON r.id = rp.risk_id
-      WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
-      GROUP BY p.name
-    `;
-
-    const countQuery = `SELECT COUNT(*) AS total FROM (${baseQuery}) AS process_groups`;
-    const dataQuery = `
-      ${baseQuery}
-      ORDER BY ${orderByFunctionAsc ? 'process_name ASC, created_at DESC' : 'risk_count DESC, process_name ASC'}
-      OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
-    `;
-
-    const [rows, countResult] = await Promise.all([
-      this.databaseService.query(dataQuery, [offset, limitInt]),
-      this.databaseService.query(countQuery),
-    ]);
-    const total = Number(countResult?.[0]?.total ?? 0);
-    return {
-      data: (rows || []).map((item: any) => ({
-        process_name: item.process_name || 'Unknown',
-        risk_count: Number(item.risk_count ?? 0),
-      })),
-      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
   }
 

@@ -1258,9 +1258,6 @@ export class GrcKrisService {
     if (tableId === 'kriRiskRelationships') {
       return this.getKriRiskRelationshipsTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
     }
-    if (tableId === 'kriDetailsWithActionPlans') {
-      return this.getKriDetailsWithActionPlansTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-    }
 
     const tablesPayload = await this.getKrisDashboard(
       user,
@@ -1303,28 +1300,6 @@ export class GrcKrisService {
       hasNext: safePage < totalPages,
       hasPrev: safePage > 1,
     };
-  }
-
-  private async getKriDetailsWithActionPlansTablePage(
-    user: any,
-    page = 1,
-    limit = 10,
-    startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[],
-    orderByFunctionAsc = false,
-  ) {
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const kriValueDateFilter = this.buildKriValueDateFilter(startDate, endDate);
-    const rows = await this.getKriDetailsWithActionPlansGrouped(
-      access,
-      selectedFunctionIds,
-      kriValueDateFilter,
-    );
-    const sortedRows = orderByFunctionAsc
-      ? sortRowsByFunctionAsc(rows as Record<string, unknown>[])
-      : rows;
-    return this.paginateRows(sortedRows, page, limit);
   }
 
   private async getOverallKrisTablePage(
@@ -1758,22 +1733,12 @@ export class GrcKrisService {
         ISNULL(assigned_u.name, '') AS assigned_person_name,
         ISNULL(k.type, '') AS type,
         ISNULL(k.typePercentageOrFigure, '') AS type_percentage_or_figure,
-        (SELECT STUFF((
-          SELECT ', ' + f2.name
-          FROM KriFunctions kf
+        (SELECT STRING_AGG(f2.name, ', ') FROM KriFunctions kf
           INNER JOIN Functions f2 ON f2.id = kf.function_id AND f2.deletedAt IS NULL AND f2.isDeleted = 0
-          WHERE kf.kri_id = k.id AND kf.deletedAt IS NULL
-          ORDER BY f2.name
-          FOR XML PATH(''), TYPE
-        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')) AS rcm_functions,
-        (SELECT STUFF((
-          SELECT ', ' + r.name
-          FROM KriRisks kr
+          WHERE kf.kri_id = k.id AND kf.deletedAt IS NULL) AS rcm_functions,
+        (SELECT STRING_AGG(r.name, ', ') FROM KriRisks kr
           INNER JOIN Risks r ON r.id = kr.risk_id AND r.deletedAt IS NULL
-          WHERE kr.kri_id = k.id AND kr.deletedAt IS NULL
-          ORDER BY r.name
-          FOR XML PATH(''), TYPE
-        ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')) AS risk_mapping,
+          WHERE kr.kri_id = k.id AND kr.deletedAt IS NULL) AS risk_mapping,
         ISNULL(k.status, '') AS status,
         ISNULL(created_by_u.name, '') AS created_by_name,
         CASE 

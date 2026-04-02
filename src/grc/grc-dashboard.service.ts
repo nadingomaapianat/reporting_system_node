@@ -20,24 +20,23 @@ export class GrcDashboardService extends BaseDashboardService {
 
   /** Subquery for control function name(s) - used in control list queries. Uses dbo.[] to match outer query and bracket reserved word. */
   private controlFunctionNameSubquery(): string {
-    return `(SELECT STUFF((SELECT ', ' + f_agg.name FROM dbo.[ControlFunctions] cf_agg INNER JOIN dbo.[Functions] f_agg ON f_agg.id = cf_agg.function_id AND f_agg.deletedAt IS NULL AND f_agg.isDeleted = 0 WHERE cf_agg.control_id = c.id AND cf_agg.deletedAt IS NULL ORDER BY f_agg.name FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, ''))`;
+    return `(SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL)`;
   }
 
   /** Scope displayed function names to selected/allowed functions when function filter is active. */
   private controlFunctionNameSubqueryScoped(access: UserFunctionAccess, selectedFunctionIds?: string[]): string {
+    const base = `SELECT STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) FROM dbo.[ControlFunctions] cf INNER JOIN dbo.[Functions] f ON f.id = cf.function_id WHERE cf.control_id = c.id AND cf.deletedAt IS NULL`;
     const sel = selectedFunctionIds?.length
       ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
       : [];
     if (sel.length) {
       const ids = sel.map((id) => `'${id.replace(/'/g, "''")}'`).join(', ');
-      return `(SELECT STUFF((SELECT ', ' + f_agg.name FROM dbo.[ControlFunctions] cf_agg INNER JOIN dbo.[Functions] f_agg ON f_agg.id = cf_agg.function_id AND f_agg.deletedAt IS NULL AND f_agg.isDeleted = 0 WHERE cf_agg.control_id = c.id AND cf_agg.deletedAt IS NULL AND cf_agg.function_id IN (${ids}) ORDER BY f_agg.name FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, ''))`;
+      return `(${base} AND cf.function_id IN (${ids}))`;
     }
-    if (access.isSuperAdmin) {
-      return this.controlFunctionNameSubquery();
-    }
+    if (access.isSuperAdmin) return `(${base})`;
     if (!access.functionIds.length) return 'NULL';
     const ids = access.functionIds.map((id) => `'${String(id).replace(/'/g, "''")}'`).join(', ');
-    return `(SELECT STUFF((SELECT ', ' + f_agg.name FROM dbo.[ControlFunctions] cf_agg INNER JOIN dbo.[Functions] f_agg ON f_agg.id = cf_agg.function_id AND f_agg.deletedAt IS NULL AND f_agg.isDeleted = 0 WHERE cf_agg.control_id = c.id AND cf_agg.deletedAt IS NULL AND cf_agg.function_id IN (${ids}) ORDER BY f_agg.name FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 2, ''))`;
+    return `(${base} AND cf.function_id IN (${ids}))`;
   }
 
   private controlFunctionNamesCte(): string {
@@ -45,19 +44,12 @@ export class GrcDashboardService extends BaseDashboardService {
       WITH ControlFunctionNames AS (
         SELECT
           cf.control_id,
-          STUFF((
-            SELECT ', ' + f2.name
-            FROM ${fq('ControlFunctions')} cf2
-            INNER JOIN ${fq('Functions')} f2
-              ON f2.id = cf2.function_id
-             AND f2.deletedAt IS NULL
-             AND f2.isDeleted = 0
-            WHERE cf2.control_id = cf.control_id
-              AND cf2.deletedAt IS NULL
-            ORDER BY f2.name
-            FOR XML PATH(''), TYPE
-          ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS function_name
+          STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS function_name
         FROM ${fq('ControlFunctions')} cf
+        INNER JOIN ${fq('Functions')} f
+          ON f.id = cf.function_id
+         AND f.deletedAt IS NULL
+         AND f.isDeleted = 0
         WHERE cf.deletedAt IS NULL
         GROUP BY cf.control_id
       )
