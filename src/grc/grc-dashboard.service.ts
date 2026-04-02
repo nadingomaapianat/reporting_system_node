@@ -2051,7 +2051,7 @@ export class GrcDashboardService extends BaseDashboardService {
   ) {
     try {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildControlFunctionFilter('c', access, selectedFunctionIds);
+      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, selectedFunctionIds);
       const dateFilter = this.buildDateFilter(startDate, endDate, 'a.createdAt');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
@@ -2064,9 +2064,12 @@ export class GrcDashboardService extends BaseDashboardService {
           a.control_procedure as action_plan_name,
           a.createdAt as created_at
         FROM dbo.[Actionplans] a
-        LEFT JOIN dbo.[ControlDesignTests] cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
-        LEFT JOIN dbo.[Controls] c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        INNER JOIN dbo.[ControlDesignTests] cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL AND cdt.function_id IS NOT NULL
+        INNER JOIN dbo.[Controls] c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        INNER JOIN dbo.[Functions] f ON cdt.function_id = f.id AND f.deletedAt IS NULL
         WHERE a.deletedAt IS NULL
+          AND a.controlDesignTest_id IS NOT NULL
+          AND a.[from] IN ('Adequacy', 'adequacy', 'effective', 'Effective')
           AND (CASE 
             WHEN a.done = 0 AND a.implementation_date < GETDATE() THEN 'Overdue'
             ELSE 'Not Overdue'
@@ -2083,9 +2086,12 @@ export class GrcDashboardService extends BaseDashboardService {
       const countQuery = `
         SELECT COUNT(*) as total
         FROM dbo.[Actionplans] a
-        LEFT JOIN dbo.[ControlDesignTests] cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
-        LEFT JOIN dbo.[Controls] c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        INNER JOIN dbo.[ControlDesignTests] cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL AND cdt.function_id IS NOT NULL
+        INNER JOIN dbo.[Controls] c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        INNER JOIN dbo.[Functions] f ON cdt.function_id = f.id AND f.deletedAt IS NULL
         WHERE a.deletedAt IS NULL
+          AND a.controlDesignTest_id IS NOT NULL
+          AND a.[from] IN ('Adequacy', 'adequacy', 'effective', 'Effective')
           AND (CASE 
             WHEN a.done = 0 AND a.implementation_date < GETDATE() THEN 'Overdue'
             ELSE 'Not Overdue'

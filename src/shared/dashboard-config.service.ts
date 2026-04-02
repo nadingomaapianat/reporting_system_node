@@ -453,11 +453,13 @@ export class DashboardConfigService {
             END AS name,
             COUNT(a.id) AS value
           FROM ${fq('Actionplans')} a
-          LEFT JOIN ${fq('ControlDesignTests')} cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
-          LEFT JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+          INNER JOIN ${fq('ControlDesignTests')} cdt ON a.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL AND cdt.function_id IS NOT NULL
+          INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+          INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id AND f.deletedAt IS NULL
           WHERE a.deletedAt IS NULL
             AND a.[from] IN ('Adequacy', 'adequacy', 'effective', 'Effective')
-            {dateFilterA} {functionFilter}
+            AND a.controlDesignTest_id IS NOT NULL
+            {dateFilterA} {functionFilterCdt}
           GROUP BY 
             CASE 
               WHEN a.done = 0 AND a.implementation_date < GETDATE() THEN 'Overdue'
@@ -741,11 +743,11 @@ export class DashboardConfigService {
             ap.implementation_date AS [Expected Implementation Date], 
             ap.not_attend AS [Did Not Attend]
           FROM ${fq('Actionplans')} ap
-          LEFT JOIN ${fq('ControlDesignTests')} cdt ON ap.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
-          LEFT JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0
-          LEFT JOIN ${fq('Functions')} f ON cdt.function_id = f.id AND f.deletedAt IS NULL
+          INNER JOIN ${fq('ControlDesignTests')} cdt ON ap.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL AND cdt.function_id IS NOT NULL
+          INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+          INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id AND f.deletedAt IS NULL
           WHERE ap.[from] IN ('Adequacy', 'adequacy')
-            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilterAp} {functionFilter}
+            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilterAp} {functionFilterCdt}
           ORDER BY ap.createdAt DESC`,
           columns: [
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
@@ -780,11 +782,11 @@ export class DashboardConfigService {
             ap.implementation_date AS [Expected Implementation Date], 
             ap.not_attend AS [Did Not Attend]
           FROM ${fq('Actionplans')} ap
-          LEFT JOIN ${fq('ControlDesignTests')} cdt ON ap.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL
-          LEFT JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0
-          LEFT JOIN ${fq('Functions')} f ON cdt.function_id = f.id AND f.deletedAt IS NULL
+          INNER JOIN ${fq('ControlDesignTests')} cdt ON ap.controlDesignTest_id = cdt.id AND cdt.deletedAt IS NULL AND cdt.function_id IS NOT NULL
+          INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+          INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id AND f.deletedAt IS NULL
           WHERE ap.[from] IN ('effective', 'Effective')
-            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilterAp} {functionFilter}
+            AND ap.deletedAt IS NULL AND ap.controlDesignTest_id IS NOT NULL {dateFilterAp} {functionFilterCdt}
           ORDER BY ap.createdAt DESC`,
           columns: [
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
