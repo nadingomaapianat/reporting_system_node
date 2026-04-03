@@ -152,23 +152,45 @@ export class GrcDashboardService extends BaseDashboardService {
     `;
 
     if (orderByFunctionAsc) {
-      const rows = await this.databaseService.query(`
+      const dataQuery = `
+        WITH CandidateControls AS (
+          SELECT
+            c.name AS control_name,
+            ISNULL(cfn.function_name, 'Unknown') AS function_name,
+            c.createdAt AS created_at
+          FROM ${fq('Controls')} c
+          ${this.controlFunctionNamesApply('c.id')}
+          WHERE c.icof_id IS NULL
+            AND c.isDeleted = 0
+            AND c.deletedAt IS NULL
+            ${dateFilter}
+            ${functionFilter}
+        ),
+        RankedControls AS (
+          SELECT *,
+            ROW_NUMBER() OVER (ORDER BY function_name ASC, control_name ASC, created_at DESC) AS rn
+          FROM CandidateControls
+        )
         SELECT
-          c.name AS [Control Name],
-          ISNULL(cfn.function_name, 'Unknown') AS [Function Name]
-        FROM ${fq('Controls')} c
-        ${this.controlFunctionNamesApply('c.id')}
-        WHERE c.icof_id IS NULL
-          AND c.isDeleted = 0
-          AND c.deletedAt IS NULL
-          ${dateFilter}
-          ${functionFilter}
-      `);
-      const sortedRows = sortRowsByFunctionAsc((rows || []).map((row: any) => ({
-        'Control Name': row['Control Name'],
-        'Function Name': row['Function Name'],
-      })) as Record<string, unknown>[]);
-      return this.paginateRows(sortedRows, pageInt, limitInt);
+          control_name AS [Control Name],
+          function_name AS [Function Name]
+        FROM RankedControls
+        WHERE rn BETWEEN @param0 AND @param1
+        ORDER BY rn
+      `;
+
+      const [rows, countResult] = await Promise.all([
+        this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
+        this.databaseService.query(countQuery),
+      ]);
+      const total = Number(countResult?.[0]?.total ?? 0);
+      return {
+        data: (rows || []).map((row: any) => ({
+          'Control Name': row['Control Name'],
+          'Function Name': row['Function Name'],
+        })),
+        pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+      };
     }
 
     const dataQuery = `
@@ -238,28 +260,50 @@ export class GrcDashboardService extends BaseDashboardService {
     `;
 
     if (orderByFunctionAsc) {
-      const rows = await this.databaseService.query(`
+      const dataQuery = `
+        WITH CandidateControls AS (
+          SELECT
+            c.name AS control_name,
+            ISNULL(cfn.function_name, 'Unknown') AS function_name,
+            c.createdAt AS created_at
+          FROM ${fq('Controls')} c
+          ${this.controlFunctionNamesApply('c.id')}
+          WHERE c.isDeleted = 0
+            AND c.deletedAt IS NULL
+            ${dateFilter}
+            ${functionFilter}
+            AND NOT EXISTS (
+              SELECT 1
+              FROM ${fq('ControlCosos')} ccx
+              WHERE ccx.control_id = c.id
+                AND ccx.deletedAt IS NULL
+            )
+        ),
+        RankedControls AS (
+          SELECT *,
+            ROW_NUMBER() OVER (ORDER BY function_name ASC, control_name ASC, created_at DESC) AS rn
+          FROM CandidateControls
+        )
         SELECT
-          c.name AS [Control Name],
-          ISNULL(cfn.function_name, 'Unknown') AS [Function Name]
-        FROM ${fq('Controls')} c
-        ${this.controlFunctionNamesApply('c.id')}
-        WHERE c.isDeleted = 0
-          AND c.deletedAt IS NULL
-          ${dateFilter}
-          ${functionFilter}
-          AND NOT EXISTS (
-            SELECT 1
-            FROM ${fq('ControlCosos')} ccx
-            WHERE ccx.control_id = c.id
-              AND ccx.deletedAt IS NULL
-          )
-      `);
-      const sortedRows = sortRowsByFunctionAsc((rows || []).map((row: any) => ({
-        'Control Name': row['Control Name'],
-        'Function Name': row['Function Name'],
-      })) as Record<string, unknown>[]);
-      return this.paginateRows(sortedRows, pageInt, limitInt);
+          control_name AS [Control Name],
+          function_name AS [Function Name]
+        FROM RankedControls
+        WHERE rn BETWEEN @param0 AND @param1
+        ORDER BY rn
+      `;
+
+      const [rows, countResult] = await Promise.all([
+        this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
+        this.databaseService.query(countQuery),
+      ]);
+      const total = Number(countResult?.[0]?.total ?? 0);
+      return {
+        data: (rows || []).map((row: any) => ({
+          'Control Name': row['Control Name'],
+          'Function Name': row['Function Name'],
+        })),
+        pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+      };
     }
 
     const dataQuery = `
@@ -343,25 +387,26 @@ export class GrcDashboardService extends BaseDashboardService {
         ${functionFilterCdt}
     `;
 
-    const countQuery = `SELECT COUNT(*) AS total FROM (${baseQuery}) AS dashboard_count`;
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM ${fq('ControlDesignTests')} cdt
+      INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id
+      INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id
+      WHERE c.isDeleted = 0
+        AND c.deletedAt IS NULL
+        AND cdt.deletedAt IS NULL
+        ${dateFilterCdt}
+        ${functionFilterCdt}
+    `;
 
-    if (orderByFunctionAsc) {
-      const rows = await this.databaseService.query(baseQuery);
-      const sortedRows = sortRowsByFunctionAsc((rows || []).map((row: any) => ({
-        'Control Name': row['Control Name'],
-        'Function Name': row['Function Name'],
-        Quarter: row['Quarter'],
-        Year: row['Year'],
-        'Control Submitted?': row['Control Submitted?'],
-        'Test Approved?': row['Test Approved?'],
-      })) as Record<string, unknown>[]);
-      return this.paginateRows(sortedRows, pageInt, limitInt);
-    }
+    const rowOrder = orderByFunctionAsc
+      ? '[Function Name] ASC, [Control Name] ASC, [Year] DESC, [Quarter] DESC, created_at DESC'
+      : 'created_at DESC, [Control Name] ASC';
 
     const dataQuery = `
       WITH RankedRows AS (
         SELECT *,
-          ROW_NUMBER() OVER (ORDER BY created_at DESC, [Control Name] ASC) AS rn
+          ROW_NUMBER() OVER (ORDER BY ${rowOrder}) AS rn
         FROM (${baseQuery}) AS base_rows
       )
       SELECT *
