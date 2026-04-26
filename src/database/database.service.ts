@@ -151,7 +151,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ) {
           request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
         } else if (typeof param === 'string') {
-          request.input(`param${index}`, sql.NVarChar(4000), param);
+          // Large JSON / text (e.g. ICR tag dbData) exceeds 4000 chars — use MAX or SQL Server may error.
+          const len = param.length;
+          request.input(
+            `param${index}`,
+            len > 4000 ? sql.NVarChar(sql.MAX) : sql.NVarChar(4000),
+            param,
+          );
         } else {
           request.input(`param${index}`, param);
         }
