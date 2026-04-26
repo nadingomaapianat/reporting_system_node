@@ -5,18 +5,15 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
+import { getJwtSecret } from './jwt-secret';
 
 @Module({
   imports: [
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => {
-        const secret = config.get<string>('JWT_SECRET') || config.get<string>('JWT_SECRET_KEY');
-        if (process.env.NODE_ENV === 'production' && !secret) {
-          throw new Error('JWT_SECRET (or JWT_SECRET_KEY) must be set in production');
-        }
         return {
-          secret: secret || 'GRC_ADIB_2025',
+          secret: getJwtSecret(),
           signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN') || '2h' },
         };
       },

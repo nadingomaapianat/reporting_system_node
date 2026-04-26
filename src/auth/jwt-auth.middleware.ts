@@ -1,8 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'GRC_ADIB_2025';
+import { getJwtSecret } from './jwt-secret';
 
 @Injectable()
 export class JwtAuthMiddleware implements NestMiddleware {
@@ -70,7 +69,7 @@ export class JwtAuthMiddleware implements NestMiddleware {
     }
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, getJwtSecret());
       (req as any).user = decoded;
       next();
     } catch (error) {

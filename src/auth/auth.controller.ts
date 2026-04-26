@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
+import { getJwtSecret } from './jwt-secret';
 
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://reporting-system-frontend.pianat.ai';
 const COOKIE_NAME = 'reporting_node_token';
@@ -202,8 +203,7 @@ export class AuthController {
     }
 
     try {
-      const secretKey = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'GRC_ADIB_2025';
-      const decoded: any = jwt.verify(token, secretKey);
+      const decoded: any = jwt.verify(token, getJwtSecret());
 
       // Extract user info from token - matching v2_backend format exactly
       const { group, title, name, id } = decoded;

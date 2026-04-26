@@ -6,6 +6,7 @@ import {
   applyDecorators,
   UseGuards,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
@@ -110,7 +111,8 @@ function rolesFromGroupName(user: any): IcrRole[] {
   const hasRoleInfo = !!(user.groupName || user.role || user.isAdmin !== undefined);
 
   if (!hasRoleInfo) {
-    return Object.values(IcrRole);
+    /** Least privilege: do not grant all ICR roles when JWT has no role / group / admin hints. */
+    return [IcrRole.VIEWER];
   }
 
   if (
@@ -155,12 +157,7 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<{ user?: any }>();
 
     if (!request.user) {
-      request.user = {
-        id: 1,
-        fullName: 'Development User',
-        email: 'dev@adib.ae',
-        roles: Object.values(IcrRole),
-      };
+      throw new UnauthorizedException('Authentication required');
     }
 
     if (!request.user.fullName) {
