@@ -2,8 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'GRC_ADIB_2025';
+import { getJwtSecret } from './jwt-secret';
 
 /**
  * Get token from: (1) Authorization Bearer, (2) reporting_node_token cookie, (3) iframe_d_c_c_t_p_1 + iframe_d_c_c_t_p_2 cookies.
@@ -50,7 +49,7 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
+      const decoded = jwt.verify(token, getJwtSecret());
       request.user = decoded;
       return true;
     } catch (error) {

@@ -37,13 +37,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new Error('DB_DOMAIN is required when DB_AUTH_TYPE is ntlm');
     }
 
+    const isProd = String(process.env.NODE_ENV).toLowerCase() === 'production';
+    const trustServerCertificate =
+      String(process.env.DB_TRUST_SERVER_CERTIFICATE || '').toLowerCase() === 'true' ||
+      (!isProd && String(process.env.DB_TRUST_SERVER_CERTIFICATE || '').toLowerCase() !== 'false');
+
     const config: sql.config = {
       server: dbHost,
       port: dbPort,
       database: dbName,
       options: {
         encrypt: true,
-        trustServerCertificate: true,
+        trustServerCertificate,
         enableArithAbort: true,
         requestTimeout: parseInt(
           this.configService.get<string>('DB_REQUEST_TIMEOUT') || '60000',
