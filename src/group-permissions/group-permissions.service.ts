@@ -14,11 +14,7 @@ export class GroupPermissionsService {
    * Shape matches what `reporting_system_frontend2` Header expects:
    * `{ success: true, permissions: { show, page?, … } }`
    */
-  resolveForPage(
-    user: unknown,
-    page: string,
-    debug?: { jwtSource?: string; claim_keys?: string[] },
-  ): { success: boolean; permissions?: Record<string, unknown>; message?: string } {
+  resolveForPage(user: unknown, page: string): { success: boolean; permissions?: Record<string, unknown>; message?: string } {
     if (!user || typeof user !== 'object') {
       this.logPermissionFalse('no_user_on_request', page, { detail: 'req.user missing or not an object' });
       return { success: false, message: 'Unauthorized' };
@@ -44,14 +40,6 @@ export class GroupPermissionsService {
     if (!Array.isArray(perms)) {
       this.logPermissionFalse('jwt_permissions_not_array', page, {
         permissions_type: perms === undefined ? 'undefined' : typeof perms,
-        jwt_source: debug?.jwtSource,
-        jwt_claim_keys: debug?.claim_keys,
-        hint:
-          debug?.jwtSource === 'authorization_bearer'
-            ? 'Bearer is often main-app JWT without permissions; use reporting_node_token (re-open Reporting from main app after entry-token).'
-            : debug?.jwtSource === 'iframe_cookie'
-              ? 'iframe cookie JWT may omit permissions; prefer reporting_node_token from IET exchange.'
-              : 'If jwt_source is reporting_node_token, main /entry/validate must return permissions[] and reporting node must embed them in the cookie JWT.',
       });
     } else if (perms.length === 0) {
       this.logPermissionFalse('jwt_permissions_empty_array', page, {});
