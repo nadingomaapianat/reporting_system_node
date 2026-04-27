@@ -1,13 +1,12 @@
 import { Request } from 'express';
 
-/** Same cookie/header rules as HTTP `JwtAuthGuard` (keep in sync for Socket.IO handshake). */
+/**
+ * Same cookie/header rules as HTTP `JwtAuthGuard` (keep in sync for Socket.IO handshake).
+ *
+ * Prefer `reporting_node_token` (IET exchange JWT with embedded DCC `permissions`) over
+ * `Authorization: Bearer …`, which is often the main-app JWT and does not include `permissions`.
+ */
 export function getReportingJwtFromRequest(req: Request): string | null {
-  const authHeader = req.headers.authorization;
-  if (authHeader) {
-    const bearer = authHeader.split('Bearer ')[1];
-    if (bearer) return bearer.trim();
-  }
-
   const reportingToken = req.cookies?.['reporting_node_token'];
   if (reportingToken) return reportingToken;
 
@@ -20,6 +19,12 @@ export function getReportingJwtFromRequest(req: Request): string | null {
     } catch {
       return null;
     }
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const bearer = authHeader.split('Bearer ')[1];
+    if (bearer) return bearer.trim();
   }
 
   return null;
