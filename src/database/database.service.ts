@@ -1,9 +1,10 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sql from 'mssql';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DatabaseService.name);
   private pool: sql.ConnectionPool;
 
   constructor(private configService: ConfigService) {}
@@ -86,20 +87,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     try {
       this.pool = await sql.connect(config);
-      console.log(
-        authType === 'ntlm'
-          ? `Database connected using NTLM: ${domain}\\${username}`
-          : `Database connected using SQL authentication: ${username}`
+      this.logger.log(
+        `[Reporting][DB] connected server=${dbHost}:${dbPort} database=${dbName} auth=${authType} ` +
+          (authType === 'ntlm' ? `ntlm_user=${domain}\\${username}` : `sql_user=${username}`),
       );
     } catch (err) {
-      console.error('Database connection failed:', err);
-      console.error(
-        `Connection details: server=${dbHost}:${dbPort}, database=${dbName}, authType=${authType}, domain=${domain}, user=${username}`
+      this.logger.error(
+        `[Reporting][DB] connection failed server=${dbHost}:${dbPort} database=${dbName} auth=${authType}`,
+        err instanceof Error ? err.stack : String(err),
       );
-      if (err instanceof Error) {
-        console.error(`Error message: ${err.message}`);
-        console.error(`Error code: ${(err as any).code || 'N/A'}`);
-      }
+      this.logger.error(
+        `[Reporting][DB] connection_context domain=${domain} user=${username} code=${(err as any)?.code ?? 'N/A'}`,
+      );
       throw err;
     }
   }
@@ -121,8 +120,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       const fallback = this.extractOffsetFetchFallback(sqlQuery, params);
       if (fallback && this.isOffsetFetchCompatibilityError(error)) {
-        console.warn(
-          `[DatabaseService] Retrying query without OFFSET/FETCH${context ? ` [${context}]` : ''}`
+        this.logger.warn(
+          `[Reporting][DB] retry without OFFSET/FETCH${context ? ` ctx=${context}` : ''}`,
         );
         const fallbackResult = await this.executeQuery(fallback.sqlQuery, params);
         return fallbackResult.recordset.slice(
@@ -130,7 +129,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           fallback.offset + fallback.limit,
         );
       }
-      console.error('Database query error:', error);
+      this.logger.error(
+        `[Reporting][DB] query_error${context ? ` ctx=${context}` : ''}: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       throw error;
     }
   }
