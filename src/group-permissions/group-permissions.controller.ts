@@ -25,7 +25,8 @@ export class GroupPermissionsController {
       return { success: false, message: 'Invalid page' };
     }
 
-    const user = (req as Request & { user?: unknown }).user;
+    const r = req as Request & { user?: unknown; reportingJwtSource?: string };
+    const user = r.user;
     if (!user) {
       const line = `[GroupPermissions] success=false message=Unauthorized page=${safePage} (no req.user — JWT guard may not have run)`;
       this.logger.warn(line);
@@ -33,6 +34,9 @@ export class GroupPermissionsController {
       return { success: false, message: 'Unauthorized' };
     }
 
-    return this.groupPermissionsService.resolveForPage(user, safePage);
+    const jwtSource = r.reportingJwtSource ?? '(unknown)';
+    const claim_keys =
+      user && typeof user === 'object' ? Object.keys(user as Record<string, unknown>).sort() : [];
+    return this.groupPermissionsService.resolveForPage(user, safePage, { jwtSource, claim_keys });
   }
 }
