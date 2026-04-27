@@ -5,10 +5,7 @@ import * as https from 'https';
 import { extractPermissionsFromValidateBody } from './utils/extract-permissions-from-validate';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://dcc-backend.pianat.ai';
-/** Path on main backend for IET exchange (some gateways mount under `/api`). */
-const MAIN_BACKEND_ENTRY_VALIDATE_PATH =
-  process.env.MAIN_BACKEND_ENTRY_VALIDATE_PATH || '/entry/validate';
-/** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
+  /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
 const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://reporting-system-frontend.pianat.ai';
 const JWT_EXPIRES_IN = '2h';
 
@@ -52,10 +49,7 @@ export class AuthService {
   
     
       const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
-      const path = MAIN_BACKEND_ENTRY_VALIDATE_PATH.startsWith('/')
-        ? MAIN_BACKEND_ENTRY_VALIDATE_PATH
-        : `/${MAIN_BACKEND_ENTRY_VALIDATE_PATH}`;
-      const url = `${base}${path}`;
+      const url = `${base}/entry/validate`;
   
       
    
@@ -101,12 +95,9 @@ export class AuthService {
       };
       if (permissionsRaw && permissionsRaw.length > 0) {
         payload.permissions = permissionsRaw;
-      } else {
+      } else if (process.env.NODE_ENV !== 'production') {
         console.warn(
-          `[IET] validate returned no usable permissions[] — reporting JWT will only have { id, iat, exp }. ` +
-            `MAIN_BACKEND_URL=${MAIN_BACKEND_URL} POST ${url} response_keys=${Object.keys(res.data || {}).join(',')}. ` +
-            `Fix: deploy main backend whose POST /entry/validate returns permissions (same as login JWT), ` +
-            `or set MAIN_BACKEND_URL / MAIN_BACKEND_ENTRY_VALIDATE_PATH to that service, then clear reporting_node_token and open Reporting again from the main app.`,
+          `[IET] no permissions array extracted from /entry/validate; response keys=${Object.keys(res.data || {}).join(',')}`,
         );
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
