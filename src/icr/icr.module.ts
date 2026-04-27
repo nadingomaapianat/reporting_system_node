@@ -13,7 +13,6 @@ import { IcrTagConfigService } from './services/icr-tag-config.service';
 import { IcrRequestHydrateInterceptor } from './icr-user-context';
 import { ParseSectionTypePipe } from './pipes/parse-section-type.pipe';
 import { IcrExceptionFilter } from './filters/icr-exception.filter';
-import { DatabaseService } from '../database/database.service';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -30,7 +29,6 @@ import { AuthModule } from '../auth/auth.module';
     IcrTagConfigService,
     IcrRequestHydrateInterceptor,
     ParseSectionTypePipe,
-    DatabaseService,
     { provide: APP_FILTER, useClass: IcrExceptionFilter },
   ],
   exports: [IcrService],

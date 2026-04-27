@@ -15,8 +15,7 @@ export class CsrfController {
     return [
       process.env.FRONTEND_URL ,
       'https://grc-reporting-node-uat.adib.co.eg',
-      'https://grc-reporting-uat.adib.co.eg',
-      
+      'https://grc-reporting-uat.adib.co.eg'
     ].filter(Boolean);
   })();
 
@@ -92,6 +91,7 @@ export class CsrfController {
           return true;
         }
       
+        
         if (allowed.includes('*')) {
           const pattern = allowed.replace(/\*/g, '.*');
           const regex = new RegExp(`^${pattern}$`);

@@ -8,7 +8,6 @@ import { GrcIncidentsController } from './grc-incidents.controller';
 import { GrcIncidentsService } from './grc-incidents.service';
 import { GrcKrisController } from './grc-kris.controller';
 import { GrcKrisService } from './grc-kris.service';
-import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService } from '../shared/user-function-access.service';
 import { GrcComplyController } from './grc-comply.controller';
 import { GrcComplyService } from './grc-comply.service';
@@ -16,7 +15,7 @@ import { GrcComplyService } from './grc-comply.service';
 @Module({
   imports: [AuthModule],
   controllers: [GrcDashboardController, GrcRisksController, GrcIncidentsController, GrcKrisController, GrcComplyController],
-  providers: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, GrcComplyService, DatabaseService, UserFunctionAccessService],
+  providers: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, GrcComplyService, UserFunctionAccessService],
   exports: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, GrcComplyService],
 })
 export class GrcModule {}
