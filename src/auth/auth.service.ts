@@ -19,6 +19,42 @@ export type CreateTokenFromIetResult =
  * Sends Origin = main app (IFRAME_MAIN_ORIGIN), not the reporting frontend origin, so main backend allows the request.
  * Outbound HTTPS uses bank CA cert (certs.pem) when CERT_PATH/CERTS_PEM_PATH is set — same as new_adib_backend.
  */
+function nonEmptyPermissionsArray(v: unknown): unknown[] | undefined {
+  return Array.isArray(v) && v.length > 0 ? v : undefined;
+}
+
+/**
+ * DCC page rows from main `POST /entry/validate` body. Main apps vary:
+ * top-level `permissions`, nested `group.permissions` / `user.permissions`, or `data.permissions`.
+ */
+function extractPermissionsFromValidateBody(body: Record<string, unknown>): unknown[] | undefined {
+  const direct =
+    nonEmptyPermissionsArray(body.permissions) ??
+    nonEmptyPermissionsArray(body.group_permissions) ??
+    nonEmptyPermissionsArray(body.user_permissions);
+  if (direct) return direct;
+
+  const group = body.group;
+  if (group && typeof group === 'object' && !Array.isArray(group)) {
+    const inner = nonEmptyPermissionsArray((group as Record<string, unknown>).permissions);
+    if (inner) return inner;
+  }
+
+  const user = body.user;
+  if (user && typeof user === 'object' && !Array.isArray(user)) {
+    const inner = nonEmptyPermissionsArray((user as Record<string, unknown>).permissions);
+    if (inner) return inner;
+  }
+
+  const data = body.data;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const inner = nonEmptyPermissionsArray((data as Record<string, unknown>).permissions);
+    if (inner) return inner;
+  }
+
+  return undefined;
+}
+
 @Injectable()
 export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
@@ -94,15 +130,14 @@ export class AuthService {
       const groupName = res.data.group_name ?? res.data.groupName ?? undefined;
       const role = res.data.role ?? undefined;
       const isAdmin = res.data.is_admin ?? res.data.isAdmin ?? undefined;
-      const permissionsRaw =
-        res.data.permissions ?? res.data.group_permissions ?? res.data.user_permissions;
+      const permissionsRaw = extractPermissionsFromValidateBody(res.data as Record<string, unknown>);
       const payload: Record<string, unknown> = {
         id: userId,
         groupName,
         role,
         isAdmin,
       };
-      if (Array.isArray(permissionsRaw) && permissionsRaw.length > 0) {
+      if (permissionsRaw?.length) {
         payload.permissions = permissionsRaw;
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
