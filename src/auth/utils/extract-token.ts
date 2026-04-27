@@ -43,7 +43,9 @@ export function getCandidateTokens(req: Request): CandidateToken[] {
   const candidates: CandidateToken[] = [];
   const cookies: Record<string, string> = (req.cookies as Record<string, string>) || {};
 
-  const reportingToken = cookies['reporting_node_token'];
+  const reportingSingle = cookies['reporting_node_token'];
+  const reportingSplit = readSplitCookies(cookies, 'reporting_node_token');
+  const reportingToken = (reportingSingle && reportingSingle.trim()) || reportingSplit;
   if (reportingToken) {
     candidates.push({ token: reportingToken, source: 'reporting_node_token' });
   }
