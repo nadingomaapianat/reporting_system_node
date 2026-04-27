@@ -48,20 +48,8 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const decoded = jwt.verify(token, getJwtSecret()) as Record<string, unknown>;
+      const decoded = jwt.verify(token, getJwtSecret());
       request.user = decoded;
-
-      const uid = decoded.id ?? decoded.sub ?? decoded.user_id;
-      const tokenPart =
-        token.length > 36
-          ? `${token.slice(0, 24)}...${token.slice(-12)}`
-          : `${token.slice(0, 8)}…(len=${token.length})`;
-      const logLine = `[JwtAuth] user_id=${uid ?? '(none)'} jwt=${tokenPart} source=${source}`;
-      if (!isLogThrottled(`jwtlog:${source}:${String(uid ?? 'none')}`, 2000)) {
-        this.logger.log(logLine);
-        console.log(logLine);
-      }
-
       const snap = buildReportingJwtDebugSnapshot(decoded, source);
       const debugJwt =
         process.env.REPORTING_DEBUG_JWT === 'true' || process.env.REPORTING_DEBUG_JWT === '1';

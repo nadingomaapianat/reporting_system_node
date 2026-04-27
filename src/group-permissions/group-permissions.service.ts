@@ -43,11 +43,6 @@ export class GroupPermissionsService {
 
     const perms = u.permissions;
     if (!Array.isArray(perms)) {
-      const keys = debug?.claim_keys ?? [];
-      const looksLikeMinimalReportingJwt =
-        debug?.jwtSource === 'reporting_node_token' &&
-        keys.includes('id') &&
-        !keys.includes('permissions');
       this.logPermissionFalse('jwt_permissions_not_array', page, {
         permissions_type: perms === undefined ? 'undefined' : typeof perms,
         jwt_source: debug?.jwtSource,
@@ -57,9 +52,7 @@ export class GroupPermissionsService {
             ? 'Bearer is often main-app JWT without permissions; use reporting_node_token (re-open Reporting from main app after entry-token).'
             : debug?.jwtSource === 'iframe_cookie'
               ? 'iframe cookie JWT may omit permissions; prefer reporting_node_token from IET exchange.'
-              : looksLikeMinimalReportingJwt
-                ? 'Stale or minimal reporting cookie JWT (only id, no permissions). Fix: (1) Clear reporting_node_token and open Reporting from main again. (2) MAIN_BACKEND POST /entry/validate must return permissions[], OR set REPORTING_BOOTSTRAP_SECRET + POST /entry/reporting-permissions on same host (exempt that path from CSRF on main).'
-                : 'reporting_node_token must include permissions[] from IET exchange; check MAIN_BACKEND validate/bootstrap logs on reporting server.',
+              : 'If jwt_source is reporting_node_token, main /entry/validate must return permissions[] and reporting node must embed them in the cookie JWT.',
       });
     } else if (perms.length === 0) {
       this.logPermissionFalse('jwt_permissions_empty_array', page, {});
