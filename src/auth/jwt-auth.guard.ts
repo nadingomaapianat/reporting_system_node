@@ -45,11 +45,13 @@ export class JwtAuthGuard implements CanActivate {
     const handler = `${context.getClass().name}.${context.getHandler().name}`;
 
     if (candidates.length === 0) {
-      const cookieNames = request.cookies ? Object.keys(request.cookies).sort().join(',') : '(no parsed cookies)';
-      this.logger.warn(
-        `[Reporting][JwtAuth] no_token_candidates route=${handler} ` +
-          `cookie_names=${cookieNames || '(empty)'} has_auth_header=${!!request.headers?.authorization}`,
-      );
+      if (verbose) {
+        const cookieNames = request.cookies ? Object.keys(request.cookies).sort().join(',') : '(no parsed cookies)';
+        this.logger.warn(
+          `[Reporting][JwtAuth] no_token_candidates route=${handler} ` +
+            `cookie_names=${cookieNames || '(empty)'} has_auth_header=${!!request.headers?.authorization}`,
+        );
+      }
       throw new UnauthorizedException(
         'Authorization token is missing (use Bearer header or reporting_node_token / d_c_c_t_p_* cookies)',
       );
