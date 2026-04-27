@@ -12,6 +12,7 @@ import { DatabaseService } from './database/database.service';
 import { UserFunctionAccessService } from './shared/user-function-access.service';
 import { UserFunctionsController } from './shared/user-functions.controller';
 import { CsrfModule } from './csrf/csrf.module';
+import { MainBackendModule } from './main-backend/main-backend.module';
 import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { FrameAncestorsMiddleware } from './middleware/frame-ancestors.middleware';
 import { JwtAuthMiddleware } from './auth/jwt-auth.middleware';
@@ -57,6 +58,7 @@ import 'dotenv/config';
     AuthModule,
     GrcModule,
     CsrfModule,
+    MainBackendModule,
   ],
   controllers: [SimpleChartController, UserFunctionsController],
   providers: [
