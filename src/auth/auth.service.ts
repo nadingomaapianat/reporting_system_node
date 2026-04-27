@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../database/database.service';
 import { fq } from '../shared/db-config';
+import { isReportingVerboseLog } from '../shared/reporting-verbose';
 import axios from 'axios';
 import * as https from 'https';
 
@@ -129,6 +130,12 @@ export class AuthService {
   ): Promise<CreateTokenFromIetResult> {
     const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
     const url = `${base}/entry/validate`;
+    const verbose = isReportingVerboseLog();
+
+    this.logger.log(
+      `[Reporting][IET] validate POST ${url} module_id=${moduleId} iet_len=${iet.length} ` +
+        `main_origin_header=${ORIGIN_FOR_MAIN_BACKEND}`,
+    );
 
     try {
       const res = await axios.post(
@@ -137,6 +144,13 @@ export class AuthService {
         this.getAxiosConfig(),
       );
 
+      if (verbose) {
+        this.logger.log(
+          `[Reporting][verbose][IET] response http_status=${res.status} ` +
+            `body_keys=${res.data && typeof res.data === 'object' ? Object.keys(res.data as object).join(',') : typeof res.data}`,
+        );
+      }
+
       const reason = (res.data as { reason?: string })?.reason;
       const success =
         (res.status === 200 || res.status === 201) &&
@@ -144,14 +158,14 @@ export class AuthService {
         res.data?.user_id;
 
       if (!success) {
-        console.warn(
-          `[IET] main_backend response status=${res.status} reason=${reason ?? '(none)'} body=${JSON.stringify(res.data)}`,
+        this.logger.warn(
+          `[Reporting][IET] validate failed http_status=${res.status} reason=${reason ?? '(none)'} body=${JSON.stringify(res.data)}`,
         );
         if (res.status === 403 && reason) {
           const fixNoRow =
             'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration; restart; open Reporting from main app (do not paste IET from another tab)';
-          console.warn(
-            `[IET] CASE=${reason} | FIX: ${
+          this.logger.warn(
+            `[Reporting][IET] hint reason=${reason} fix=${
               reason === 'invalid_origin'
                 ? 'Match origin (e.g. https://dcc.pianat.ai)'
                 : reason === 'expired'
@@ -184,10 +198,15 @@ export class AuthService {
         permissions = permissionsRaw;
       }
 
+      this.logger.log(
+        `[Reporting][IET] validate ok user_id=${userId} ` +
+          `permissions_from_validate=${Array.isArray(permissionsRaw) ? permissionsRaw.length : 0} rows`,
+      );
+
       // If validate did not return permissions, fetch from shared database
       if (!permissions || permissions.length === 0) {
         this.logger.warn(
-          `[IET] validate returned no permissions for user_id=${userId} — querying shared DB`,
+          `[Reporting][IET] validate returned no permissions for user_id=${userId} — querying shared DB`,
         );
         const dbResult = await this.fetchPermissionsFromDb(userId);
         if (dbResult) {
@@ -206,21 +225,25 @@ export class AuthService {
       if (Array.isArray(permissions) && permissions.length > 0) {
         payload.permissions = permissions;
         this.logger.log(
-          `[IET] JWT minted with ${permissions.length} permission rows for user_id=${userId}`,
+          `[Reporting][IET] JWT minted with ${permissions.length} permission rows for user_id=${userId}`,
         );
       } else {
         this.logger.warn(
-          `[IET] JWT minted WITHOUT permissions for user_id=${userId} — check DB or validate response`,
+          `[Reporting][IET] JWT minted WITHOUT permissions for user_id=${userId} — check DB or validate response`,
         );
       }
 
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
       const expiresInSeconds = 2 * 60 * 60;
+      if (verbose) {
+        this.logger.log(
+          `[Reporting][verbose][IET] signed jwt_chars=${token.length} payload_keys=${Object.keys(payload).join(',')}`,
+        );
+      }
       return { ok: true, token, expiresIn: expiresInSeconds, userId };
     } catch (err) {
-      console.warn(
-        '[IET] createTokenFromIet request failed',
-        (err as Error)?.message ?? err,
+      this.logger.warn(
+        `[Reporting][IET] createTokenFromIet request failed: ${(err as Error)?.message ?? err}`,
       );
       return { ok: false, reason: 'invalid_iet' };
     }

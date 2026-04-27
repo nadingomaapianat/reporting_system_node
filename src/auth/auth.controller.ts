@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
 import { Public } from './decorators/public.decorator';
 import { getJwtSecret } from './jwt-secret';
+import { isReportingVerboseLog } from '../shared/reporting-verbose';
 
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://reporting-system-frontend.pianat.ai';
 const COOKIE_NAME = 'reporting_node_token';
@@ -112,6 +113,7 @@ export class AuthController {
   ): Promise<void> {
     const iet = (body?.iet && String(body.iet).trim()) || '';
     const moduleId = (body?.module_id && String(body.module_id).trim()) || 'default';
+    const verbose = isReportingVerboseLog();
 
     // Server-side: only accept form POST from reporting frontend (or allowed origins)
     const isDev = process.env.NODE_ENV !== 'production';
@@ -120,6 +122,18 @@ export class AuthController {
     const allowed = isAllowedOrigin(origin || '', referer || '', allowedEntry);
     const devAllowNoOrigin = isDev && allowedEntry.some((o) => o.includes('localhost') || o.includes('127.0.0.1'));
     const skipOriginCheck = isDev && (allowedEntry.some((o) => o.includes('localhost') || o.includes('127.0.0.1')));
+
+    this.logger.log(
+      `[Reporting][entry-token] start module_id=${moduleId} iet_len=${iet.length} ` +
+        `origin=${origin || '(none)'} referer=${referer ? 'present' : 'none'} ` +
+        `allowed_origin=${allowed} skip_origin_check=${skipOriginCheck}`,
+    );
+    if (verbose) {
+      this.logger.log(
+        `[Reporting][verbose][entry-token] allowed_origins_list=${allowedEntry.join(' | ')}`,
+      );
+    }
+
     if (!skipOriginCheck && allowedEntry.length && !allowed && !(devAllowNoOrigin && !hasOriginOrReferer)) {
       this.logger.warn(
         `[AUDIT] event=ENTRY_TOKEN_FAIL reason=invalid_origin origin=${origin || '(none)'} referer=${referer || '(none)'} allowed=${allowedEntry.join(',')} timestamp=${new Date().toISOString()}`,
@@ -135,6 +149,9 @@ export class AuthController {
       throw new ForbiddenException({ reason: 'no_iet', message: 'IET required' });
     }
 
+    if (verbose) {
+      this.logger.log(`[Reporting][verbose][entry-token] calling main backend /entry/validate (IET not logged)`);
+    }
     const result = await this.authService.createTokenFromIet(iet, moduleId, origin || '');
     if (result.ok === false) {
       const reason = result.reason || 'invalid_iet';
@@ -155,6 +172,9 @@ export class AuthController {
     this.logger.log(
       `[AUDIT] event=ENTRY_TOKEN_SUCCESS user_id=${result.userId} timestamp=${new Date().toISOString()}`,
     );
+    this.logger.log(
+      `[Reporting][entry-token] jwt_chars=${result.token.length} expires_in_s=${result.expiresIn}`,
+    );
 
     const requestedRedirect = (body?.redirect_uri && String(body.redirect_uri).trim()) || '';
     const defaultRedirect = REPORTING_FRONTEND_URL.replace(/\/+$/, '') + '/';
@@ -173,6 +193,11 @@ export class AuthController {
     // domain: COOKIE_DOMAIN (e.g. ".pianat.ai") shares the cookie across all subdomains so that
     // the Next.js frontend proxy (reporting-system-frontend.*) can forward it to the backend.
     const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
+    this.logger.log(
+      `[Reporting][entry-token] redirect_status=302 location=${redirectTo} ` +
+        `cookie_domain=${cookieDomain ?? '(host-only)'} secure=${process.env.NODE_ENV === 'production'}`,
+    );
+
     res
       .cookie(COOKIE_NAME, result.token, {
         httpOnly: true,

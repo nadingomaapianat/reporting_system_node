@@ -11,6 +11,7 @@ import * as jwt from 'jsonwebtoken';
 import { getJwtSecret } from './jwt-secret';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { getCandidateTokens, TokenSource } from './utils/extract-token';
+import { isReportingVerboseLog } from '../shared/reporting-verbose';
 
 interface JwtPayload {
   id?: string;
@@ -40,10 +41,24 @@ export class JwtAuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<Request & { user?: unknown }>();
     const candidates = getCandidateTokens(request);
+    const verbose = isReportingVerboseLog();
+    const handler = `${context.getClass().name}.${context.getHandler().name}`;
 
     if (candidates.length === 0) {
+      const cookieNames = request.cookies ? Object.keys(request.cookies).sort().join(',') : '(no parsed cookies)';
+      this.logger.warn(
+        `[Reporting][JwtAuth] no_token_candidates route=${handler} ` +
+          `cookie_names=${cookieNames || '(empty)'} has_auth_header=${!!request.headers?.authorization}`,
+      );
       throw new UnauthorizedException(
         'Authorization token is missing (use Bearer header or reporting_node_token / d_c_c_t_p_* cookies)',
+      );
+    }
+
+    if (verbose) {
+      this.logger.log(
+        `[Reporting][verbose][JwtAuth] route=${handler} candidates=${candidates.length} ` +
+          `sources_in_order=${candidates.map((c) => c.source).join(' → ')}`,
       );
     }
 
@@ -70,8 +85,13 @@ export class JwtAuthGuard implements CanActivate {
           chosenSource = source;
           break;
         }
-      } catch {
-        // Token invalid or wrong secret — try next candidate
+      } catch (e) {
+        if (verbose) {
+          const msg = e instanceof Error ? e.message : String(e);
+          this.logger.log(
+            `[Reporting][verbose][JwtAuth] skip source=${source} jwt_chars=${token.length} err=${msg}`,
+          );
+        }
       }
     }
 
@@ -80,7 +100,19 @@ export class JwtAuthGuard implements CanActivate {
     const source = chosenSource ?? firstValidSource;
 
     if (!payload) {
+      this.logger.warn(
+        `[Reporting][JwtAuth] all_candidates_invalid route=${handler} tried_sources=${candidates.map((c) => c.source).join(',')}`,
+      );
       throw new UnauthorizedException('Invalid or expired token');
+    }
+
+    const logJwtAccept =
+      verbose || process.env.NODE_ENV !== 'production' || process.env.REPORTING_DEBUG_JWT === '1';
+    if (logJwtAccept) {
+      this.logger.log(
+        `[Reporting][JwtAuth] accepted route=${handler} user=${payload.id ?? payload.sub ?? '?'} source=${source} ` +
+          `permissions=${hasPermissions(payload) ? (payload.permissions as unknown[]).length : 0} rows`,
+      );
     }
 
     if (process.env.NODE_ENV !== 'production' || process.env.REPORTING_DEBUG_JWT === '1') {
@@ -91,13 +123,9 @@ export class JwtAuthGuard implements CanActivate {
 
       if (!hasPermissions(payload)) {
         this.logger.warn(
-          `[JwtAuth] no_permissions user=${userId} source=${source} ` +
-          `permissions_type=${permType} claim_keys=${Object.keys(payload).join(',')} ` +
-          `hint=main_app_d_c_c_t_p_cookies_must_be_on_shared_domain_or_dcc-backend_must_return_permissions`,
-        );
-      } else {
-        this.logger.log(
-          `[JwtAuth] ok user=${userId} source=${source} permissions=${permType}`,
+          `[Reporting][JwtAuth] no_permissions user=${userId} source=${source} ` +
+            `permissions_type=${permType} claim_keys=${Object.keys(payload).join(',')} ` +
+            `hint=main_app_d_c_c_t_p_cookies_must_be_on_shared_domain_or_dcc-backend_must_return_permissions`,
         );
       }
     }

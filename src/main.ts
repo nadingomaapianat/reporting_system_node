@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as bodyParser from 'body-parser';
 import * as path from 'path';
@@ -26,6 +26,7 @@ function normalizeOrigin(value?: string): string | null {
 }
 
 async function bootstrap() {
+  const bootLog = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
@@ -154,9 +155,12 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3002;
   await app.listen(port, '0.0.0.0');
-  
-  // console.log(`🚀 Real-time API server running on port ${port}`);
-  // console.log(`📊 WebSocket server ready for real-time updates`);
+
+  bootLog.log(
+    `[Reporting] listening port=${port} bind=0.0.0.0 cors_origins=${corsOrigins.length} ` +
+      `REPORTING_VERBOSE_LOG=${process.env.REPORTING_VERBOSE_LOG ?? '(unset)'} ` +
+      `MAIN_BACKEND_URL=${(process.env.MAIN_BACKEND_URL || '(unset)').replace(/\/+$/, '')}`,
+  );
 }
 
 bootstrap();
