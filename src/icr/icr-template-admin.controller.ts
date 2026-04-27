@@ -8,6 +8,13 @@ import { IcrTemplateAdminService } from './services/icr-template-admin.service';
 import { IcrGuard, IcrRole } from './guards/icr.guards';
 import { CurrentUser, IcrReportUser } from './decorators/current-user.decorator';
 
+/** In-memory file from `FileInterceptor` (multer); avoids relying on `Express.Multer` typings. */
+type MemoryUploadedFile = {
+  buffer: Buffer;
+  originalname: string;
+  size: number;
+};
+
 @Controller('api/icr/admin')
 export class IcrTemplateAdminController {
   private readonly logger = new Logger(IcrTemplateAdminController.name);
@@ -69,7 +76,7 @@ export class IcrTemplateAdminController {
   }))
   @HttpCode(HttpStatus.OK)
   @IcrGuard(IcrRole.ADMIN)
-  async parseTemplate(@UploadedFile() file: Express.Multer.File) {
+  async parseTemplate(@UploadedFile() file: MemoryUploadedFile) {
     this.logger.log(`Parsing template: ${file.originalname} (${file.size} bytes)`);
 
     const parsed = await this.adminService.parseTemplate(file.buffer, file.originalname);
