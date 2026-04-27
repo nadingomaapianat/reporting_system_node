@@ -85,10 +85,18 @@ export class AuthService {
       const groupName = res.data.group_name ?? res.data.groupName ?? undefined;
       const role = res.data.role ?? undefined;
       const isAdmin = res.data.is_admin ?? res.data.isAdmin ?? undefined;
-      const token = this.jwtService.sign(
-        { id: userId, groupName, role, isAdmin },
-        { expiresIn: JWT_EXPIRES_IN },
-      );
+      const permissionsRaw =
+        res.data.permissions ?? res.data.group_permissions ?? res.data.user_permissions;
+      const payload: Record<string, unknown> = {
+        id: userId,
+        groupName,
+        role,
+        isAdmin,
+      };
+      if (Array.isArray(permissionsRaw) && permissionsRaw.length > 0) {
+        payload.permissions = permissionsRaw;
+      }
+      const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
       const expiresInSeconds = 2 * 60 * 60; // 2 hours in seconds
       return { ok: true, token, expiresIn: expiresInSeconds, userId };
     } catch (err) {
