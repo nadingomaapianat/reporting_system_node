@@ -48,7 +48,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const rawCookie = client.handshake.headers?.cookie;
     const cookieHeader = typeof rawCookie === 'string' ? rawCookie : undefined;
     const fromCookie = getReportingJwtFromCookieHeader(cookieHeader) || '';
-    const token = authToken || bearer || fromCookie;
+    /** Prefer HttpOnly reporting cookie (has DCC permissions) over handshake Bearer (often main-app JWT). */
+    const token = fromCookie || authToken || bearer;
     if (!token) {
       client.disconnect(true);
       return;
