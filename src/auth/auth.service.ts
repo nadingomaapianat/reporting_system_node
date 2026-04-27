@@ -5,6 +5,12 @@ import * as https from 'https';
 import { extractPermissionsFromValidateBody } from './utils/extract-permissions-from-validate';
 import { getResolvedMainBackendUrl } from './main-backend-config';
 
+const MAIN_BACKEND_REPORTING_PERMISSIONS_PATH =
+  process.env.MAIN_BACKEND_REPORTING_PERMISSIONS_PATH || '/entry/reporting-permissions';
+
+
+
+
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 
 
@@ -52,6 +58,63 @@ export class AuthService {
     return config;
   }
 
+  /**
+   * When main `POST /entry/validate` returns only `user_id`, call main `POST …/reporting-permissions`
+   * with shared secret (same host/DB as IET). Set `REPORTING_BOOTSTRAP_SECRET` on main and reporting.
+   */
+  private async fetchPermissionsViaBootstrap(
+    baseNoSlash: string,
+    userId: string,
+  ): Promise<{
+    permissions: unknown[];
+    groupName?: string;
+    role?: unknown;
+    isAdmin?: unknown;
+  } | null> {
+    const secret =
+      process.env.REPORTING_BOOTSTRAP_SECRET?.trim() || process.env.MAIN_BACKEND_BOOTSTRAP_SECRET?.trim();
+    if (!secret) return null;
+    const pathRaw = MAIN_BACKEND_REPORTING_PERMISSIONS_PATH.trim();
+    const path = pathRaw.startsWith('/') ? pathRaw : `/${pathRaw}`;
+    const bootUrl = `${baseNoSlash}${path}`;
+    const cfg = this.getAxiosConfig();
+    try {
+      const res = await axios.post(
+        bootUrl,
+        { user_id: userId },
+        {
+          ...cfg,
+          headers: {
+            ...(cfg.headers as Record<string, string>),
+            'X-Reporting-Bootstrap-Secret': secret,
+          },
+          validateStatus: () => true,
+        },
+      );
+      if (res.status !== 200 && res.status !== 201) {
+        console.warn(
+          `[IET] bootstrap POST ${bootUrl} status=${res.status} body=${JSON.stringify(res.data)}`,
+        );
+        return null;
+      }
+      const data = res.data as Record<string, unknown>;
+      const extracted =
+        extractPermissionsFromValidateBody(data) ??
+        (Array.isArray(data.permissions) ? (data.permissions as unknown[]) : null);
+      if (!extracted?.length) return null;
+      const gn = (data.group_name ?? data.groupName) as string | undefined;
+      return {
+        permissions: extracted,
+        groupName: typeof gn === 'string' ? gn : undefined,
+        role: data.role,
+        isAdmin: data.is_admin ?? data.isAdmin,
+      };
+    } catch (err) {
+      console.warn('[IET] bootstrap permissions request failed', (err as Error)?.message ?? err);
+      return null;
+    }
+  }
+
   async createTokenFromIet(iet: string, moduleId: string, _origin: string): Promise<CreateTokenFromIetResult> {
   
     
@@ -86,16 +149,27 @@ export class AuthService {
         if (res.status === 403 && reason) {
           const fixNoRow =
             'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration on main backend; restart main backend; open Reporting from main app (do not paste IET from another tab)';
-         
+          console.warn(
+            `[IET] CASE=${reason} | FIX: ${reason === 'invalid_origin' ? 'Match origin (e.g. https://dcc.pianat.ai)' : reason === 'expired' ? 'Open Reporting again (IET TTL may be 30s – consider increasing on main backend)' : reason === 'already_used' ? 'Fresh IET, avoid double submit or second tab' : reason === 'no_row' ? fixNoRow : 'See main backend'}`,
+          );
         }
         return { ok: false, reason: reason ?? 'invalid_iet' };
       }
 
       const userId = res.data.user_id;
-      const groupName = res.data.group_name ?? res.data.groupName ?? undefined;
-      const role = res.data.role ?? undefined;
-      const isAdmin = res.data.is_admin ?? res.data.isAdmin ?? undefined;
-      const permissionsRaw = extractPermissionsFromValidateBody(res.data);
+      let groupName = res.data.group_name ?? res.data.groupName ?? undefined;
+      let role = res.data.role ?? undefined;
+      let isAdmin = res.data.is_admin ?? res.data.isAdmin ?? undefined;
+      let permissionsRaw = extractPermissionsFromValidateBody(res.data);
+      if ((!permissionsRaw || permissionsRaw.length === 0) && userId) {
+        const boot = await this.fetchPermissionsViaBootstrap(base, String(userId));
+        if (boot?.permissions?.length) {
+          permissionsRaw = boot.permissions;
+          groupName = groupName ?? boot.groupName;
+          role = role ?? boot.role;
+          isAdmin = isAdmin ?? boot.isAdmin;
+        }
+      }
       const payload: Record<string, unknown> = {
         id: userId,
         groupName,
@@ -108,8 +182,8 @@ export class AuthService {
         console.warn(
           `[IET] validate returned no usable permissions[] — reporting JWT will only have { id, iat, exp }. ` +
             `MAIN_BACKEND_URL=${mainUrl} POST ${url} response_keys=${Object.keys(res.data || {}).join(',')}. ` +
-            `Fix: deploy main backend whose POST /entry/validate returns permissions (same as login JWT), ` +
-            `or set MAIN_BACKEND_URL / MAIN_BACKEND_ENTRY_VALIDATE_PATH to that service, then clear reporting_node_token and open Reporting again from the main app.`,
+            `Fix: extend POST /entry/validate with permissions[], or deploy main POST /entry/reporting-permissions + set ` +
+            `REPORTING_BOOTSTRAP_SECRET on main and reporting, then clear reporting_node_token and open Reporting again.`,
         );
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
