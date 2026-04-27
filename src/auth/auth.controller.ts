@@ -1,5 +1,5 @@
-import { Controller, Post, Body, Get, Request, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
-import { Response } from 'express';
+import { Controller, Post, Body, Get, Request, Req, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
+import { Request as ExpressRequest, Response } from 'express';
 import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
 import { Public } from './decorators/public.decorator';
@@ -105,6 +105,7 @@ export class AuthController {
   @Public()
   @Post('entry-token')
   async createEntryToken(
+    @Req() req: ExpressRequest,
     @Body() body: { iet?: string; module_id?: string; redirect_uri?: string },
     @Headers('origin') origin: string,
     @Headers('referer') referer: string,
@@ -135,6 +136,14 @@ export class AuthController {
       throw new ForbiddenException({ reason: 'no_iet', message: 'IET required' });
     }
 
+    const debugCookies =
+      process.env.REPORTING_DEBUG_COOKIES === '1' || process.env.REPORTING_DEBUG_COOKIES === 'true';
+    if (debugCookies && req.cookies && typeof req.cookies === 'object') {
+      this.logger.log(
+        `[DEBUG] entry-token incoming cookie names (values omitted): ${Object.keys(req.cookies).sort().join(',') || '(none)'}`,
+      );
+    }
+
     const result = await this.authService.createTokenFromIet(iet, moduleId, origin || '');
     if (result.ok === false) {
       const reason = result.reason || 'invalid_iet';
@@ -155,6 +164,17 @@ export class AuthController {
     this.logger.log(
       `[AUDIT] event=ENTRY_TOKEN_SUCCESS user_id=${result.userId} timestamp=${new Date().toISOString()}`,
     );
+
+    if (debugCookies) {
+      try {
+        const decoded = jwt.decode(result.token) as Record<string, unknown> | null;
+        this.logger.log(
+          `[DEBUG] Set-Cookie reporting_node_token JWT claim keys (values omitted): ${decoded ? Object.keys(decoded).sort().join(',') : '(decode failed)'}`,
+        );
+      } catch {
+        /* ignore */
+      }
+    }
 
     const requestedRedirect = (body?.redirect_uri && String(body.redirect_uri).trim()) || '';
     const defaultRedirect = REPORTING_FRONTEND_URL.replace(/\/+$/, '') + '/';
