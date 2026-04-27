@@ -17,42 +17,6 @@ export type CreateTokenFromIetResult =
  * Validate IET with main backend and create a JWT for reporting_system_node so the frontend can call our APIs.
  * Sends Origin = main app (IFRAME_MAIN_ORIGIN), not the reporting frontend origin, so main backend allows the request.
  */
-function nonEmptyPermissionsArray(v: unknown): unknown[] | undefined {
-  return Array.isArray(v) && v.length > 0 ? v : undefined;
-}
-
-/**
- * DCC page rows from main `POST /entry/validate` body. Main apps vary:
- * top-level `permissions`, nested `group.permissions` / `user.permissions`, or `data.permissions`.
- */
-function extractPermissionsFromValidateBody(body: Record<string, unknown>): unknown[] | undefined {
-  const direct =
-    nonEmptyPermissionsArray(body.permissions) ??
-    nonEmptyPermissionsArray(body.group_permissions) ??
-    nonEmptyPermissionsArray(body.user_permissions);
-  if (direct) return direct;
-
-  const group = body.group;
-  if (group && typeof group === 'object' && !Array.isArray(group)) {
-    const inner = nonEmptyPermissionsArray((group as Record<string, unknown>).permissions);
-    if (inner) return inner;
-  }
-
-  const user = body.user;
-  if (user && typeof user === 'object' && !Array.isArray(user)) {
-    const inner = nonEmptyPermissionsArray((user as Record<string, unknown>).permissions);
-    if (inner) return inner;
-  }
-
-  const data = body.data;
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    const inner = nonEmptyPermissionsArray((data as Record<string, unknown>).permissions);
-    if (inner) return inner;
-  }
-
-  return undefined;
-}
-
 @Injectable()
 export class AuthService {
   constructor(private readonly jwtService: JwtService) {}
@@ -119,14 +83,15 @@ export class AuthService {
       const groupName = res.data.group_name ?? res.data.groupName ?? undefined;
       const role = res.data.role ?? undefined;
       const isAdmin = res.data.is_admin ?? res.data.isAdmin ?? undefined;
-      const permissionsRaw = extractPermissionsFromValidateBody(res.data as Record<string, unknown>);
+      const permissionsRaw =
+        res.data.permissions ?? res.data.group_permissions ?? res.data.user_permissions;
       const payload: Record<string, unknown> = {
         id: userId,
         groupName,
         role,
         isAdmin,
       };
-      if (permissionsRaw?.length) {
+      if (Array.isArray(permissionsRaw) && permissionsRaw.length > 0) {
         payload.permissions = permissionsRaw;
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
