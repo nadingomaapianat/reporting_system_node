@@ -50,6 +50,13 @@ export class AuthService {
     return config;
   }
 
+  private hasReportingBootstrapSecret(): boolean {
+    return !!(
+      process.env.REPORTING_BOOTSTRAP_SECRET?.trim() ||
+      process.env.MAIN_BACKEND_BOOTSTRAP_SECRET?.trim()
+    );
+  }
+
   /**
    * When main `POST /entry/validate` returns only `user_id`, call main `POST …/reporting-permissions`
    * with shared secret (same host/DB as IET). Set `REPORTING_BOOTSTRAP_SECRET` on main and reporting.
@@ -93,7 +100,12 @@ export class AuthService {
       const extracted =
         extractPermissionsFromValidateBody(data) ??
         (Array.isArray(data.permissions) ? (data.permissions as unknown[]) : null);
-      if (!extracted?.length) return null;
+      if (!extracted?.length) {
+        console.warn(
+          `[IET] bootstrap HTTP ${res.status} but no permissions[] — body keys=${Object.keys(data).join(',')}`,
+        );
+        return null;
+      }
       const gn = (data.group_name ?? data.groupName) as string | undefined;
       return {
         permissions: extracted,
@@ -112,6 +124,9 @@ export class AuthService {
     
       const mainUrl = getResolvedMainBackendUrl();
       const base = mainUrl.replace(/\/+$/, '');
+      const reportingBootPath = MAIN_BACKEND_REPORTING_PERMISSIONS_PATH.startsWith('/')
+        ? MAIN_BACKEND_REPORTING_PERMISSIONS_PATH
+        : `/${MAIN_BACKEND_REPORTING_PERMISSIONS_PATH}`;
       const path = MAIN_BACKEND_ENTRY_VALIDATE_PATH.startsWith('/')
         ? MAIN_BACKEND_ENTRY_VALIDATE_PATH
         : `/${MAIN_BACKEND_ENTRY_VALIDATE_PATH}`;
@@ -154,12 +169,25 @@ export class AuthService {
       let isAdmin = res.data.is_admin ?? res.data.isAdmin ?? undefined;
       let permissionsRaw = extractPermissionsFromValidateBody(res.data);
       if ((!permissionsRaw || permissionsRaw.length === 0) && userId) {
-        const boot = await this.fetchPermissionsViaBootstrap(base, String(userId));
-        if (boot?.permissions?.length) {
-          permissionsRaw = boot.permissions;
-          groupName = groupName ?? boot.groupName;
-          role = role ?? boot.role;
-          isAdmin = isAdmin ?? boot.isAdmin;
+        if (this.hasReportingBootstrapSecret()) {
+          const boot = await this.fetchPermissionsViaBootstrap(base, String(userId));
+          if (boot?.permissions?.length) {
+            permissionsRaw = boot.permissions;
+            groupName = groupName ?? boot.groupName;
+            role = role ?? boot.role;
+            isAdmin = isAdmin ?? boot.isAdmin;
+          } else {
+            console.warn(
+              `[IET] bootstrap ran but no permissions — main must expose POST ${base}${reportingBootPath} ` +
+                `(see new_adib_backend EntryController) with REPORTING_BOOTSTRAP_SECRET, or extend /entry/validate.`,
+            );
+          }
+        } else {
+          console.warn(
+            `[IET] bootstrap skipped: REPORTING_BOOTSTRAP_SECRET (or MAIN_BACKEND_BOOTSTRAP_SECRET) is not set in reporting .env. ` +
+              `Add the same secret on main (REPORTING_BOOTSTRAP_SECRET) and reporting, then restart both. ` +
+              `Would call POST ${base}${reportingBootPath} with header X-Reporting-Bootstrap-Secret.`,
+          );
         }
       }
       const payload: Record<string, unknown> = {
@@ -172,10 +200,9 @@ export class AuthService {
         payload.permissions = permissionsRaw;
       } else {
         console.warn(
-          `[IET] validate returned no usable permissions[] — reporting JWT will only have { id, iat, exp }. ` +
-            `MAIN_BACKEND_URL=${mainUrl} POST ${url} response_keys=${Object.keys(res.data || {}).join(',')}. ` +
-            `Fix: extend POST /entry/validate with permissions[], or deploy main POST /entry/reporting-permissions + set ` +
-            `REPORTING_BOOTSTRAP_SECRET on main and reporting, then clear reporting_node_token and open Reporting again.`,
+          `[IET] reporting cookie JWT has no permissions[] (only id/iat/exp). validate=${url} keys=${Object.keys(res.data || {}).join(',')}. ` +
+            `${this.hasReportingBootstrapSecret() ? 'See bootstrap warnings above.' : 'Set REPORTING_BOOTSTRAP_SECRET on reporting + main and deploy POST ' + base + reportingBootPath + '.'} ` +
+            `Then clear reporting_node_token and open Reporting from the main app again.`,
         );
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
