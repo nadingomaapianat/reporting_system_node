@@ -4,6 +4,8 @@ import axios from 'axios';
 import * as https from 'https';
 import { extractPermissionsFromValidateBody } from './utils/extract-permissions-from-validate';
 
+
+
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 
 
@@ -57,10 +59,7 @@ export class AuthService {
   
     
       const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
-      const path = MAIN_BACKEND_ENTRY_VALIDATE_PATH.startsWith('/')
-        ? MAIN_BACKEND_ENTRY_VALIDATE_PATH
-        : `/${MAIN_BACKEND_ENTRY_VALIDATE_PATH}`;
-      const url = `${base}${path}`;
+      const url = `${base}/entry/validate`;
   
       
    
@@ -104,12 +103,9 @@ export class AuthService {
       };
       if (permissionsRaw && permissionsRaw.length > 0) {
         payload.permissions = permissionsRaw;
-      } else {
+      } else if (process.env.NODE_ENV !== 'production') {
         console.warn(
-          `[IET] validate returned no usable permissions[] — reporting JWT will only have { id, iat, exp }. ` +
-            `MAIN_BACKEND_URL=${MAIN_BACKEND_URL} POST ${url} response_keys=${Object.keys(res.data || {}).join(',')}. ` +
-            `Fix: deploy main backend whose POST /entry/validate returns permissions (same as login JWT), ` +
-            `or set MAIN_BACKEND_URL / MAIN_BACKEND_ENTRY_VALIDATE_PATH to that service, then clear reporting_node_token and open Reporting again from the main app.`,
+          `[IET] no permissions array extracted from /entry/validate; response keys=${Object.keys(res.data || {}).join(',')}`,
         );
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });

@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { isLogThrottled } from '../auth/utils/throttle-console-log';
 
 /**
  * Resolves DCC-style `GET /groups/permissions?page=…` for the reporting frontend header,
@@ -70,12 +69,6 @@ export class GroupPermissionsService {
 
   /** Logs why `show` is false so devs can correlate with JWT / DCC rows. */
   private logPermissionFalse(reason: string, page: string, extra: Record<string, unknown>): void {
-    if (
-      reason === 'jwt_permissions_not_array' &&
-      isLogThrottled(`gp-jwt-miss:${String(extra.jwt_source ?? '')}`, 90_000)
-    ) {
-      return;
-    }
     const payload = { reason, page, ...extra };
     const line = `[GroupPermissions] show=false ${JSON.stringify(payload)}`;
     this.logger.warn(line);
