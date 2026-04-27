@@ -15,7 +15,7 @@ import { GrcComplyService } from './grc-comply.service';
 @Module({
   imports: [AuthModule],
   controllers: [GrcDashboardController, GrcRisksController, GrcIncidentsController, GrcKrisController, GrcComplyController],
-  providers: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, GrcComplyService, DatabaseService, UserFunctionAccessService],
+  providers: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, GrcComplyService, UserFunctionAccessService],
   exports: [GrcDashboardService, GrcRisksService, GrcIncidentsService, GrcKrisService, GrcComplyService],
 })
 export class GrcModule {}
