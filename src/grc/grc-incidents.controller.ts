@@ -11,7 +11,7 @@ import {
 import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/incidents')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(PermissionsGuard)
 @Permissions('Dashboard', ['show'])
 export class GrcIncidentsController {
   constructor(private readonly grcIncidentsService: GrcIncidentsService) {}
