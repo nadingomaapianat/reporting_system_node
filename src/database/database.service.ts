@@ -33,18 +33,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new Error('DB_PASSWORD is required');
     }
 
-    const isProd = String(process.env.NODE_ENV).toLowerCase() === 'production';
-    const trustServerCertificate =
-      String(process.env.DB_TRUST_SERVER_CERTIFICATE || '').toLowerCase() === 'true' ||
-      (!isProd && String(process.env.DB_TRUST_SERVER_CERTIFICATE || '').toLowerCase() !== 'false');
-
     const config: sql.config = {
       server: dbHost,
       port: dbPort,
       database: dbName,
       options: {
         encrypt: true,
-        trustServerCertificate,
+        trustServerCertificate: true,
         enableArithAbort: true,
         requestTimeout: parseInt(
           this.configService.get<string>('DB_REQUEST_TIMEOUT') || '60000',
@@ -156,13 +151,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ) {
           request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
         } else if (typeof param === 'string') {
-          // Large JSON / text (e.g. ICR tag dbData) exceeds 4000 chars — use MAX or SQL Server may error.
-          const len = param.length;
-          request.input(
-            `param${index}`,
-            len > 4000 ? sql.NVarChar(sql.MAX) : sql.NVarChar(4000),
-            param,
-          );
+          request.input(`param${index}`, sql.NVarChar(4000), param);
         } else {
           request.input(`param${index}`, param);
         }
