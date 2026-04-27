@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
 import * as https from 'https';
-import { extractPermissionsFromValidateBody } from './utils/extract-permissions-from-validate';
+
 
 
 
@@ -85,7 +85,7 @@ export class AuthService {
         if (res.status === 403 && reason) {
           const fixNoRow =
             'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration on main backend; restart main backend; open Reporting from main app (do not paste IET from another tab)';
-          
+         
         }
         return { ok: false, reason: reason ?? 'invalid_iet' };
       }
@@ -94,19 +94,16 @@ export class AuthService {
       const groupName = res.data.group_name ?? res.data.groupName ?? undefined;
       const role = res.data.role ?? undefined;
       const isAdmin = res.data.is_admin ?? res.data.isAdmin ?? undefined;
-      const permissionsRaw = extractPermissionsFromValidateBody(res.data);
+      const permissionsRaw =
+        res.data.permissions ?? res.data.group_permissions ?? res.data.user_permissions;
       const payload: Record<string, unknown> = {
         id: userId,
         groupName,
         role,
         isAdmin,
       };
-      if (permissionsRaw && permissionsRaw.length > 0) {
+      if (Array.isArray(permissionsRaw) && permissionsRaw.length > 0) {
         payload.permissions = permissionsRaw;
-      } else if (process.env.NODE_ENV !== 'production') {
-        console.warn(
-          `[IET] no permissions array extracted from /entry/validate; response keys=${Object.keys(res.data || {}).join(',')}`,
-        );
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
       const expiresInSeconds = 2 * 60 * 60; // 2 hours in seconds
