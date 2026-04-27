@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 /**
  * Resolves DCC-style `GET /groups/permissions?page=…` for the reporting frontend header,
@@ -9,69 +9,28 @@ import { Injectable, Logger } from '@nestjs/common';
  */
 @Injectable()
 export class GroupPermissionsService {
-  private readonly logger = new Logger(GroupPermissionsService.name);
   /**
    * Shape matches what `reporting_system_frontend2` Header expects:
    * `{ success: true, permissions: { show, page?, … } }`
    */
   resolveForPage(user: unknown, page: string): { success: boolean; permissions?: Record<string, unknown>; message?: string } {
     if (!user || typeof user !== 'object') {
-      this.logPermissionFalse('no_user_on_request', page, { detail: 'req.user missing or not an object' });
       return { success: false, message: 'Unauthorized' };
     }
 
     const u = user as Record<string, unknown>;
     const row = this.findPermissionRow(u, page);
     if (row) {
-      const permissions = this.normalizePermissionRow(row, page);
-      if (permissions.show !== true) {
-        this.logPermissionFalse('row_show_false_or_missing', page, {
-          raw_show: row.show,
-          normalized_show: permissions.show,
-        });
-      }
       return {
         success: true,
-        permissions,
+        permissions: this.normalizePermissionRow(row, page),
       };
-    }
-
-    const perms = u.permissions;
-    if (!Array.isArray(perms)) {
-      this.logPermissionFalse('jwt_permissions_not_array', page, {
-        permissions_type: perms === undefined ? 'undefined' : typeof perms,
-      });
-    } else if (perms.length === 0) {
-      this.logPermissionFalse('jwt_permissions_empty_array', page, {});
-    } else {
-      this.logPermissionFalse('no_row_for_page', page, {
-        pages_in_jwt: this.collectPageHints(perms),
-      });
     }
 
     return {
       success: true,
       permissions: { page, show: false },
     };
-  }
-
-  /** Logs why `show` is false so devs can correlate with JWT / DCC rows. */
-  private logPermissionFalse(reason: string, page: string, extra: Record<string, unknown>): void {
-    const payload = { reason, page, ...extra };
-    const line = `[GroupPermissions] show=false ${JSON.stringify(payload)}`;
-    this.logger.warn(line);
-    console.warn(line);
-  }
-
-  private collectPageHints(perms: unknown[]): string[] {
-    const out: string[] = [];
-    for (const p of perms) {
-      if (!p || typeof p !== 'object') continue;
-      const row = p as Record<string, unknown>;
-      const raw = row.page;
-      if (typeof raw === 'string' && raw.trim()) out.push(raw.trim());
-    }
-    return out;
   }
 
   private findPermissionRow(user: Record<string, unknown>, page: string): Record<string, unknown> | null {
