@@ -38,42 +38,23 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(private readonly realtimeService: RealtimeService) {}
 
   handleConnection(client: Socket) {
-    const authToken =
-      typeof client.handshake.auth?.token === 'string' ? client.handshake.auth.token.trim() : '';
-    const authHeader = client.handshake.headers?.authorization;
-    const bearer =
-      typeof authHeader === 'string'
-        ? authHeader.replace(/^Bearer\s+/i, '').trim()
-        : '';
-    const rawCookie = client.handshake.headers?.cookie;
-    const cookieHeader = typeof rawCookie === 'string' ? rawCookie : undefined;
-    const fromCookie = getReportingJwtFromCookieHeader(cookieHeader) || '';
-    const token = fromCookie || authToken || bearer;
-    if (!token) {
-      client.disconnect(true);
-      return;
-    }
-    try {
-      const decoded = jwt.verify(token, getJwtSecret());
-      (client.data as { user?: unknown }).user = decoded;
-    } catch {
-      client.disconnect(true);
-      return;
-    }
+    // console.log(`Client connected: ${client.id}`);
     this.realtimeService.addClient(client);
   }
 
   handleDisconnect(client: Socket) {
+    // console.log(`Client disconnected: ${client.id}`);
     this.realtimeService.removeClient(client);
   }
 
   @SubscribeMessage('join_dashboard')
-  handleJoinDashboard(
+    const token = fromCookie || authToken || bearer;
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { dashboardId: string },
   ) {
     client.join(`dashboard_${data.dashboardId}`);
     this.realtimeService.joinDashboard(client, data.dashboardId);
+    // console.log(`Client ${client.id} joined dashboard ${data.dashboardId}`);
   }
 
   @SubscribeMessage('leave_dashboard')
