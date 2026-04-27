@@ -177,7 +177,10 @@ export class AuthController {
       }
     }
 
-    // Bank-grade: HttpOnly (no JS access), Secure in production, SameSite for same-site/cross-site POST
+    // Bank-grade: HttpOnly (no JS access), Secure in production, SameSite for same-site/cross-site POST.
+    // domain: COOKIE_DOMAIN (e.g. ".pianat.ai") shares the cookie across all subdomains so that
+    // the Next.js frontend proxy (reporting-system-frontend.*) can forward it to the backend.
+    const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
     res
       .cookie(COOKIE_NAME, result.token, {
         httpOnly: true,
@@ -185,6 +188,7 @@ export class AuthController {
         sameSite: 'lax',
         maxAge: result.expiresIn * 1000,
         path: '/',
+        ...(cookieDomain ? { domain: cookieDomain } : {}),
       })
       .status(302)
       .redirect(redirectTo);
@@ -271,12 +275,14 @@ export class AuthController {
 
   /** Clear reporting auth cookies (same path/domain/options as when set). */
   private clearReportingCookies(res: Response): void {
+    const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
     const opts = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       maxAge: 0,
       path: '/',
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     };
     res.cookie(COOKIE_NAME, '', opts);
     res.cookie('iframe_d_c_c_t_p_1', '', opts);
