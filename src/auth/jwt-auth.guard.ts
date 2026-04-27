@@ -12,6 +12,7 @@ import { getJwtSecret } from './jwt-secret';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { getReportingJwtFromRequestMeta } from './utils/extract-token';
 import { buildReportingJwtDebugSnapshot } from './utils/jwt-debug-snapshot';
+import { isLogThrottled } from './utils/throttle-console-log';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -54,7 +55,9 @@ export class JwtAuthGuard implements CanActivate {
         process.env.REPORTING_DEBUG_JWT === 'true' || process.env.REPORTING_DEBUG_JWT === '1';
       const hasPerms = snap.permissions_is_non_empty_array === true;
       const devLogMissing = process.env.NODE_ENV !== 'production' && !hasPerms;
-      if (debugJwt || devLogMissing) {
+      const subKey = String(snap.user_sub ?? 'unknown');
+      const throttled = devLogMissing && isLogThrottled(`jwt-miss:${subKey}`, 90_000);
+      if (debugJwt || (devLogMissing && !throttled)) {
         const line = `[JwtAuth] ${debugJwt ? 'verified' : 'missing_permissions'} ${JSON.stringify(snap)}`;
         this.logger.warn(line);
         console.warn(line);

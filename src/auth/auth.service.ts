@@ -5,8 +5,14 @@ import * as https from 'https';
 import { extractPermissionsFromValidateBody } from './utils/extract-permissions-from-validate';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
+
+
+/** Path on main backend for IET exchange (some gateways mount under `/api`). */
+const MAIN_BACKEND_ENTRY_VALIDATE_PATH =
+  process.env.MAIN_BACKEND_ENTRY_VALIDATE_PATH || '/entry/validate';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
 const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://grc-reporting-uat.adib.co.eg';
+
 const JWT_EXPIRES_IN = '2h';
 
 /** Result of IET validation: success with token, or failure with reason from main backend. */
@@ -49,7 +55,10 @@ export class AuthService {
   
     
       const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
-      const url = `${base}/entry/validate`;
+      const path = MAIN_BACKEND_ENTRY_VALIDATE_PATH.startsWith('/')
+        ? MAIN_BACKEND_ENTRY_VALIDATE_PATH
+        : `/${MAIN_BACKEND_ENTRY_VALIDATE_PATH}`;
+      const url = `${base}${path}`;
   
       
    
@@ -93,9 +102,12 @@ export class AuthService {
       };
       if (permissionsRaw && permissionsRaw.length > 0) {
         payload.permissions = permissionsRaw;
-      } else if (process.env.NODE_ENV !== 'production') {
+      } else {
         console.warn(
-          `[IET] no permissions array extracted from /entry/validate; response keys=${Object.keys(res.data || {}).join(',')}`,
+          `[IET] validate returned no usable permissions[] — reporting JWT will only have { id, iat, exp }. ` +
+            `MAIN_BACKEND_URL=${MAIN_BACKEND_URL} POST ${url} response_keys=${Object.keys(res.data || {}).join(',')}. ` +
+            `Fix: deploy main backend whose POST /entry/validate returns permissions (same as login JWT), ` +
+            `or set MAIN_BACKEND_URL / MAIN_BACKEND_ENTRY_VALIDATE_PATH to that service, then clear reporting_node_token and open Reporting again from the main app.`,
         );
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
