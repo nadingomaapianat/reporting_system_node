@@ -1,14 +1,13 @@
 import { Controller, Get, Query, Req, UseGuards, All } from '@nestjs/common';
 import { GrcDashboardService } from './grc-dashboard.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { orderByFunctionFromRequest, sortPaginatedResponseIfNeeded } from '../shared/order-by-function';
 import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/controls')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-@Permissions('Reporting', ['show'])
+@UseGuards(PermissionsGuard)
+@Permissions('Dashboard', ['show'])
 export class GrcDashboardController {
   constructor(private readonly grcDashboardService: GrcDashboardService) {}
 

@@ -1,7 +1,6 @@
 import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { GrcIncidentsService } from './grc-incidents.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import {
@@ -12,8 +11,8 @@ import {
 import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/incidents')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-@Permissions('Reporting', ['show'])
+@UseGuards(PermissionsGuard)
+@Permissions('Dashboard', ['show'])
 export class GrcIncidentsController {
   constructor(private readonly grcIncidentsService: GrcIncidentsService) {}
 

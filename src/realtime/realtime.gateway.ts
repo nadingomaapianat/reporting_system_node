@@ -8,6 +8,9 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import * as jwt from 'jsonwebtoken';
+import { getJwtSecret } from '../auth/jwt-secret';
+import { getReportingJwtFromCookieHeader } from '../auth/utils/extract-token';
 import { RealtimeService } from './realtime.service';
 
 // CORS origins from .env: CORS_ORIGINS (comma-separated) or fallback dev list
@@ -35,7 +38,28 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(private readonly realtimeService: RealtimeService) {}
 
   handleConnection(client: Socket) {
-    // console.log(`Client connected: ${client.id}`);
+    const authToken =
+      typeof client.handshake.auth?.token === 'string' ? client.handshake.auth.token.trim() : '';
+    const authHeader = client.handshake.headers?.authorization;
+    const bearer =
+      typeof authHeader === 'string'
+        ? authHeader.replace(/^Bearer\s+/i, '').trim()
+        : '';
+    const rawCookie = client.handshake.headers?.cookie;
+    const cookieHeader = typeof rawCookie === 'string' ? rawCookie : undefined;
+    const fromCookie = getReportingJwtFromCookieHeader(cookieHeader) || '';
+    const token = authToken || bearer || fromCookie;
+    if (!token) {
+      client.disconnect(true);
+      return;
+    }
+    try {
+      const decoded = jwt.verify(token, getJwtSecret());
+      (client.data as { user?: unknown }).user = decoded;
+    } catch {
+      client.disconnect(true);
+      return;
+    }
     this.realtimeService.addClient(client);
   }
 

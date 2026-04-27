@@ -1,6 +1,5 @@
 import { Controller, Get, Query, Req, Param, UseGuards } from '@nestjs/common';
 import { GrcComplyService, GrcComplyReportKey } from './grc-comply.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import {
@@ -10,8 +9,8 @@ import {
 } from '../shared/order-by-function';
 
 @Controller('api/grc/comply')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-@Permissions('Reporting', ['show'])
+@UseGuards(PermissionsGuard)
+@Permissions('Dashboard', ['show'])
 export class GrcComplyController {
   constructor(private readonly grcComplyService: GrcComplyService) {}
 

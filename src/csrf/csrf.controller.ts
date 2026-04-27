@@ -1,7 +1,9 @@
 import { Controller, Get, Options, Req, Res, UnauthorizedException } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { CsrfService } from './csrf.service';
+import { Public } from '../auth/decorators/public.decorator';
 
+@Public()
 @Controller('csrf')
 export class CsrfController {
   // Allowed origins from .env: ALLOWED_ORIGINS or CORS_ORIGINS (comma-separated); else FRONTEND_URL + dev list

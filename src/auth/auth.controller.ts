@@ -1,8 +1,9 @@
-import { Controller, Post, Body, Get, UseGuards, Request, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Get, Request, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
 import { Response } from 'express';
-import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
+import { Public } from './decorators/public.decorator';
+import { getJwtSecret } from './jwt-secret';
 
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://reporting-system-frontend.pianat.ai';
 const COOKIE_NAME = 'reporting_node_token';
@@ -101,6 +102,7 @@ export class AuthController {
    * Body: { iet, module_id, redirect_uri? }. Header: Origin.
    * On success: Set-Cookie + 302 redirect to reporting frontend. On failure: 403.
    */
+  @Public()
   @Post('entry-token')
   async createEntryToken(
     @Body() body: { iet?: string; module_id?: string; redirect_uri?: string },
@@ -181,7 +183,6 @@ export class AuthController {
   }
 
   @Get('profile')
-  @UseGuards(JwtAuthGuard)
   async getProfile(@Request() req: any) {
     // User is attached to request by JwtAuthGuard
     const user = req.user;
@@ -193,6 +194,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('validate-token')
   async validateToken(@Body() body: { token: string }): Promise<any> {
     const { token } = body;
@@ -241,6 +243,7 @@ export class AuthController {
     res.status(200).json({ success: true, message: 'Logged out' });
   }
 
+  @Public()
   @Post('logout')
   async logoutPost(
     @Headers('origin') origin: string,

@@ -4,21 +4,11 @@ import { Injectable } from '@nestjs/common';
  * Resolves DCC-style `GET /groups/permissions?page=…` for the reporting frontend header,
  * using the same JWT payload the app already trusts (no second HTTP hop to main backend).
  *
- * - If `user.permissions` exists (array from IET / main), use the row for `page` (same matching as PermissionsGuard).
- * - Else if `REPORTING_GROUP_PERMISSIONS_LENIENT=true`, any authenticated user gets `show: true` for the tab.
- * - Else `show: false` for that page.
+ * Uses `user.permissions` (array from IET / main) and the row for `page` (same matching as PermissionsGuard).
+ * If there is no row for the page, or no non-empty `permissions` array, `show` is false for that tab.
  */
 @Injectable()
 export class GroupPermissionsService {
-  /**
-   * When true (default): if JWT has no `permissions` array, header tabs still show (`show: true`).
-   * Set `REPORTING_GROUP_PERMISSIONS_LENIENT=false` once IET embeds `permissions` in the token.
-   */
-  isLenient(): boolean {
-    const v = String(process.env.REPORTING_GROUP_PERMISSIONS_LENIENT ?? 'true').toLowerCase();
-    return v !== 'false' && v !== '0' && v !== 'no';
-  }
-
   /**
    * Shape matches what `reporting_system_frontend2` Header expects:
    * `{ success: true, permissions: { show, page?, … } }`
@@ -34,27 +24,6 @@ export class GroupPermissionsService {
       return {
         success: true,
         permissions: this.normalizePermissionRow(row, page),
-      };
-    }
-
-    const hasPermissionsArray = Array.isArray(u.permissions) && (u.permissions as unknown[]).length > 0;
-    if (hasPermissionsArray) {
-      return {
-        success: true,
-        permissions: { page, show: false },
-      };
-    }
-
-    if (this.isLenient()) {
-      return {
-        success: true,
-        permissions: {
-          page,
-          show: true,
-          create: false,
-          edit: false,
-          delete: false,
-        },
       };
     }
 
