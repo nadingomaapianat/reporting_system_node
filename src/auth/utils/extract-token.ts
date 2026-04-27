@@ -80,14 +80,28 @@ export function getReportingJwtFromRequest(req: Request): string | null {
   return list[0]?.token ?? null;
 }
 
-/** Parse `reporting_node_token` from a raw `Cookie` header (Socket.IO handshake). */
+/** Parse `reporting_node_token` (single or split `_1`, `_2`, …) from a raw `Cookie` header (Socket.IO). */
 export function getReportingJwtFromCookieHeader(cookieHeader: string | undefined): string | null {
   if (!cookieHeader || typeof cookieHeader !== 'string') return null;
-  const match = cookieHeader.match(/(?:^|;\s*)reporting_node_token=([^;]+)/i);
-  if (!match?.[1]) return null;
+  const single = cookieHeader.match(/(?:^|;\s*)reporting_node_token=([^;]+)/i);
+  if (single?.[1]) {
+    try {
+      return decodeURIComponent(single[1].trim());
+    } catch {
+      return single[1].trim();
+    }
+  }
+  const parts: string[] = [];
+  for (let i = 1; i <= 32; i++) {
+    const re = new RegExp(`(?:^|;)\\s*reporting_node_token_${i}=([^;]+)`, 'i');
+    const m = cookieHeader.match(re);
+    if (!m?.[1]) break;
+    parts.push(m[1].trim());
+  }
+  if (parts.length === 0) return null;
   try {
-    return decodeURIComponent(match[1].trim());
+    return decodeURIComponent(parts.join(''));
   } catch {
-    return null;
+    return parts.join('');
   }
 }

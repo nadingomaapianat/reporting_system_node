@@ -8,6 +8,9 @@ import { isReportingVerboseLog } from '../shared/reporting-verbose';
 
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://reporting-system-frontend.pianat.ai';
 const COOKIE_NAME = 'reporting_node_token';
+/** Browsers reject Set-Cookie values much over ~4KB; split across reporting_node_token_1, _2, … */
+const REPORTING_JWT_COOKIE_CHUNK = 3800;
+const REPORTING_JWT_COOKIE_MAX_PARTS = 16;
 
 /** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */
 function getAllowedEntryOrigins(): string[] {
@@ -198,17 +201,8 @@ export class AuthController {
         `cookie_domain=${cookieDomain ?? '(host-only)'} secure=${process.env.NODE_ENV === 'production'}`,
     );
 
-    res
-      .cookie(COOKIE_NAME, result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: result.expiresIn * 1000,
-        path: '/',
-        ...(cookieDomain ? { domain: cookieDomain } : {}),
-      })
-      .status(302)
-      .redirect(redirectTo);
+    this.setReportingNodeTokenCookies(res, result.token, result.expiresIn * 1000);
+    res.status(302).redirect(redirectTo);
   }
 
   @Get('profile')
@@ -302,7 +296,57 @@ export class AuthController {
       ...(cookieDomain ? { domain: cookieDomain } : {}),
     };
     res.cookie(COOKIE_NAME, '', opts);
+    for (let i = 1; i <= REPORTING_JWT_COOKIE_MAX_PARTS; i++) {
+      res.cookie(`${COOKIE_NAME}_${i}`, '', opts);
+    }
     res.cookie('iframe_d_c_c_t_p_1', '', opts);
     res.cookie('iframe_d_c_c_t_p_2', '', opts);
+  }
+
+  /**
+   * Set HttpOnly JWT cookie(s). Large JWTs are split so browsers accept Set-Cookie (see extract-token).
+   */
+  private setReportingNodeTokenCookies(res: Response, token: string, maxAgeMs: number): void {
+    const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
+    const baseOpts = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      maxAge: maxAgeMs,
+      path: '/',
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
+    };
+    const clearOpts = { ...baseOpts, maxAge: 0 };
+
+    const clearParts = (from: number, to: number) => {
+      for (let i = from; i <= to; i++) {
+        res.cookie(`${COOKIE_NAME}_${i}`, '', clearOpts);
+      }
+    };
+
+    const maxChars = REPORTING_JWT_COOKIE_CHUNK * REPORTING_JWT_COOKIE_MAX_PARTS;
+    if (token.length > maxChars) {
+      this.logger.error(
+        `[Reporting][entry-token] JWT too large for cookie chunking (${token.length} > ${maxChars})`,
+      );
+      throw new ForbiddenException({
+        message: 'Session payload too large for cookies. Reduce permissions in token or raise chunk limits.',
+      });
+    }
+
+    if (token.length <= REPORTING_JWT_COOKIE_CHUNK) {
+      clearParts(1, REPORTING_JWT_COOKIE_MAX_PARTS);
+      res.cookie(COOKIE_NAME, token, baseOpts);
+      this.logger.log(`[Reporting][entry-token] cookie_mode=single len=${token.length}`);
+      return;
+    }
+
+    res.cookie(COOKIE_NAME, '', clearOpts);
+    const numParts = Math.ceil(token.length / REPORTING_JWT_COOKIE_CHUNK);
+    for (let p = 1, i = 0; p <= numParts; p++, i += REPORTING_JWT_COOKIE_CHUNK) {
+      res.cookie(`${COOKIE_NAME}_${p}`, token.slice(i, i + REPORTING_JWT_COOKIE_CHUNK), baseOpts);
+    }
+    clearParts(numParts + 1, REPORTING_JWT_COOKIE_MAX_PARTS);
+    this.logger.log(`[Reporting][entry-token] cookie_mode=split parts=${numParts} total_len=${token.length}`);
   }
 }
