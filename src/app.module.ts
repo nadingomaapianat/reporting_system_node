@@ -8,7 +8,7 @@ import { GrcModule } from './grc/grc.module';
 import { SimpleChartController } from './shared/simple-chart.controller';
 import { AutoDashboardService } from './shared/auto-dashboard.service';
 import { ChartRegistryService } from './shared/chart-registry.service';
-import { DatabaseService } from './database/database.service';
+import { DatabaseModule } from './database/database.module';
 import { UserFunctionAccessService } from './shared/user-function-access.service';
 import { UserFunctionsController } from './shared/user-functions.controller';
 import { CsrfModule } from './csrf/csrf.module';
@@ -26,6 +26,7 @@ import 'dotenv/config';
       envFilePath: '.env',
     }),
     ScheduleModule.forRoot(),
+    DatabaseModule,
     RealtimeModule,
     DashboardModule,
     AuthModule,
@@ -37,7 +38,6 @@ import 'dotenv/config';
   providers: [
     AutoDashboardService,
     ChartRegistryService,
-    DatabaseService,
     FrameAncestorsMiddleware,
     UserFunctionAccessService,
   ],

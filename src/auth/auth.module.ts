@@ -20,6 +20,8 @@ import { getJwtSecret } from './jwt-secret';
       },
       inject: [ConfigService],
     }),
+    // DatabaseModule is @Global(), so DatabaseService is available without explicit import,
+    // but listing it here keeps dependency intent clear.
   ],
   controllers: [AuthController],
   providers: [
