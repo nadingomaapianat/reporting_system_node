@@ -2,6 +2,7 @@ import {
   Injectable,
   CanActivate,
   ExecutionContext,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -9,10 +10,13 @@ import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { getJwtSecret } from './jwt-secret';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
-import { getReportingJwtFromRequest } from './utils/extract-token';
+import { getReportingJwtFromRequestMeta } from './utils/extract-token';
+import { buildReportingJwtDebugSnapshot } from './utils/jwt-debug-snapshot';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
+  private readonly logger = new Logger(JwtAuthGuard.name);
+
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -29,8 +33,12 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<Request>() as Request & { user?: unknown };
-    const token = getReportingJwtFromRequest(request);
+    const request = context.switchToHttp().getRequest<Request>() as Request & {
+      user?: unknown;
+      reportingJwtSource?: string;
+    };
+    const { token, source } = getReportingJwtFromRequestMeta(request);
+    request.reportingJwtSource = source;
 
     if (!token) {
       throw new UnauthorizedException(
@@ -41,6 +49,16 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const decoded = jwt.verify(token, getJwtSecret());
       request.user = decoded;
+      const snap = buildReportingJwtDebugSnapshot(decoded, source);
+      const debugJwt =
+        process.env.REPORTING_DEBUG_JWT === 'true' || process.env.REPORTING_DEBUG_JWT === '1';
+      const hasPerms = snap.permissions_is_non_empty_array === true;
+      const devLogMissing = process.env.NODE_ENV !== 'production' && !hasPerms;
+      if (debugJwt || devLogMissing) {
+        const line = `[JwtAuth] ${debugJwt ? 'verified' : 'missing_permissions'} ${JSON.stringify(snap)}`;
+        this.logger.warn(line);
+        console.warn(line);
+      }
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');

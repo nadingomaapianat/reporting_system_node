@@ -1,33 +1,44 @@
 import { Request } from 'express';
 
+/** Where the reporting API took the JWT from (for diagnostics). */
+export type ReportingJwtSource =
+  | 'reporting_node_token'
+  | 'iframe_cookie'
+  | 'authorization_bearer'
+  | 'none';
+
 /**
  * Same cookie/header rules as HTTP `JwtAuthGuard` (keep in sync for Socket.IO handshake).
  *
  * Prefer `reporting_node_token` (IET exchange JWT with embedded DCC `permissions`) over
  * `Authorization: Bearer …`, which is often the main-app JWT and does not include `permissions`.
  */
-export function getReportingJwtFromRequest(req: Request): string | null {
+export function getReportingJwtFromRequestMeta(req: Request): { token: string | null; source: ReportingJwtSource } {
   const reportingToken = req.cookies?.['reporting_node_token'];
-  if (reportingToken) return reportingToken;
+  if (reportingToken) return { token: reportingToken, source: 'reporting_node_token' };
 
   const iframePart1 = req.cookies?.['iframe_d_c_c_t_p_1'];
   const iframePart2 = req.cookies?.['iframe_d_c_c_t_p_2'];
   if (iframePart1) {
     const encoded = `${iframePart1}${iframePart2 || ''}`;
     try {
-      return decodeURIComponent(encoded);
+      return { token: decodeURIComponent(encoded), source: 'iframe_cookie' };
     } catch {
-      return null;
+      return { token: null, source: 'none' };
     }
   }
 
   const authHeader = req.headers.authorization;
   if (authHeader) {
     const bearer = authHeader.split('Bearer ')[1];
-    if (bearer) return bearer.trim();
+    if (bearer) return { token: bearer.trim(), source: 'authorization_bearer' };
   }
 
-  return null;
+  return { token: null, source: 'none' };
+}
+
+export function getReportingJwtFromRequest(req: Request): string | null {
+  return getReportingJwtFromRequestMeta(req).token;
 }
 
 /** Parse `reporting_node_token` from a raw `Cookie` header (Socket.IO handshake). */
