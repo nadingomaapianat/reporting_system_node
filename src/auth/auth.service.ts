@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import axios from 'axios';
 import * as https from 'https';
 import { extractPermissionsFromValidateBody } from './utils/extract-permissions-from-validate';
+import { getResolvedMainBackendUrl } from './main-backend-config';
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 
@@ -40,7 +41,7 @@ export class AuthService {
 
     // In development or when ALLOW_SELF_SIGNED_CERTS=true, allow self-signed certificates for HTTPS URLs
     const allowSelfSigned = process.env.NODE_ENV === 'development' || process.env.ALLOW_SELF_SIGNED_CERTS === 'true';
-    const isHttps = MAIN_BACKEND_URL.startsWith('https://');
+    const isHttps = getResolvedMainBackendUrl().startsWith('https://');
     
     if (allowSelfSigned && isHttps && https && https.Agent) {
       config.httpsAgent = new https.Agent({
@@ -54,7 +55,8 @@ export class AuthService {
   async createTokenFromIet(iet: string, moduleId: string, _origin: string): Promise<CreateTokenFromIetResult> {
   
     
-      const base = MAIN_BACKEND_URL.replace(/\/+$/, '');
+      const mainUrl = getResolvedMainBackendUrl();
+      const base = mainUrl.replace(/\/+$/, '');
       const path = MAIN_BACKEND_ENTRY_VALIDATE_PATH.startsWith('/')
         ? MAIN_BACKEND_ENTRY_VALIDATE_PATH
         : `/${MAIN_BACKEND_ENTRY_VALIDATE_PATH}`;
@@ -84,7 +86,7 @@ export class AuthService {
         if (res.status === 403 && reason) {
           const fixNoRow =
             'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration on main backend; restart main backend; open Reporting from main app (do not paste IET from another tab)';
-          
+         
         }
         return { ok: false, reason: reason ?? 'invalid_iet' };
       }
@@ -105,7 +107,7 @@ export class AuthService {
       } else {
         console.warn(
           `[IET] validate returned no usable permissions[] — reporting JWT will only have { id, iat, exp }. ` +
-            `MAIN_BACKEND_URL=${MAIN_BACKEND_URL} POST ${url} response_keys=${Object.keys(res.data || {}).join(',')}. ` +
+            `MAIN_BACKEND_URL=${mainUrl} POST ${url} response_keys=${Object.keys(res.data || {}).join(',')}. ` +
             `Fix: deploy main backend whose POST /entry/validate returns permissions (same as login JWT), ` +
             `or set MAIN_BACKEND_URL / MAIN_BACKEND_ENTRY_VALIDATE_PATH to that service, then clear reporting_node_token and open Reporting again from the main app.`,
         );
