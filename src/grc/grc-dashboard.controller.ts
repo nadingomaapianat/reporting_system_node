@@ -6,7 +6,7 @@ import { orderByFunctionFromRequest, sortPaginatedResponseIfNeeded } from '../sh
 import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/controls')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
+@UseGuards(PermissionsGuard)
 @Permissions('Dashboard', ['show'])
 export class GrcDashboardController {
   constructor(private readonly grcDashboardService: GrcDashboardService) {}
