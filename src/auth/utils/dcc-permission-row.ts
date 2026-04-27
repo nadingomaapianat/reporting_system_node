@@ -30,19 +30,12 @@ export function findDccPermissionRow(rows: unknown, page: string): DccPermission
   return undefined;
 }
 
-/** DCC flags often arrive as `true`, `1`, or `"1"` from SQL / JSON — treat like GroupPermissionsService `normalizePermissionRow`. */
-export function dccPermissionFlagIsOn(row: Record<string, unknown>, key: string): boolean {
-  const v = row[key];
-  return v === true || v === 1 || v === '1' || v === 'true';
-}
-
 export function dccRowSatisfiesActions(
   row: DccPermissionRow | undefined,
   actions: string[],
   requireAll: boolean,
 ): boolean {
   if (!row || actions.length === 0) return false;
-  const rec = row as Record<string, unknown>;
-  const ok = (action: string) => dccPermissionFlagIsOn(rec, action);
+  const ok = (action: string) => (row as Record<string, unknown>)[action] === true;
   return requireAll ? actions.every(ok) : actions.some(ok);
 }

@@ -21,82 +21,11 @@ function nonEmptyPermissionsArray(v: unknown): unknown[] | undefined {
   return Array.isArray(v) && v.length > 0 ? v : undefined;
 }
 
-/** Compare DCC group names tolerating trailing underscores / spacing. */
-function normalizeGroupName(v: unknown): string {
-  return String(v ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/_+$/g, '');
-}
-
-/**
- * When `data` is a catalog of groups `[{ id, name, permissions: [...] }, ...]`, pick the row
- * for the current user using `group_id` / `groupId` or `group_name` / `groupName` (or nested `group`).
- */
-function pickPermissionsFromGroupCatalog(body: Record<string, unknown>, catalog: unknown[]): unknown[] | undefined {
-  const nestedGroup = body.group;
-  let nestedGroupRec: Record<string, unknown> | undefined;
-  if (nestedGroup && typeof nestedGroup === 'object' && !Array.isArray(nestedGroup)) {
-    nestedGroupRec = nestedGroup as Record<string, unknown>;
-  }
-
-  const groupId =
-    body.group_id ??
-    body.groupId ??
-    body.permission_group_id ??
-    body.permissionGroupId ??
-    nestedGroupRec?.id;
-
-  if (groupId != null && String(groupId).length > 0) {
-    const idStr = String(groupId);
-    for (const item of catalog) {
-      if (!item || typeof item !== 'object') continue;
-      const row = item as Record<string, unknown>;
-      if (row.id != null && String(row.id) === idStr) {
-        const perms = nonEmptyPermissionsArray(row.permissions);
-        if (perms) return perms;
-      }
-    }
-  }
-
-  const nameCandidates = [
-    body.group_name,
-    body.groupName,
-    body.role_name,
-    body.roleName,
-    nestedGroupRec?.name,
-  ].filter((x) => x != null && String(x).trim() !== '');
-
-  for (const nameRaw of nameCandidates) {
-    const target = normalizeGroupName(nameRaw);
-    if (!target) continue;
-    for (const item of catalog) {
-      if (!item || typeof item !== 'object') continue;
-      const row = item as Record<string, unknown>;
-      const perms = nonEmptyPermissionsArray(row.permissions);
-      if (!perms) continue;
-      if (normalizeGroupName(row.name) === target) return perms;
-    }
-  }
-
-  return undefined;
-}
-
 /**
  * DCC page rows from main `POST /entry/validate` body. Main apps vary:
- * top-level `permissions`, nested `group.permissions` / `user.permissions`, `data.permissions`,
- * or `data` as an array of groups (resolved by group id / name).
+ * top-level `permissions`, nested `group.permissions` / `user.permissions`, or `data.permissions`.
  */
 function extractPermissionsFromValidateBody(body: Record<string, unknown>): unknown[] | undefined {
-  if (body.result && typeof body.result === 'object' && !Array.isArray(body.result)) {
-    const merged = { ...body, ...(body.result as Record<string, unknown>) } as Record<string, unknown>;
-    delete merged.result;
-    const fromWrapped = extractPermissionsFromValidateBody(merged);
-    if (fromWrapped) return fromWrapped;
-  }
-
   const direct =
     nonEmptyPermissionsArray(body.permissions) ??
     nonEmptyPermissionsArray(body.group_permissions) ??
@@ -111,29 +40,14 @@ function extractPermissionsFromValidateBody(body: Record<string, unknown>): unkn
 
   const user = body.user;
   if (user && typeof user === 'object' && !Array.isArray(user)) {
-    const u = user as Record<string, unknown>;
-    const inner = nonEmptyPermissionsArray(u.permissions);
+    const inner = nonEmptyPermissionsArray((user as Record<string, unknown>).permissions);
     if (inner) return inner;
-    if (Array.isArray(u.data) && u.data.length > 0) {
-      const fromUserCatalog = pickPermissionsFromGroupCatalog({ ...body, ...u }, u.data as unknown[]);
-      if (fromUserCatalog) return fromUserCatalog;
-    }
   }
 
   const data = body.data;
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     const inner = nonEmptyPermissionsArray((data as Record<string, unknown>).permissions);
     if (inner) return inner;
-  }
-
-  if (Array.isArray(data) && data.length > 0) {
-    const userPlain = body.user;
-    const mergedForCatalog =
-      userPlain && typeof userPlain === 'object' && !Array.isArray(userPlain)
-        ? ({ ...body, ...(userPlain as Record<string, unknown>) } as Record<string, unknown>)
-        : body;
-    const fromCatalog = pickPermissionsFromGroupCatalog(mergedForCatalog, data);
-    if (fromCatalog) return fromCatalog;
   }
 
   return undefined;
@@ -196,9 +110,7 @@ export class AuthService {
         if (res.status === 403 && reason) {
           const fixNoRow =
             'MAIN_BACKEND_URL (here) must equal main app NEXT_PUBLIC_BASE_URL; run migration on main backend; restart main backend; open Reporting from main app (do not paste IET from another tab)';
-          console.warn(
-            `[IET] CASE=${reason} | FIX: ${reason === 'invalid_origin' ? 'Match origin (e.g. https://grc-dcc-uat.adib.co.eg)' : reason === 'expired' ? 'Open Reporting again (IET TTL may be 30s – consider increasing on main backend)' : reason === 'already_used' ? 'Fresh IET, avoid double submit or second tab' : reason === 'no_row' ? fixNoRow : 'See main backend'}`,
-          );
+         
         }
         return { ok: false, reason: reason ?? 'invalid_iet' };
       }
@@ -216,12 +128,6 @@ export class AuthService {
       };
       if (permissionsRaw?.length) {
         payload.permissions = permissionsRaw;
-      } else {
-        console.warn(
-          `[IET] validate success but no permissions[] for JWT; reporting APIs will 403 on @Permissions routes. ` +
-            `Ensure /entry/validate returns flat permissions, nested group.permissions, or data[] catalog + group_id/group_name. ` +
-            `response_keys=${Object.keys(res.data as object).join(',')}`,
-        );
       }
       const token = this.jwtService.sign(payload, { expiresIn: JWT_EXPIRES_IN });
       const expiresInSeconds = 2 * 60 * 60; // 2 hours in seconds

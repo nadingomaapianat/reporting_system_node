@@ -38,7 +38,28 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(private readonly realtimeService: RealtimeService) {}
 
   handleConnection(client: Socket) {
-    // console.log(`Client connected: ${client.id}`);
+    const authToken =
+      typeof client.handshake.auth?.token === 'string' ? client.handshake.auth.token.trim() : '';
+    const authHeader = client.handshake.headers?.authorization;
+    const bearer =
+      typeof authHeader === 'string'
+        ? authHeader.replace(/^Bearer\s+/i, '').trim()
+        : '';
+    const rawCookie = client.handshake.headers?.cookie;
+    const cookieHeader = typeof rawCookie === 'string' ? rawCookie : undefined;
+    const fromCookie = getReportingJwtFromCookieHeader(cookieHeader) || '';
+    const token = authToken || bearer || fromCookie;
+    if (!token) {
+      client.disconnect(true);
+      return;
+    }
+    try {
+      const decoded = jwt.verify(token, getJwtSecret());
+      (client.data as { user?: unknown }).user = decoded;
+    } catch {
+      client.disconnect(true);
+      return;
+    }
     this.realtimeService.addClient(client);
   }
 
@@ -48,7 +69,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   }
 
   @SubscribeMessage('join_dashboard')
-    const token = fromCookie || authToken || bearer;
+  handleJoinDashboard(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { dashboardId: string },
   ) {

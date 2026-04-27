@@ -91,7 +91,7 @@ export class CsrfController {
           // console.log(`[CSRF] Origin matched exactly: ${originUrl} === ${allowed}`);
           return true;
         }
-        // Support wildcard subdomains (e.g., *.adib.co.eg)
+      
         if (allowed.includes('*')) {
           const pattern = allowed.replace(/\*/g, '.*');
           const regex = new RegExp(`^${pattern}$`);

@@ -4,11 +4,9 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 
-/**
- * Read-only GET routes rely on global `JwtAuthGuard` only (many clients still lack DCC `permissions` in JWT).
- * Mutating POST routes require `Dashboard` + `show` via `PermissionsGuard`.
- */
 @Controller('api/dashboard')
+@UseGuards(PermissionsGuard)
+@Permissions('Dashboard', ['show'])
 export class DashboardController {
   constructor(
     private readonly dashboardService: DashboardService,
@@ -62,7 +60,6 @@ export class DashboardController {
   }
 
   @Post('widgets/:widgetId/refresh')
-  @UseGuards(PermissionsGuard)
   @Permissions('Dashboard', ['show'], true)
   refreshWidget(@Param('widgetId') widgetId: string) {
     const data = this.dashboardService.refreshWidget(widgetId);
@@ -91,7 +88,6 @@ export class DashboardController {
   }
 
   @Post('activity')
-  @UseGuards(PermissionsGuard)
   @Permissions('Dashboard', ['show'], true)
   async updateDashboardActivity(@Body() body: { dashboard_id: string; user_id?: string; card_count?: number }) {
     const { dashboard_id, user_id = 'default_user', card_count = 0 } = body;
