@@ -32,7 +32,12 @@ import {
 import { IcrDataAggregatorService } from './icr-data-aggregator.service';
 import { IcrTemplateEngineService } from './icr-template-engine.service';
 import { IcrReportUser } from '../decorators/current-user.decorator';
-import { IcrRole, userHasFullIcrAccess } from '../guards/icr.guards';
+import {
+  type IcrAuthUser,
+  userSeesAllIcrTasks,
+  userCanPrepareIcrTasks,
+  userCanReviewIcrTasks,
+} from '../icr-user-context';
 import { CreateIcrReportDto, UpdateIcrStatusDto } from '../dto/icr.dto';
 import { getEditableKeysForSection } from '../constants/icr-section-editable';
 import { IcrTemplateAdminService, type SectionConfigRow } from './icr-template-admin.service';
@@ -739,13 +744,12 @@ export class IcrService implements OnModuleInit {
   }
 
   async getMyTaskReports(
-    user: IcrReportUser & { roles?: string[]; isAdmin?: boolean; groupName?: string; role?: string },
+    user: IcrReportUser & IcrAuthUser,
     filterTemplateId?: number,
   ): Promise<IcrTaskReportRecord[]> {
-    const fullAccess = userHasFullIcrAccess(user);
-    const roleSet = new Set(user.roles ?? []);
-    const canPrepare = roleSet.has(IcrRole.PREPARER) || roleSet.has(IcrRole.ADMIN) || fullAccess;
-    const canReview = roleSet.has(IcrRole.REVIEWER) || roleSet.has(IcrRole.APPROVER) || roleSet.has(IcrRole.ADMIN) || fullAccess;
+    const seeAllTasks = userSeesAllIcrTasks(user);
+    const canPrepare = userCanPrepareIcrTasks(user);
+    const canReview = userCanReviewIcrTasks(user);
     const userFunctions = new Set((await this.loadUserFunctionNames(user.id)).map((name) => this.normalizeFunctionLabel(name)));
 
     let templateSql = '';
@@ -803,12 +807,12 @@ export class IcrService implements OnModuleInit {
         ? userFunctions.has(this.normalizeFunctionLabel(ownership.checkerFunction))
         : false;
 
-      // Tasks are function-scoped unless user has full ICR access (e.g. super admin).
-      if (!fullAccess && !makerMatch && !checkerMatch) {
+      // Tasks are function-scoped (maker/checker) unless user is a tasks/report admin (DCC delete or platform admin).
+      if (!seeAllTasks && !makerMatch && !checkerMatch) {
         continue;
       }
 
-      const matchedRole: IcrTaskSectionRecord['matchedRole'] = fullAccess
+      const matchedRole: IcrTaskSectionRecord['matchedRole'] = seeAllTasks
         ? 'admin'
         : makerMatch && checkerMatch
           ? 'both'
@@ -850,28 +854,28 @@ export class IcrService implements OnModuleInit {
           canEditBody &&
           !isLocked &&
           canPrepare &&
-          (fullAccess || makerMatch) &&
+          (seeAllTasks || makerMatch) &&
           (sectionStatus === IcrSectionStatus.GENERATED || sectionStatus === IcrSectionStatus.REJECTED),
         canSubmit:
           canEditBody &&
           !isLocked &&
           canPrepare &&
-          (fullAccess || makerMatch) &&
+          (seeAllTasks || makerMatch) &&
           (sectionStatus === IcrSectionStatus.GENERATED || sectionStatus === IcrSectionStatus.REJECTED),
         canBeginReview:
           !isLocked &&
           canReview &&
-          (fullAccess || checkerMatch) &&
+          (seeAllTasks || checkerMatch) &&
           sectionStatus === IcrSectionStatus.SUBMITTED,
         canApprove:
           !isLocked &&
           canReview &&
-          (fullAccess || checkerMatch) &&
+          (seeAllTasks || checkerMatch) &&
           sectionStatus === IcrSectionStatus.UNDER_REVIEW,
         canReject:
           !isLocked &&
           canReview &&
-          (fullAccess || checkerMatch) &&
+          (seeAllTasks || checkerMatch) &&
           sectionStatus === IcrSectionStatus.UNDER_REVIEW,
       };
 
@@ -900,10 +904,10 @@ export class IcrService implements OnModuleInit {
 
   /**
    * Tasks page: section configs that can carry placeholders / tag-driven content (same family as task list).
-   * Function-scoped for normal users; full ICR access (e.g. super admin) returns all matching configs.
+   * Function-scoped for normal users; tasks/report admins (DCC) see all matching configs.
    */
   async getTaskTemplateSectionConfigs(
-    user: IcrReportUser & { roles?: string[]; isAdmin?: boolean; groupName?: string; role?: string },
+    user: IcrReportUser & IcrAuthUser,
     templateId: number,
   ): Promise<SectionConfigRow[]> {
     const all = await this.templateAdmin.getConfigs(templateId);
@@ -920,7 +924,7 @@ export class IcrService implements OnModuleInit {
       );
     });
 
-    if (userHasFullIcrAccess(user)) {
+    if (userSeesAllIcrTasks(user)) {
       return dynamic.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
     }
 

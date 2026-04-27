@@ -1,36 +1,12 @@
-import { Controller, Post, Body, Get, UseGuards, Request, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
+import { Controller, Post, Body, Get, Request, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
 import { Response } from 'express';
-import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import * as jwt from 'jsonwebtoken';
+import { Public } from './decorators/public.decorator';
+import { getJwtSecret } from './jwt-secret';
 
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://grc-reporting-uat.adib.co.eg';
 const COOKIE_NAME = 'reporting_node_token';
-
-/**
- * Shared cookie options for reporting JWT.
- * Env: COOKIE_DOMAIN=.adib.co.eg (required for frontend + Next proxy on another subdomain).
- * COOKIE_SAMESITE=lax|strict|none — use "none" only if you need cross-site embeds + set Secure (forced when none).
- * COOKIE_SECURE=true forces Secure outside production (e.g. HTTPS dev).
- */
-function getReportingCookieBaseOpts(maxAgeMs: number): Record<string, unknown> {
-  const sameSiteRaw = (process.env.COOKIE_SAMESITE || 'lax').toLowerCase().trim();
-  const sameSite = (['lax', 'strict', 'none'].includes(sameSiteRaw) ? sameSiteRaw : 'lax') as
-    | 'lax'
-    | 'strict'
-    | 'none';
-  const secure =
-    process.env.NODE_ENV === 'production' ||
-    process.env.COOKIE_SECURE === 'true' ||
-    sameSite === 'none';
-  return {
-    httpOnly: true,
-    secure,
-    sameSite,
-    maxAge: maxAgeMs,
-    path: '/',
-  };
-}
 
 /** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */
 function getAllowedEntryOrigins(): string[] {
@@ -41,7 +17,7 @@ function getAllowedEntryOrigins(): string[] {
     if (!list.includes('http://127.0.0.1:3000')) list.push('http://127.0.0.1:3000');
   }
   if (base.includes('127.0.0.1:3000')) {
-    if (!list.includes('http://localhost:3000')) list.push('http://localhost:3000');
+    if (!list.includes('https://grc-reporting-uat.adib.co.eg')) list.push('https://grc-reporting-uat.adib.co.eg');
   }
   // In live UAT, allow both https and http for same host (e.g. https://grc-reporting-uat.adib.co.eg)
   if (base.includes('grc-reporting-uat.adib.co.eg')) {
@@ -100,7 +76,7 @@ function isAllowedRedirectUri(uri: string): boolean {
   if (!u) return false;
   if (u === base || u === `${base}/` || u.startsWith(`${base}/`)) return true;
   // Allow 127.0.0.1 when base is localhost (and vice versa) for same port
-  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'http://localhost:3000' : null;
+  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'https://grc-reporting-uat.adib.co.eg' : null;
   if (altBase && (u === altBase || u === `${altBase}/` || u.startsWith(`${altBase}/`))) return true;
   // In live UAT, allow redirect to both https and http for same host (e.g. grc-reporting-uat.adib.co.eg)
   if (base.includes('grc-reporting-uat.adib.co.eg')) {
@@ -119,9 +95,6 @@ function isAllowedRedirectUri(uri: string): boolean {
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  /** Log once: without COOKIE_DOMAIN, JWT cookie is host-only on Node — Next.js on another subdomain gets no cookie → Python 401. */
-  private static warnedMissingCookieDomain = false;
-
   constructor(private readonly authService: AuthService) {}
 
   /**
@@ -129,6 +102,7 @@ export class AuthController {
    * Body: { iet, module_id, redirect_uri? }. Header: Origin.
    * On success: Set-Cookie + 302 redirect to reporting frontend. On failure: 403.
    */
+  @Public()
   @Post('entry-token')
   async createEntryToken(
     @Body() body: { iet?: string; module_id?: string; redirect_uri?: string },
@@ -195,26 +169,20 @@ export class AuthController {
       }
     }
 
-    const cookieOpts = getReportingCookieBaseOpts(result.expiresIn * 1000) as Record<string, unknown>;
-    const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
-    if (cookieDomain) cookieOpts.domain = cookieDomain;
-    else if (!AuthController.warnedMissingCookieDomain) {
-      AuthController.warnedMissingCookieDomain = true;
-      this.logger.warn(
-        'COOKIE_DOMAIN is not set: auth cookie is scoped to this API host only. ' +
-          'If the reporting UI / Next.js runs on another subdomain (e.g. grc-reporting-uat vs grc-reporting-node-uat), ' +
-          'browsers will not send the cookie there → Python/charts/export return 401. ' +
-          'Set COOKIE_DOMAIN to your shared parent domain (e.g. .adib.co.eg for *.adib.co.eg — confirm with your DNS/registrable domain).',
-      );
-    }
+    // Bank-grade: HttpOnly (no JS access), Secure in production, SameSite for same-site/cross-site POST
     res
-      .cookie(COOKIE_NAME, result.token, cookieOpts)
+      .cookie(COOKIE_NAME, result.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: result.expiresIn * 1000,
+        path: '/',
+      })
       .status(302)
       .redirect(redirectTo);
   }
 
   @Get('profile')
-  @UseGuards(JwtAuthGuard)
   async getProfile(@Request() req: any) {
     // User is attached to request by JwtAuthGuard
     const user = req.user;
@@ -226,6 +194,7 @@ export class AuthController {
     };
   }
 
+  @Public()
   @Post('validate-token')
   async validateToken(@Body() body: { token: string }): Promise<any> {
     const { token } = body;
@@ -274,6 +243,7 @@ export class AuthController {
     res.status(200).json({ success: true, message: 'Logged out' });
   }
 
+  @Public()
   @Post('logout')
   async logoutPost(
     @Headers('origin') origin: string,
@@ -293,9 +263,13 @@ export class AuthController {
 
   /** Clear reporting auth cookies (same path/domain/options as when set). */
   private clearReportingCookies(res: Response): void {
-    const opts = getReportingCookieBaseOpts(0) as Record<string, unknown>;
-    const cookieDomain = process.env.COOKIE_DOMAIN?.trim();
-    if (cookieDomain) opts.domain = cookieDomain;
+    const opts = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      maxAge: 0,
+      path: '/',
+    };
     res.cookie(COOKIE_NAME, '', opts);
     res.cookie('iframe_d_c_c_t_p_1', '', opts);
     res.cookie('iframe_d_c_c_t_p_2', '', opts);

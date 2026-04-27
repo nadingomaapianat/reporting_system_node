@@ -13,6 +13,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UseInterceptors,
   Logger,
   BadRequestException,
 } from '@nestjs/common';
@@ -28,12 +29,9 @@ import {
   WorkflowActionDto,
   ListIcrReportsQueryDto,
 } from './dto/icr.dto';
-import {
-  JwtAuthGuard,
-  IcrRolesGuard,
-  IcrGuard,
-  IcrRole,
-} from './guards/icr.guards';
+import { IcrRequestHydrateInterceptor } from './icr-user-context';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { ParseSectionTypePipe } from './pipes/parse-section-type.pipe';
 import { IcrSectionType } from './interfaces/icr-section.types';
@@ -50,7 +48,9 @@ export interface IcrReportUser {
 }
 
 @Controller('api/icr')
-@UseGuards(JwtAuthGuard, IcrRolesGuard)
+@Permissions('ICR Reports', ['show'])
+@UseGuards(PermissionsGuard)
+@UseInterceptors(IcrRequestHydrateInterceptor)
 export class IcrController {
   private readonly logger = new Logger(IcrController.name);
 
@@ -65,7 +65,7 @@ export class IcrController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async createReport(
     @Body() dto: CreateIcrReportDto,
     @CurrentUser() user: IcrReportUser,
@@ -76,7 +76,6 @@ export class IcrController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async findAll(
     @Query() query: ListIcrReportsQueryDto,
     @CurrentUser() user: IcrReportUser,
@@ -87,7 +86,6 @@ export class IcrController {
 
   @Get('defaults/:sectionType')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async getSectionDefault(
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
     @CurrentUser() user: IcrReportUser,
@@ -98,7 +96,7 @@ export class IcrController {
 
   @Patch('defaults/:sectionType')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['create', 'edit'], true)
   async updateSectionDefault(
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
     @Body() dto: UpdateSectionDefaultDto,
@@ -114,7 +112,6 @@ export class IcrController {
 
   @Get('notifications')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async getNotifications(
     @Query('function') recipientFunction: string,
     @Query('unreadOnly') unreadOnly: string | undefined,
@@ -130,7 +127,7 @@ export class IcrController {
 
   @Post('notifications/mark-read')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   markNotificationsRead(@Body() body: { ids: string[] }, @CurrentUser() user: IcrReportUser) {
     return this.notificationService.markRead(body.ids ?? [], user.id);
   }
@@ -141,14 +138,14 @@ export class IcrController {
 
   @Get('templates')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['show'])
   getTemplates() {
     return this.templateAdminService.getTemplates();
   }
 
   @Get('templates/default')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['show'])
   getDefaultTemplate() {
     return this.templateAdminService.getDefaultTemplate();
   }
@@ -159,21 +156,19 @@ export class IcrController {
 
   @Get('tag-meta/columns/:tableName')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async getTableColumns(@Param('tableName') tableName: string) {
     return this.tagConfigService.getAvailableColumns(tableName);
   }
 
   @Get('tag-meta/charts')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async getDynamicCharts() {
     return this.tagConfigService.listAvailableCharts();
   }
 
   @Get('tasks/my')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('Tasks', ['show'])
   async getMyTaskReports(@Req() req: any, @Query('templateId') templateId?: string) {
     const tid =
       templateId != null && String(templateId).trim() !== ''
@@ -188,7 +183,7 @@ export class IcrController {
   /** Dynamic section rows from `icr_section_configs` for Tasks UI (function-scoped; full ICR access sees all). */
   @Get('tasks/section-configs')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('Tasks', ['show'])
   async getTaskTemplateSectionConfigs(
     @Req() req: any,
     @Query('templateId', ParseIntPipe) templateId: number,
@@ -202,7 +197,6 @@ export class IcrController {
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async findOne(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: IcrReportUser,
@@ -213,7 +207,7 @@ export class IcrController {
 
   @Patch(':id/status')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async updateStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateIcrStatusDto,
@@ -225,7 +219,6 @@ export class IcrController {
 
   @Post(':id/regenerate')
   @HttpCode(HttpStatus.ACCEPTED)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.ADMIN)
   async regenerate(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: IcrReportUser,
@@ -236,7 +229,6 @@ export class IcrController {
 
   @Get(':id/sections/:sectionType')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async findSection(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -248,7 +240,7 @@ export class IcrController {
 
   @Post(':id/sections/:sectionType/regenerate')
   @HttpCode(HttpStatus.ACCEPTED)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async regenerateSection(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -260,7 +252,6 @@ export class IcrController {
 
   @Patch(':id/sections/:sectionType/review')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async markSectionReviewed(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -272,7 +263,7 @@ export class IcrController {
 
   @Patch(':id/sections/:sectionType/notes')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async updateSectionNotes(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -285,7 +276,6 @@ export class IcrController {
 
   @Patch(':id/sections/:sectionType/content')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.ADMIN)
   async updateSectionContent(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -300,7 +290,6 @@ export class IcrController {
 
   @Get(':id/sections/:sectionType/tag-configs')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async getTagConfigs(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType') sectionType: string,
@@ -310,7 +299,7 @@ export class IcrController {
 
   @Patch(':id/sections/:sectionType/tag-configs')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async saveTagConfigs(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType') sectionType: string,
@@ -321,7 +310,6 @@ export class IcrController {
 
   @Get(':id/sections/:sectionType/tag-data/:tableName')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async getTagTableData(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType') sectionType: string,
@@ -334,7 +322,6 @@ export class IcrController {
 
   @Get(':id/sections/:sectionType/tag-chart/:chartId')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async getTagChartData(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType') sectionType: string,
@@ -352,7 +339,7 @@ export class IcrController {
 
   @Patch(':id/sections/:sectionType/owner')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async updateSectionOwner(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -365,7 +352,7 @@ export class IcrController {
 
   @Patch(':id/sections/:sectionType/visibility')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async toggleSectionVisibility(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -378,7 +365,7 @@ export class IcrController {
 
   @Post(':id/archive')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['delete'])
   async archive(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: IcrReportUser,
@@ -389,7 +376,7 @@ export class IcrController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['delete'])
   async deleteReport(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: IcrReportUser,
@@ -404,7 +391,7 @@ export class IcrController {
 
   @Post(':id/sections/:sectionType/submit')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create'], true)
   async submitSection(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -417,7 +404,6 @@ export class IcrController {
 
   @Post(':id/sections/:sectionType/recall')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.PREPARER, IcrRole.ADMIN)
   async recallSection(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -434,7 +420,7 @@ export class IcrController {
 
   @Post(':id/sections/:sectionType/begin-review')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async beginSectionReview(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -446,7 +432,7 @@ export class IcrController {
 
   @Post(':id/sections/:sectionType/approve')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('Tasks', ['Reviewe', 'First Approval', 'Second Approval'], false)
   async approveSection(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -459,7 +445,7 @@ export class IcrController {
 
   @Post(':id/sections/:sectionType/reject')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async rejectSection(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -472,7 +458,6 @@ export class IcrController {
 
   @Get(':id/workflow-summary')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   async getWorkflowSummary(@Param('id', ParseIntPipe) id: number) {
     return this.workflowService.getWorkflowSummary(id);
   }
@@ -483,7 +468,7 @@ export class IcrController {
 
   @Get(':id/export/template/:format')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create'], true)
   async exportFromTemplate(
     @Param('id', ParseIntPipe) id: number,
     @Param('format') format: string,
@@ -507,7 +492,7 @@ export class IcrController {
 
   @Get(':id/export/tagged/:format')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create'], true)
   async exportFromTaggedTemplate(
     @Param('id', ParseIntPipe) id: number,
     @Param('format') format: string,
@@ -536,7 +521,7 @@ export class IcrController {
 
   @Get(':id/export/:format')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
+  @Permissions('ICR Reports', ['create'], true)
   async exportReport(
     @Param('id', ParseIntPipe) id: number,
     @Param('format') format: string,
@@ -562,7 +547,6 @@ export class IcrController {
 
   @Get(':id/notifications')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER, IcrRole.ADMIN)
   getReportNotifications(@Param('id', ParseIntPipe) id: number) {
     return this.notificationService.getNotificationsForReport(id);
   }

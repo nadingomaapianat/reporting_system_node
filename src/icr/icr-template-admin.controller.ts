@@ -1,11 +1,13 @@
 import {
   Controller, Post, Get, Patch, Delete, Query,
-  Param, Body, UseInterceptors,
+  Param, Body, UseInterceptors, UseGuards,
   UploadedFile, Logger, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IcrTemplateAdminService } from './services/icr-template-admin.service';
-import { IcrGuard, IcrRole } from './guards/icr.guards';
+import { IcrRequestHydrateInterceptor } from './icr-user-context';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser, IcrReportUser } from './decorators/current-user.decorator';
 
 /** In-memory file from `FileInterceptor` (multer); avoids relying on `Express.Multer` typings. */
@@ -16,6 +18,9 @@ type MemoryUploadedFile = {
 };
 
 @Controller('api/icr/admin')
+@Permissions('ICR Templates', ['show'])
+@UseGuards(PermissionsGuard)
+@UseInterceptors(IcrRequestHydrateInterceptor)
 export class IcrTemplateAdminController {
   private readonly logger = new Logger(IcrTemplateAdminController.name);
 
@@ -27,35 +32,32 @@ export class IcrTemplateAdminController {
 
   @Get('templates')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN, IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER)
   getTemplates() {
     return this.adminService.getTemplates();
   }
 
   @Get('templates/default')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN, IcrRole.VIEWER)
   getDefaultTemplate() {
     return this.adminService.getDefaultTemplate();
   }
 
   @Get('templates/:id')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN, IcrRole.VIEWER)
   getTemplate(@Param('id') id: string) {
     return this.adminService.getTemplate(Number(id));
   }
 
   @Post('templates/:id/set-default')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['create', 'edit'], true)
   setDefaultTemplate(@Param('id') id: string) {
     return this.adminService.setDefaultTemplate(Number(id));
   }
 
   @Delete('templates/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['delete'], true)
   deleteTemplate(@Param('id') id: string) {
     return this.adminService.deleteTemplate(Number(id));
   }
@@ -75,7 +77,7 @@ export class IcrTemplateAdminController {
     },
   }))
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['create', 'edit'], true)
   async parseTemplate(@UploadedFile() file: MemoryUploadedFile) {
     this.logger.log(`Parsing template: ${file.originalname} (${file.size} bytes)`);
 
@@ -93,7 +95,7 @@ export class IcrTemplateAdminController {
 
   @Post('save-template')
   @HttpCode(HttpStatus.CREATED)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['create', 'edit'], true)
   async saveTemplate(
     @Body() body: {
       templateName: string;
@@ -124,7 +126,7 @@ export class IcrTemplateAdminController {
 
   @Post('templates/:id/update-sections')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['create', 'edit'], true)
   async updateTemplateSections(
     @Param('id') id: string,
     @Body() body: {
@@ -157,14 +159,13 @@ export class IcrTemplateAdminController {
 
   @Get('section-configs')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN, IcrRole.VIEWER, IcrRole.PREPARER, IcrRole.REVIEWER, IcrRole.APPROVER)
   getConfigs(@Query('templateId') templateId?: string) {
     return this.adminService.getConfigs(templateId ? Number(templateId) : undefined);
   }
 
   @Patch('section-configs/:sectionType')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['create', 'edit'], true)
   updateConfig(
     @Param('sectionType') sectionType: string,
     @Body() patch: any,
@@ -174,7 +175,7 @@ export class IcrTemplateAdminController {
 
   @Delete('section-configs/:sectionType')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['create', 'edit'], true)
   deleteConfig(
     @Param('sectionType') sectionType: string,
     @Query('templateId') templateId?: string,
@@ -184,7 +185,7 @@ export class IcrTemplateAdminController {
 
   @Post('seed-defaults')
   @HttpCode(HttpStatus.OK)
-  @IcrGuard(IcrRole.ADMIN)
+  @Permissions('ICR Templates', ['create', 'edit'], true)
   seedDefaults() {
     return this.adminService.seedFromDefaults();
   }

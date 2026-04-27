@@ -1,12 +1,12 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('api/dashboard')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-@Permissions('Reporting', ['show'])
+@UseGuards(PermissionsGuard)
+@Permissions('Dashboard', ['show'])
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
@@ -30,6 +30,7 @@ export class DashboardController {
   }
 
   @Post('alerts/acknowledge')
+  @Permissions('Dashboard', ['show'], true)
   acknowledgeAlert(@Body() body: { alertId: string }) {
     return this.dashboardService.acknowledgeAlert(body.alertId);
   }
@@ -45,6 +46,7 @@ export class DashboardController {
   }
 
   @Post('notifications/mark-read')
+  @Permissions('Dashboard', ['show'], true)
   markNotificationAsRead(@Body() body: { notificationId: string }) {
     return this.dashboardService.markNotificationAsRead(body.notificationId);
   }
@@ -55,6 +57,7 @@ export class DashboardController {
   }
 
   @Post('widgets/:widgetId/refresh')
+  @Permissions('Dashboard', ['show'], true)
   refreshWidget(@Param('widgetId') widgetId: string) {
     return this.dashboardService.refreshWidget(widgetId);
   }
@@ -73,6 +76,7 @@ export class DashboardController {
   }
 
   @Post('activity')
+  @Permissions('Dashboard', ['show'], true)
   async updateDashboardActivity(@Body() body: { dashboard_id: string; user_id?: string; card_count?: number }) {
     const { dashboard_id, user_id = 'default_user', card_count = 0 } = body;
     

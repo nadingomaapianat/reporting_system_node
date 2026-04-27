@@ -1,6 +1,5 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { GrcKrisService } from './grc-kris.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import {
@@ -11,8 +10,8 @@ import {
 import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/kris')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-@Permissions('Reporting', ['show'])
+@UseGuards(PermissionsGuard)
+@Permissions('Dashboard', ['show'])
 export class GrcKrisController {
   constructor(private readonly grcKrisService: GrcKrisService) {}
 

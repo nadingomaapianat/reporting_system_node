@@ -10,7 +10,7 @@ import { IcrWorkflowService } from './services/icr-workflow.service';
 import { IcrTemplateAdminService } from './services/icr-template-admin.service';
 import { IcrNotificationService } from './services/icr-notification.service';
 import { IcrTagConfigService } from './services/icr-tag-config.service';
-import { IcrRolesGuard } from './guards/icr.guards';
+import { IcrRequestHydrateInterceptor } from './icr-user-context';
 import { ParseSectionTypePipe } from './pipes/parse-section-type.pipe';
 import { IcrExceptionFilter } from './filters/icr-exception.filter';
 import { DatabaseService } from '../database/database.service';
@@ -28,7 +28,7 @@ import { AuthModule } from '../auth/auth.module';
     IcrTemplateAdminService,
     IcrNotificationService,
     IcrTagConfigService,
-    IcrRolesGuard,
+    IcrRequestHydrateInterceptor,
     ParseSectionTypePipe,
     DatabaseService,
     { provide: APP_FILTER, useClass: IcrExceptionFilter },

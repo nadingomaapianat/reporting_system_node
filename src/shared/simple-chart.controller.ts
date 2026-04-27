@@ -1,15 +1,14 @@
 import { Controller, Get, Post, Body, Query, Param, Req, UseGuards } from '@nestjs/common';
 import { ChartRegistryService, SimpleChartConfig } from './chart-registry.service';
 import { AutoDashboardService } from './auto-dashboard.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { orderByFunctionFromRequest } from './order-by-function';
 import { parseGrcFunctionIdsFromQueries } from './grc-function-ids';
 
 @Controller('charts')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
-@Permissions('Reporting', ['show'])
+@UseGuards(PermissionsGuard)
+@Permissions('Dashboard', ['show'])
 export class SimpleChartController {
   constructor(private readonly autoDashboardService: AutoDashboardService) {}
 
@@ -24,6 +23,12 @@ export class SimpleChartController {
   ) {
     const ob = orderByFunctionFromRequest(req);
     return this.autoDashboardService.getDashboardData(req.user, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
+  // List all charts (must be registered before @Get(':chartId'))
+  @Get('list')
+  async listCharts() {
+    return ChartRegistryService.listCharts();
   }
 
   // Get specific chart data
@@ -41,6 +46,7 @@ export class SimpleChartController {
 
   // Add new chart (for admin/development)
   @Post('add')
+  @Permissions('Dashboard', ['create', 'edit'], true)
   async addChart(@Body() chartConfig: SimpleChartConfig) {
     ChartRegistryService.addChart(chartConfig);
     return { 
@@ -50,14 +56,9 @@ export class SimpleChartController {
     };
   }
 
-  // List all charts
-  @Get('list')
-  async listCharts() {
-    return ChartRegistryService.listCharts();
-  }
-
   // Remove chart
   @Post('remove/:chartId')
+  @Permissions('Dashboard', ['create', 'edit'], true)
   async removeChart(@Param('chartId') chartId: string) {
     ChartRegistryService.removeChart(chartId);
     return { 
