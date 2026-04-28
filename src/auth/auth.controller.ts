@@ -7,7 +7,7 @@ import { getJwtSecret } from './jwt-secret';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
 
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://reporting-system-frontend.pianat.ai';
-const COOKIE_NAME = 'reporting_node_token';
+const COOKIE_NAME = 'iframe_d_c_c_t_p';
 /** Browsers reject Set-Cookie values much over ~4KB; split across reporting_node_token_1, _2, … */
 const REPORTING_JWT_COOKIE_CHUNK = 3800;
 const REPORTING_JWT_COOKIE_MAX_PARTS = 16;
@@ -92,7 +92,7 @@ function isAllowedRedirectUri(uri: string): boolean {
 
 /**
  * Module backend auth: entry-token (IET exchange) and profile.
- * After entry: user is authenticated ONLY via HttpOnly cookie reporting_node_token.
+ * After entry: user is authenticated ONLY via HttpOnly cookie iframe_d_c_c_t_p.
  * No postMessage, no JS token access, no Referer-only validation.
  */
 @Controller('api/auth')
@@ -244,7 +244,7 @@ export class AuthController {
   }
 
   /**
-   * Logout: clear reporting_node_token (and iframe token cookies) so that when the user
+   * Logout: clear iframe_d_c_c_t_p (and iframe token cookies) so that when the user
    * logs out from the main app, the reporting module is also logged out in other tabs.
    * Only allowed origins (main app) may call this so a malicious site cannot iframe-logout the user.
    */
@@ -261,7 +261,7 @@ export class AuthController {
         `[AUDIT] event=LOGOUT_ORIGIN_UNKNOWN origin=${origin || '(none)'} referer=${referer || '(none)'} – cookie cleared anyway`,
       );
     }
-    // Always clear the cookie when this endpoint is hit so reporting_node_token is removed (e.g. after main app logout)
+    // Always clear the cookie when this endpoint is hit so iframe_d_c_c_t_p is removed (e.g. after main app logout)
     this.clearReportingCookies(res);
     res.status(200).json({ success: true, message: 'Logged out' });
   }
