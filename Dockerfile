@@ -1,29 +1,29 @@
-# Use Node.js for build
-FROM node:20 AS build
+# syntax=docker/dockerfile:1
 
+# --- Stage 1: Dependencies ---
+FROM node:20-alpine AS deps
 WORKDIR /app
-
-# Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install dotenv --force && npm ci --force
-RUN npm install -g @nestjs/cli
+RUN npm ci
 
-# Copy the rest of the app
+# --- Stage 2: Build ---
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Build the application
 RUN npm run build
 
-# Final production image
-FROM node:20
-
+# --- Stage 3: Production ---
+FROM node:20-alpine AS runner
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Copy everything from the build stage
+COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
 COPY --from=build /app /app
-
-RUN npm install -g pm2
 
 EXPOSE 3002
 
-CMD ["npm", "run", "start:dev"]
+# Production — adjust if your entry is different (e.g. dist/main.js)
+CMD ["node", "dist/main.js"]
