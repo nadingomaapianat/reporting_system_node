@@ -88,10 +88,10 @@ function isAllowedRedirectUri(uri: string): boolean {
   if (!u) return false;
   if (u === base || u === `${base}/` || u.startsWith(`${base}/`)) return true;
   // Allow 127.0.0.1 when base is localhost (and vice versa) for same port
-  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'https://reporting-system-frontend.pianat.ai' : null;
+  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'https://grc-reporting-node-uat.adib.co.eg' : null;
   if (altBase && (u === altBase || u === `${altBase}/` || u.startsWith(`${altBase}/`))) return true;
-  // In live UAT, allow redirect to both https and http for same host (e.g. reporting-system-frontend.pianat.ai)
-  if (base.includes('reporting-system-frontend.pianat.ai')) {
+  // In live UAT, allow redirect to both https and http for same host (e.g. grc-reporting-node-uat.adib.co.eg)
+  if (base.includes('grc-reporting-node-uat.adib.co.eg')) {
     const other = base.startsWith('https://') ? base.replace('https://', 'http://') : base.replace('http://', 'https://');
     if (u === other || u === `${other}/` || u.startsWith(`${other}/`)) return true;
   }
@@ -201,7 +201,7 @@ export class AuthController {
     }
 
     // Bank-grade: HttpOnly (no JS access), Secure in production, SameSite for same-site/cross-site POST.
-    // domain: COOKIE_DOMAIN (e.g. ".pianat.ai") shares the cookie across all subdomains so that
+    // domain: COOKIE_DOMAIN (e.g. ".adib.co.eg") shares the cookie across all subdomains so that
     // the Next.js frontend proxy (reporting-system-frontend.*) can forward it to the backend.
     const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
     this.logger.log(
