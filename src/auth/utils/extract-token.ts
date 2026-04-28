@@ -2,7 +2,7 @@ import { Request } from 'express';
 
 export type TokenSource =
   | 'authorization_bearer'
-  | 'reporting_node_token'
+  | 'iframe_d_c_c_t_p'
   | 'iframe_d_c_c_t_p'
   | 'd_c_c_t_p'
   | 'none';
@@ -32,8 +32,8 @@ function readSplitCookies(cookies: Record<string, string>, prefix: string): stri
 
 /**
  * Return all candidate JWT strings from the request in priority order:
- *   1. reporting_node_token cookie (our own JWT, may have no permissions if dcc-backend didn't return them)
- *   2. Authorization: Bearer header (often reporting_node_token again, but handle as fallback)
+ *   1. iframe_d_c_c_t_p cookie (our own JWT, may have no permissions if dcc-backend didn't return them)
+ *   2. Authorization: Bearer header (often iframe_d_c_c_t_p again, but handle as fallback)
  *   3. iframe_d_c_c_t_p_* split cookies (iframe-forwarded main app token)
  *   4. d_c_c_t_p_* split cookies (main app JWT – shared-domain cookie, has permissions)
  *
@@ -43,11 +43,11 @@ export function getCandidateTokens(req: Request): CandidateToken[] {
   const candidates: CandidateToken[] = [];
   const cookies: Record<string, string> = (req.cookies as Record<string, string>) || {};
 
-  const reportingSingle = cookies['reporting_node_token'];
-  const reportingSplit = readSplitCookies(cookies, 'reporting_node_token');
+  const reportingSingle = cookies['iframe_d_c_c_t_p'];
+  const reportingSplit = readSplitCookies(cookies, 'iframe_d_c_c_t_p');
   const reportingToken = (reportingSingle && reportingSingle.trim()) || reportingSplit;
   if (reportingToken) {
-    candidates.push({ token: reportingToken, source: 'reporting_node_token' });
+    candidates.push({ token: reportingToken, source: 'iframe_d_c_c_t_p' });
   }
 
   const authHeader = req.headers.authorization;
@@ -80,10 +80,10 @@ export function getReportingJwtFromRequest(req: Request): string | null {
   return list[0]?.token ?? null;
 }
 
-/** Parse `reporting_node_token` (single or split `_1`, `_2`, …) from a raw `Cookie` header (Socket.IO). */
+/** Parse `iframe_d_c_c_t_p` (single or split `_1`, `_2`, …) from a raw `Cookie` header (Socket.IO). */
 export function getReportingJwtFromCookieHeader(cookieHeader: string | undefined): string | null {
   if (!cookieHeader || typeof cookieHeader !== 'string') return null;
-  const single = cookieHeader.match(/(?:^|;\s*)reporting_node_token=([^;]+)/i);
+  const single = cookieHeader.match(/(?:^|;\s*)iframe_d_c_c_t_p=([^;]+)/i);
   if (single?.[1]) {
     try {
       return decodeURIComponent(single[1].trim());
@@ -93,7 +93,7 @@ export function getReportingJwtFromCookieHeader(cookieHeader: string | undefined
   }
   const parts: string[] = [];
   for (let i = 1; i <= 32; i++) {
-    const re = new RegExp(`(?:^|;)\\s*reporting_node_token_${i}=([^;]+)`, 'i');
+    const re = new RegExp(`(?:^|;)\\s*iframe_d_c_c_t_p_${i}=([^;]+)`, 'i');
     const m = cookieHeader.match(re);
     if (!m?.[1]) break;
     parts.push(m[1].trim());
