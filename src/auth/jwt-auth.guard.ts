@@ -53,7 +53,7 @@ export class JwtAuthGuard implements CanActivate {
         );
       }
       throw new UnauthorizedException(
-        'Authorization token is missing (use Bearer header or iframe_d_c_c_t_p / d_c_c_t_p_* cookies)',
+        'Authorization token is missing (use Bearer header or reporting_node_token / d_c_c_t_p_* cookies)',
       );
     }
 
