@@ -1442,15 +1442,17 @@ export class IcrService implements OnModuleInit {
       } catch { /* keep defaults */ }
     }
 
-    const assigningFunctions = makerFunction !== undefined || checkerFunction !== undefined;
-    const mergedMaker = makerFunction !== undefined ? makerFunction : currentOwnership.makerFunction;
-    const mergedChecker = checkerFunction !== undefined ? checkerFunction : currentOwnership.checkerFunction;
+    const explicitMaker = makerFunction !== undefined;
+    const explicitChecker = checkerFunction !== undefined;
+    const assigningFunctions = explicitMaker || explicitChecker;
+    const mergedMaker = explicitMaker ? String(makerFunction) : currentOwnership.makerFunction;
+    const mergedChecker = explicitChecker ? String(checkerFunction) : currentOwnership.checkerFunction;
     const newMakerTrim = String(mergedMaker ?? '').trim();
     const newCheckerTrim = String(mergedChecker ?? '').trim();
 
-    if (assigningFunctions && (!newMakerTrim || !newCheckerTrim)) {
+    if (explicitMaker && explicitChecker && (!newMakerTrim || !newCheckerTrim)) {
       throw new BadRequestException(
-        'When assigning maker/checker functions, both maker function and checker function must be set (non-empty).',
+        'When setting both maker and checker functions in one request, both must be non-empty.',
       );
     }
 
