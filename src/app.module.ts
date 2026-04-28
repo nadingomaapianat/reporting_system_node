@@ -13,6 +13,7 @@ import { UserFunctionAccessService } from './shared/user-function-access.service
 import { UserFunctionsController } from './shared/user-functions.controller';
 import { CsrfModule } from './csrf/csrf.module';
 import { GroupPermissionsModule } from './group-permissions/group-permissions.module';
+import { IcrModule } from './icr/icr.module';
 import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { FrameAncestorsMiddleware } from './middleware/frame-ancestors.middleware';
 import { RateLimitMiddleware } from './middleware/limitter.middleware';
@@ -33,6 +34,7 @@ import 'dotenv/config';
     GrcModule,
     CsrfModule,
     GroupPermissionsModule,
+    IcrModule,
   ],
   controllers: [SimpleChartController, UserFunctionsController],
   providers: [
