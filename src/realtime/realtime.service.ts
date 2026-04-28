@@ -1,24 +1,116 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Socket } from 'socket.io';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { createClient, RedisClientType } from 'redis';
+import axios from 'axios';
 
-/** In-memory only; WebSockets removed. */
 @Injectable()
-export class RealtimeService {
+export class RealtimeService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RealtimeService.name);
+  private clients: Map<string, Socket> = new Map();
+  private metricSubscriptions: Map<string, Set<string>> = new Map();
+  private dashboardRooms: Map<string, Set<string>> = new Map();
   private historicalData: Map<string, any[]> = new Map();
   private alertThresholds: Map<string, { min: number; max: number }> = new Map();
-  /** Latest realtime payload for getRealtimeData(). */
-  private latestRealtimeData: any = null;
-
+  private redisClient: RedisClientType | null = null;
+  private redisAvailable: boolean = false;
+  
   constructor(private configService: ConfigService) {
     this.initializeThresholds();
     this.initializeHistoricalData();
   }
 
-  /** WebSockets removed; always 0 for API compatibility. */
-  getConnectedClientsCount(): number {
-    return 0;
+  async onModuleInit() {
+    await this.connectRedis();
+  }
+
+  async onModuleDestroy() {
+    await this.disconnectRedis();
+  }
+
+  private async connectRedis() {
+    try {
+      const redisHost = this.configService.get<string>('REDIS_HOST') || 'localhost';
+      const redisPort = parseInt(this.configService.get<string>('REDIS_PORT') || '6379', 10);
+
+      this.redisClient = createClient({
+        socket: {
+          host: redisHost,
+          port: redisPort,
+          reconnectStrategy: (retries) => {
+            if (retries > 10) {
+              this.logger.warn('Redis reconnection attempts exceeded, falling back to local cache');
+              return false;
+            }
+            return Math.min(retries * 100, 3000);
+          },
+        },
+      });
+
+      this.redisClient.on('error', (err) => {
+        this.logger.warn(`Redis connection error: ${err.message}`);
+        this.redisAvailable = false;
+      });
+
+      this.redisClient.on('connect', () => {
+        this.logger.log('Redis client connecting...');
+      });
+
+      this.redisClient.on('ready', () => {
+        this.logger.log(`Redis connected successfully to ${redisHost}:${redisPort}`);
+        this.redisAvailable = true;
+      });
+
+      this.redisClient.on('reconnecting', () => {
+        this.logger.debug('Redis reconnecting...');
+        this.redisAvailable = false;
+      });
+
+      await this.redisClient.connect();
+    } catch (error) {
+      this.logger.warn(`Failed to connect to Redis: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.warn('Falling back to local in-memory caching');
+      this.redisAvailable = false;
+      this.redisClient = null;
+    }
+  }
+
+  private async disconnectRedis() {
+    if (this.redisClient) {
+      try {
+        await this.redisClient.quit();
+        this.logger.log('Redis connection closed');
+      } catch (error) {
+        this.logger.error(`Error closing Redis connection: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+      this.redisClient = null;
+      this.redisAvailable = false;
+    }
+  }
+
+  addClient(client: Socket) {
+    this.clients.set(client.id, client);
+    this.logger.log(`Client connected: ${client.id}. Total clients: ${this.clients.size}`);
+  }
+
+  removeClient(client: Socket) {
+    this.clients.delete(client.id);
+    this.metricSubscriptions.delete(client.id);
+    this.logger.log(`Client disconnected: ${client.id}. Total clients: ${this.clients.size}`);
+  }
+
+  joinDashboard(client: Socket, dashboardId: string) {
+    if (!this.dashboardRooms.has(dashboardId)) {
+      this.dashboardRooms.set(dashboardId, new Set());
+    }
+    this.dashboardRooms.get(dashboardId)?.add(client.id);
+    this.logger.log(`Client ${client.id} joined dashboard ${dashboardId}`);
+  }
+
+  leaveDashboard(client: Socket, dashboardId: string) {
+    this.dashboardRooms.get(dashboardId)?.delete(client.id);
+    this.logger.log(`Client ${client.id} left dashboard ${dashboardId}`);
   }
 
   private initializeThresholds() {
@@ -36,7 +128,17 @@ export class RealtimeService {
     });
   }
 
-  // In-memory real-time data updates (no WebSocket broadcast)
+  subscribeToMetrics(client: Socket, metrics: string[]) {
+    this.metricSubscriptions.set(client.id, new Set(metrics));
+  }
+
+  unsubscribeFromMetrics(client: Socket, metrics: string[]) {
+    const currentSubs = this.metricSubscriptions.get(client.id) || new Set();
+    metrics.forEach(metric => currentSubs.delete(metric));
+    this.metricSubscriptions.set(client.id, currentSubs);
+  }
+
+  // Enhanced real-time data updates with intelligent monitoring
   @Cron(CronExpression.EVERY_5_SECONDS)
   async generateRealTimeData() {
     try {
@@ -61,11 +163,30 @@ export class RealtimeService {
       // Store historical data
       this.storeHistoricalData(realTimeData.metrics);
 
-      // Keep latest in memory for getRealtimeData()
-      this.latestRealtimeData = realTimeData;
+      // Cache in Redis
+      await this.cacheRealtimeData(realTimeData);
+
+      // Broadcast to all connected clients
+      this.broadcastToAllClients('realtime_update', realTimeData);
+
+      // Broadcast to specific dashboard rooms
+      this.broadcastToDashboardRooms('realtime_update', realTimeData);
+
     } catch (error) {
       this.logger.error('Error generating real-time data:', error);
     }
+  }
+
+  @Cron(CronExpression.EVERY_30_SECONDS)
+  generateChartData() {
+    const chartData = {
+      timestamp: new Date().toISOString(),
+      salesTrend: this.generateSalesTrendData(),
+      userActivity: this.generateUserActivityData(),
+      revenueByCategory: this.generateRevenueByCategoryData(),
+    };
+
+    this.broadcastToAllClients('chart_update', chartData);
   }
 
   private generateAlerts() {
@@ -147,6 +268,30 @@ export class RealtimeService {
     }));
   }
 
+  private broadcastToAllClients(event: string, data: any) {
+    this.clients.forEach((client) => {
+      if (client.connected) {
+        client.emit(event, data);
+      }
+    });
+  }
+
+  // Get current connected clients count
+  getConnectedClientsCount(): number {
+    return this.clients.size;
+  }
+
+  // Get clients subscribed to specific metrics
+  getClientsByMetric(metric: string): string[] {
+    const clientIds: string[] = [];
+    this.metricSubscriptions.forEach((metrics, clientId) => {
+      if (metrics.has(metric)) {
+        clientIds.push(clientId);
+      }
+    });
+    return clientIds;
+  }
+
   // ==================== ENHANCED REAL-TIME METHODS ====================
 
   private generateRealisticMetric(metric: string, min: number, max: number): number {
@@ -191,6 +336,34 @@ export class RealtimeService {
       
       this.historicalData.set(key, historical);
     });
+  }
+
+  private async cacheRealtimeData(data: any) {
+    if (this.redisAvailable && this.redisClient) {
+      try {
+        const cacheKey = 'realtime:latest';
+        const cacheTTL = 60; // Cache for 60 seconds
+        
+        await this.redisClient.setEx(
+          cacheKey,
+          cacheTTL,
+          JSON.stringify(data)
+        );
+        
+        // Also cache individual metrics for historical access
+        const metricsKey = 'realtime:metrics';
+        await this.redisClient.lPush(metricsKey, JSON.stringify(data));
+        await this.redisClient.lTrim(metricsKey, 0, 999); // Keep last 1000 entries
+        await this.redisClient.expire(metricsKey, 3600); // Expire after 1 hour
+        
+        this.logger.debug('Real-time data cached in Redis');
+      } catch (error) {
+        this.logger.warn(`Failed to cache data in Redis: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        this.redisAvailable = false;
+      }
+    } else {
+      this.logger.debug('Caching real-time data (Redis not available, using local cache)');
+    }
   }
 
   private async generateIntelligentAlerts() {
@@ -381,18 +554,39 @@ export class RealtimeService {
     return predictions;
   }
 
+  private broadcastToDashboardRooms(event: string, data: any) {
+    this.dashboardRooms.forEach((clients, dashboardId) => {
+      clients.forEach(clientId => {
+        const client = this.clients.get(clientId);
+        if (client && client.connected) {
+          client.emit(event, { ...data, dashboardId });
+        }
+      });
+    });
+  }
+
   // ==================== PUBLIC API METHODS ====================
 
   async getRealtimeData(): Promise<any> {
-    if (this.latestRealtimeData) {
-      return this.latestRealtimeData;
+    // Try to get from Redis cache first
+    if (this.redisAvailable && this.redisClient) {
+      try {
+        const cached = await this.redisClient.get('realtime:latest');
+        if (cached) {
+          return JSON.parse(cached);
+        }
+      } catch (error) {
+        this.logger.warn(`Failed to retrieve from Redis cache: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
+    
+    // Fallback to current metrics from memory
     const metrics = this.getCurrentMetrics();
     return {
       timestamp: new Date().toISOString(),
       metrics,
       trends: this.calculateTrends(),
-      systemHealth: this.getAdvancedSystemHealth(),
+      systemHealth: this.getAdvancedSystemHealth()
     };
   }
 
@@ -407,19 +601,40 @@ export class RealtimeService {
   }
 
   async getDashboardAnalytics(dashboardId: string): Promise<any> {
+    const clients = this.dashboardRooms.get(dashboardId) || new Set();
     const metrics = this.getCurrentMetrics();
     const trends = this.calculateTrends();
+    
     return {
       dashboardId,
-      connectedClients: 0,
+      connectedClients: clients.size,
       metrics,
       trends,
       lastUpdate: new Date().toISOString(),
     };
   }
 
-  /** Redis removed; kept for API compatibility. Always returns in-memory. */
-  getCacheStatus(): { mode: 'memory' } {
-    return { mode: 'memory' };
+  async getRedisHealth(): Promise<{ available: boolean; error?: string }> {
+    if (!this.redisClient) {
+      return { available: false, error: 'Redis client not initialized' };
+    }
+
+    if (!this.redisAvailable) {
+      return { available: false, error: 'Redis connection not available' };
+    }
+
+    try {
+      await this.redisClient.ping();
+      return { available: true };
+    } catch (error) {
+      return {
+        available: false,
+        error: error instanceof Error ? error.message : 'Unknown error during Redis health check',
+      };
+    }
+  }
+
+  isRedisAvailable(): boolean {
+    return this.redisAvailable && this.redisClient !== null;
   }
 }
