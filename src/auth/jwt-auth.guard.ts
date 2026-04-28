@@ -6,11 +6,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { getJwtSecret } from './jwt-secret';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { getCandidateTokens, TokenSource } from './utils/extract-token';
+import { clearReportingAuthCookies } from './utils/clear-reporting-auth-cookies';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
 
 interface JwtPayload {
@@ -40,6 +41,7 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest<Request & { user?: unknown }>();
+    const response = context.switchToHttp().getResponse<Response>();
     const candidates = getCandidateTokens(request);
     const verbose = isReportingVerboseLog();
     const handler = `${context.getClass().name}.${context.getHandler().name}`;
@@ -52,6 +54,7 @@ export class JwtAuthGuard implements CanActivate {
             `cookie_names=${cookieNames || '(empty)'} has_auth_header=${!!request.headers?.authorization}`,
         );
       }
+      clearReportingAuthCookies(response);
       throw new UnauthorizedException(
         'Authorization token is missing (use Bearer header or reporting_node_token / d_c_c_t_p_* cookies)',
       );
@@ -105,6 +108,7 @@ export class JwtAuthGuard implements CanActivate {
       this.logger.warn(
         `[Reporting][JwtAuth] all_candidates_invalid route=${handler} tried_sources=${candidates.map((c) => c.source).join(',')}`,
       );
+      clearReportingAuthCookies(response);
       throw new UnauthorizedException('Invalid or expired token');
     }
 

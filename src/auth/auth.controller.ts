@@ -5,12 +5,15 @@ import * as jwt from 'jsonwebtoken';
 import { Public } from './decorators/public.decorator';
 import { getJwtSecret } from './jwt-secret';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
+import {
+  clearReportingAuthCookies,
+  REPORTING_AUTH_COOKIE_MAX_PARTS,
+} from './utils/clear-reporting-auth-cookies';
 
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://reporting-system-frontend.pianat.ai';
 const COOKIE_NAME = 'reporting_node_token';
 /** Browsers reject Set-Cookie values much over ~4KB; split across reporting_node_token_1, _2, … */
 const REPORTING_JWT_COOKIE_CHUNK = 3800;
-const REPORTING_JWT_COOKIE_MAX_PARTS = 16;
 
 /** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */
 function getAllowedEntryOrigins(): string[] {
@@ -141,6 +144,7 @@ export class AuthController {
       this.logger.warn(
         `[AUDIT] event=ENTRY_TOKEN_FAIL reason=invalid_origin origin=${origin || '(none)'} referer=${referer || '(none)'} allowed=${allowedEntry.join(',')} timestamp=${new Date().toISOString()}`,
       );
+      clearReportingAuthCookies(res);
       throw new ForbiddenException({ reason: 'invalid_origin', message: 'Invalid origin' });
     }
 
@@ -149,6 +153,7 @@ export class AuthController {
       this.logger.warn(
         `[AUDIT] event=ENTRY_TOKEN_FAIL reason=no_iet timestamp=${new Date().toISOString()}`,
       );
+      clearReportingAuthCookies(res);
       throw new ForbiddenException({ reason: 'no_iet', message: 'IET required' });
     }
 
@@ -169,6 +174,7 @@ export class AuthController {
       this.logger.warn(
         `[AUDIT] event=ENTRY_TOKEN_FAIL reason=${reason} main_backend_reason=${reason} iet_length=${iet.length} timestamp=${new Date().toISOString()}`,
       );
+      clearReportingAuthCookies(res);
       throw new ForbiddenException({ reason, message });
     }
 
@@ -201,6 +207,7 @@ export class AuthController {
         `cookie_domain=${cookieDomain ?? '(host-only)'} secure=${process.env.NODE_ENV === 'production'}`,
     );
 
+    clearReportingAuthCookies(res);
     this.setReportingNodeTokenCookies(res, result.token, result.expiresIn * 1000);
     res.status(302).redirect(redirectTo);
   }
@@ -261,8 +268,8 @@ export class AuthController {
         `[AUDIT] event=LOGOUT_ORIGIN_UNKNOWN origin=${origin || '(none)'} referer=${referer || '(none)'} – cookie cleared anyway`,
       );
     }
-    // Always clear the cookie when this endpoint is hit so reporting_node_token is removed (e.g. after main app logout)
-    this.clearReportingCookies(res);
+    // Clear all reporting-auth cookies when this endpoint is hit (e.g. after main app logout)
+    clearReportingAuthCookies(res);
     res.status(200).json({ success: true, message: 'Logged out' });
   }
 
@@ -280,27 +287,8 @@ export class AuthController {
         `[AUDIT] event=LOGOUT_ORIGIN_UNKNOWN origin=${origin || '(none)'} referer=${referer || '(none)'} – cookie cleared anyway`,
       );
     }
-    this.clearReportingCookies(res);
+    clearReportingAuthCookies(res);
     res.status(200).json({ success: true, message: 'Logged out' });
-  }
-
-  /** Clear reporting auth cookies (same path/domain/options as when set). */
-  private clearReportingCookies(res: Response): void {
-    const cookieDomain = process.env.COOKIE_DOMAIN || undefined;
-    const opts = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
-      maxAge: 0,
-      path: '/',
-      ...(cookieDomain ? { domain: cookieDomain } : {}),
-    };
-    res.cookie(COOKIE_NAME, '', opts);
-    for (let i = 1; i <= REPORTING_JWT_COOKIE_MAX_PARTS; i++) {
-      res.cookie(`${COOKIE_NAME}_${i}`, '', opts);
-    }
-    res.cookie('iframe_d_c_c_t_p_1', '', opts);
-    res.cookie('iframe_d_c_c_t_p_2', '', opts);
   }
 
   /**
@@ -324,7 +312,7 @@ export class AuthController {
       }
     };
 
-    const maxChars = REPORTING_JWT_COOKIE_CHUNK * REPORTING_JWT_COOKIE_MAX_PARTS;
+    const maxChars = REPORTING_JWT_COOKIE_CHUNK * REPORTING_AUTH_COOKIE_MAX_PARTS;
     if (token.length > maxChars) {
       this.logger.error(
         `[Reporting][entry-token] JWT too large for cookie chunking (${token.length} > ${maxChars})`,
@@ -335,7 +323,7 @@ export class AuthController {
     }
 
     if (token.length <= REPORTING_JWT_COOKIE_CHUNK) {
-      clearParts(1, REPORTING_JWT_COOKIE_MAX_PARTS);
+      clearParts(1, REPORTING_AUTH_COOKIE_MAX_PARTS);
       res.cookie(COOKIE_NAME, token, baseOpts);
       this.logger.log(`[Reporting][entry-token] cookie_mode=single len=${token.length}`);
       return;
@@ -346,7 +334,7 @@ export class AuthController {
     for (let p = 1, i = 0; p <= numParts; p++, i += REPORTING_JWT_COOKIE_CHUNK) {
       res.cookie(`${COOKIE_NAME}_${p}`, token.slice(i, i + REPORTING_JWT_COOKIE_CHUNK), baseOpts);
     }
-    clearParts(numParts + 1, REPORTING_JWT_COOKIE_MAX_PARTS);
+    clearParts(numParts + 1, REPORTING_AUTH_COOKIE_MAX_PARTS);
     this.logger.log(`[Reporting][entry-token] cookie_mode=split parts=${numParts} total_len=${token.length}`);
   }
 }
