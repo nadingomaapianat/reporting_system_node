@@ -2,10 +2,15 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
 const EXCLUDED_PATHS = ['/csrf/token', '/docs', '/swagger', '/api/auth/entry-token', '/api/auth/logout'];
+const OPEN_MODE = (process.env.REPORTING_OPEN_MODE || '').toLowerCase() === 'true';
 
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
+    if (OPEN_MODE) {
+      return next();
+    }
+
     const path = req.path || req.originalUrl || '';
     if (EXCLUDED_PATHS.some((excluded) => path.startsWith(excluded))) {
       return next();
@@ -21,4 +26,3 @@ export class CsrfMiddleware implements NestMiddleware {
     return next();
   }
 }
-

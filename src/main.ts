@@ -20,12 +20,13 @@ async function bootstrap() {
   const devOrigins = [
     'https://reporting-demo-system-frontend.pianat.ai',
     'https://reporting-demo-system-python.pianat.ai',
-    
-   
-    
-   
-   
-    
+    'https://reporting-ubm-system-frontend.comply.now',
+    'https://reporting-ubm-system-backend.comply.now',
+    'https://reporting-ubm-system-python.comply.now',
+    'https://ubm.comply.now',
+    'https://dcc-ubm.comply.now',
+    'http://localhost:3000',
+    'http://localhost:3001',
   ];
   // When CORS_ORIGINS not set, use FRONTEND_URL / NODE_PUBLIC_URL from .env so links are env-driven
   const fallbackFromEnv = [
@@ -114,11 +115,6 @@ async function bootstrap() {
 
  
   app.useGlobalPipes(new ValidationPipe());
-
-  app.enableCors({ 
-    origin: [process.env.CHART_URL, process.env.WEB_SOCKET, process.env.FRONTEND_URL, process.env.FRONTEND_URL2], // Replace with your frontend URLs
-    credentials: true,  
-  });
 
   // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));

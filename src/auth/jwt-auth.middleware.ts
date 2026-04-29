@@ -4,6 +4,22 @@ import * as jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'GRC_ADIB_2025';
 
+/**
+ * When REPORTING_OPEN_MODE=true, the iframe is opened without a token
+ * (used when embedding the reporting module from a trusted parent like
+ * ubm.comply.now). We attach a default super-admin user so all data shows
+ * and skip JWT verification entirely.
+ */
+const OPEN_MODE = (process.env.REPORTING_OPEN_MODE || '').toLowerCase() === 'true';
+
+/** Synthetic user used in open mode so role/group-aware filters return all data. */
+const OPEN_MODE_USER = {
+  id: process.env.OPEN_MODE_USER_ID || 'open-mode-user',
+  groupName: 'super_admin_',
+  role: 'admin',
+  isAdmin: true,
+};
+
 @Injectable()
 export class JwtAuthMiddleware implements NestMiddleware {
   /**
@@ -55,8 +71,12 @@ export class JwtAuthMiddleware implements NestMiddleware {
   }
 
   use(req: Request, res: Response, next: NextFunction) {
-    // Skip authentication for public paths
-    if (this.publicPaths.some(path => req.path.startsWith(path))) {
+    if (OPEN_MODE) {
+      (req as any).user = OPEN_MODE_USER;
+      return next();
+    }
+
+    if (this.publicPaths.some((path) => req.path.startsWith(path))) {
       return next();
     }
 
@@ -81,5 +101,3 @@ export class JwtAuthMiddleware implements NestMiddleware {
     }
   }
 }
-
-
