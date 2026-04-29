@@ -52,30 +52,31 @@ async function bootstrap() {
     ? process.env.CORS_EXPOSED_HEADERS.split(',').map(header => header.trim())
     : ['Content-Range', 'X-Content-Range'];
   
+  const isOpenMode = (process.env.REPORTING_OPEN_MODE || '').toLowerCase() === 'true';
+  console.log('[CORS] Allowed origins:', corsOrigins);
+  console.log('[CORS] OPEN_MODE:', isOpenMode);
+
   app.enableCors({
     origin: function (origin, callback) {
-      // For CSRF token endpoint, require origin (block direct access)
-      // For other endpoints, allow requests with no origin (like mobile apps, curl, Postman, or same-origin requests)
-      // Note: CORS only applies to cross-origin requests, so same-origin requests don't send Origin header
-      
-      // If no origin, check if it's a same-origin request (allowed) or cross-origin without origin (blocked for security)
-      // In practice, cross-origin requests always have an Origin header
-      if (!origin) {
-        // Same-origin requests don't have Origin header - this is normal and allowed
-        // But we'll validate in the controller for CSRF token endpoint
+      // No Origin header (same-origin, curl, server-to-server) is always allowed.
+      if (!origin) return callback(null, true);
+
+      // In open mode reflect any origin instead of throwing – we want this server
+      // reachable from the parent compliance app, the reporting frontend, and
+      // anywhere it may be embedded without re-deploying for each env change.
+      if (isOpenMode || corsOrigins.includes('*')) {
         return callback(null, true);
       }
-      
-      // Check if origin is in allowed list
-      if (corsOrigins.indexOf(origin) !== -1 || corsOrigins.includes('*')) {
-        callback(null, true);
-      } else {
-        // Log for debugging
-        console.warn('[CORS] Blocked origin:', origin);
-        console.warn('[CORS] Allowed origins:', corsOrigins);
-        // Block unauthorized origins for security
-        callback(new Error(`Origin ${origin} is not allowed by CORS policy`), false);
+
+      if (corsOrigins.indexOf(origin) !== -1) {
+        return callback(null, true);
       }
+
+      // IMPORTANT: do NOT pass an Error here – it surfaces as a 500 with no
+      // Access-Control-Allow-Origin header, which the browser reports as a
+      // generic "Failed to fetch". `false` lets cors return a clean 403/null.
+      console.warn('[CORS] Blocked origin:', origin, 'allowed:', corsOrigins);
+      return callback(null, false);
     },
     credentials: process.env.CORS_CREDENTIALS === 'true' || process.env.CORS_CREDENTIALS === undefined,
     methods: corsMethods,
