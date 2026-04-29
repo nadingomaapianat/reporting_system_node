@@ -21,10 +21,11 @@ async function bootstrap() {
     'https://reporting-demo-system-frontend.pianat.ai',
     'https://reporting-demo-system-python.pianat.ai',
     'https://reporting-ubm-system-frontend.comply.now',
-    'https://reporting-ubm-system-backend.comply.now',
+    'https://backendnode-ubm-reporting.comply.now',
     'https://reporting-ubm-system-python.comply.now',
     'https://ubm.comply.now',
     'https://dcc-ubm.comply.now',
+    'https://backend-ubm-compliance.comply.now',
     'http://localhost:3000',
     'http://localhost:3001',
   ];
