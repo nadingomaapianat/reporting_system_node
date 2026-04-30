@@ -70,27 +70,13 @@ export class JwtAuthGuard implements CanActivate {
 
     const secret = getJwtSecret();
 
-    let firstValidPayload: JwtPayload | null = null;
-    let firstValidSource: TokenSource | null = null;
-    let chosenPayload: JwtPayload | null = null;
-    let chosenSource: TokenSource | null = null;
-
+    // 1) Verify each candidate against the JWT secret; remember every one that passes signature/exp checks.
+    type Verified = { token: string; payload: JwtPayload; source: TokenSource };
+    const verified: Verified[] = [];
     for (const { token, source } of candidates) {
       try {
         const decoded = jwt.verify(token, secret) as JwtPayload;
-
-        // Remember the first token that validates (fallback)
-        if (!firstValidPayload) {
-          firstValidPayload = decoded;
-          firstValidSource = source;
-        }
-
-        // Prefer the first token that also carries permissions
-        if (hasPermissions(decoded)) {
-          chosenPayload = decoded;
-          chosenSource = source;
-          break;
-        }
+        verified.push({ token, payload: decoded, source });
       } catch (e) {
         if (verbose) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -101,26 +87,37 @@ export class JwtAuthGuard implements CanActivate {
       }
     }
 
-    // Use permissions-bearing token; fall back to first valid token
-    const payload = chosenPayload ?? firstValidPayload;
-    const source = chosenSource ?? firstValidSource;
-
-    if (!payload) {
+    if (verified.length === 0) {
       this.logger.warn(
         `[Reporting][JwtAuth] all_candidates_invalid route=${handler} tried_sources=${candidates.map((c) => c.source).join(',')}`,
       );
       throw new UnauthorizedException('Invalid or expired token');
     }
 
-    // Reject revoked tokens (DCC adds JWTs to `blocked_tokens` on logout / force-logout).
-    const chosenToken = candidates.find((c) => c.source === source)?.token;
-    if (chosenToken && (await this.blocklist.isTokenBlocked(chosenToken))) {
+    // 2) Reject revoked tokens (DCC inserts into `blocked_tokens` on logout / force-logout).
+    //    Run the blocklist lookup once per verified token in parallel; treat DB errors as "not blocked"
+    //    (fail-open) — TokenBlocklistService already logs the underlying failure.
+    const blockedFlags = await Promise.all(
+      verified.map((v) =>
+        this.blocklist.isTokenBlocked(v.token).catch(() => false),
+      ),
+    );
+    const usable = verified.filter((_, i) => !blockedFlags[i]);
+
+    if (usable.length === 0) {
+      const sample = verified[0]?.payload;
       this.logger.warn(
-        `[Reporting][JwtAuth] token_revoked route=${handler} user=${payload.id ?? payload.sub ?? '?'} source=${source}`,
+        `[Reporting][JwtAuth] all_tokens_revoked route=${handler} user=${sample?.id ?? sample?.sub ?? '?'} ` +
+          `revoked_sources=${verified.map((v) => v.source).join(',')}`,
       );
-      clearReportingAuthCookies(response);
       throw new UnauthorizedException('Session has been revoked. Please sign in again.');
     }
+
+    // 3) Among the usable tokens, prefer the first one that carries permissions; otherwise the first valid.
+    const chosen =
+      usable.find((u) => hasPermissions(u.payload)) ?? usable[0];
+    const payload = chosen.payload;
+    const source = chosen.source;
 
     const logJwtAccept =
       verbose || process.env.NODE_ENV !== 'production' || process.env.REPORTING_DEBUG_JWT === '1';
