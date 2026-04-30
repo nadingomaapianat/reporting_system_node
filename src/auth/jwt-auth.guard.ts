@@ -13,6 +13,7 @@ import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { getCandidateTokens, TokenSource } from './utils/extract-token';
 import { clearReportingAuthCookies } from './utils/clear-reporting-auth-cookies';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
+import { TokenBlocklistService } from './token-blocklist.service';
 
 interface JwtPayload {
   id?: string;
@@ -29,9 +30,12 @@ function hasPermissions(payload: JwtPayload): boolean {
 export class JwtAuthGuard implements CanActivate {
   private readonly logger = new Logger(JwtAuthGuard.name);
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly blocklist: TokenBlocklistService,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     if (context.getType() !== 'http') return true;
 
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -110,6 +114,16 @@ export class JwtAuthGuard implements CanActivate {
       );
       clearReportingAuthCookies(response);
       throw new UnauthorizedException('Invalid or expired token');
+    }
+
+    // Reject revoked tokens (DCC adds JWTs to `blocked_tokens` on logout / force-logout).
+    const chosenToken = candidates.find((c) => c.source === source)?.token;
+    if (chosenToken && (await this.blocklist.isTokenBlocked(chosenToken))) {
+      this.logger.warn(
+        `[Reporting][JwtAuth] token_revoked route=${handler} user=${payload.id ?? payload.sub ?? '?'} source=${source}`,
+      );
+      clearReportingAuthCookies(response);
+      throw new UnauthorizedException('Session has been revoked. Please sign in again.');
     }
 
     const logJwtAccept =
