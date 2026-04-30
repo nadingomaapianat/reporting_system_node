@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
+import { TokenBlocklistService } from './token-blocklist.service';
 import { getJwtSecret } from './jwt-secret';
 
 @Module({
@@ -28,8 +29,9 @@ import { getJwtSecret } from './jwt-secret';
     AuthService,
     JwtAuthGuard,
     PermissionsGuard,
+    TokenBlocklistService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
-  exports: [JwtModule, AuthService, JwtAuthGuard, PermissionsGuard],
+  exports: [JwtModule, AuthService, JwtAuthGuard, PermissionsGuard, TokenBlocklistService],
 })
 export class AuthModule {}
