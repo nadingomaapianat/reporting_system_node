@@ -47,8 +47,8 @@ async function bootstrap() {
   
     
    
-    'https://grc-reporting-uat.adib.co.eg',
-    'https://grc-reporting-node-uat.adib.co.eg',
+    'https://grc-reporting.adib.co.eg',
+    'https://grc-reporting-node.adib.co.eg',
    
    
     
