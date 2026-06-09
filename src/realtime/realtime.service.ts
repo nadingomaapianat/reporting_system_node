@@ -15,8 +15,13 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
   private alertThresholds: Map<string, { min: number; max: number }> = new Map();
   private redisClient: RedisClientType | null = null;
   private redisAvailable: boolean = false;
-  
+  // Opt-in: Redis (and the simulated realtime broadcasts that depend on it) is OFF
+  // unless REDIS_ENABLED=true. Avoids ECONNREFUSED noise on hosts with no Redis.
+  private readonly redisEnabled: boolean;
+
   constructor(private configService: ConfigService) {
+    this.redisEnabled =
+      String(this.configService.get<string>('REDIS_ENABLED') ?? '').trim().toLowerCase() === 'true';
     this.initializeThresholds();
     this.initializeHistoricalData();
   }
@@ -30,6 +35,12 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async connectRedis() {
+    if (!this.redisEnabled) {
+      this.logger.log('Redis disabled (set REDIS_ENABLED=true to enable); using local in-memory cache');
+      this.redisAvailable = false;
+      this.redisClient = null;
+      return;
+    }
     try {
       const redisHost = this.configService.get<string>('REDIS_HOST') || 'localhost';
       const redisPort = parseInt(this.configService.get<string>('REDIS_PORT') || '6379', 10);
@@ -141,6 +152,8 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
   // Enhanced real-time data updates with intelligent monitoring
   @Cron(CronExpression.EVERY_5_SECONDS)
   async generateRealTimeData() {
+    // Simulated demo metrics — only run when the realtime feature is enabled.
+    if (!this.redisEnabled) return;
     try {
       const realTimeData = {
         timestamp: new Date().toISOString(),
@@ -179,6 +192,8 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   generateChartData() {
+    // Simulated demo chart data — only run when the realtime feature is enabled.
+    if (!this.redisEnabled) return;
     const chartData = {
       timestamp: new Date().toISOString(),
       salesTrend: this.generateSalesTrendData(),

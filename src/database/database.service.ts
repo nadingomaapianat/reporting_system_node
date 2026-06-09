@@ -162,7 +162,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         ) {
           request.input(`param${index}`, sql.Int, Math.floor(Number(param)));
         } else if (typeof param === 'string') {
-          request.input(`param${index}`, sql.NVarChar(4000), param);
+          // Use NVARCHAR(MAX) for values longer than 4000 chars (e.g. JWTs in the
+          // blocked_tokens lookup). Binding a >4000 char string as NVarChar(4000)
+          // throws "Data type 0xE7 has an invalid data length or metadata length".
+          const nvarcharType =
+            param.length > 4000 ? sql.NVarChar(sql.MAX) : sql.NVarChar(4000);
+          request.input(`param${index}`, nvarcharType, param);
         } else {
           request.input(`param${index}`, param);
         }
