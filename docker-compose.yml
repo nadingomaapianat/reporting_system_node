@@ -1,0 +1,40 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: reporting-redis
+    restart: unless-stopped
+    # Persist data across restarts (append-only file).
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # Not published to the host — only the app container needs it, over the internal network.
+    expose:
+      - "6379"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reporting-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override .env for the containerized environment: reach Redis by service name,
+      # not localhost, and turn the realtime feature on now that Redis is available.
+      REDIS_ENABLED: "true"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+    ports:
+      - "3002:3002"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:
