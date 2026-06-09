@@ -124,8 +124,8 @@ interface FindingsContent {
   priorityRecommendations: string[];
 }
 
-const BANK_NAME = 'Abu Dhabi Islamic Bank (ADIB)';
-const BANK_SHORT = 'ADIB';
+const BANK_NAME = 'The United Bank';
+const BANK_SHORT = 'United Bank';
 const REGULATORY_BODY = 'UAE Central Bank (CBUAE)';
 
 const FRAMEWORK_LABELS: Record<string, string> = {

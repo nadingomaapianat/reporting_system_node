@@ -583,7 +583,7 @@ export class IcrTemplateAdminService {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // Seed defaults (creates a "ADIB Default" template + sections)
+  // Seed defaults (creates a "United Bank Default" template + sections)
   // ═══════════════════════════════════════════════════════════════════
 
   async seedFromDefaults(): Promise<{ seeded: number; templateId: number; message: string }> {
@@ -597,7 +597,7 @@ export class IcrTemplateAdminService {
 
     if (!tpl) {
       tpl = await this.createTemplate(
-        'ADIB ICR Default Template',
+        'United Bank ICR Default Template',
         'Default CBE Internal Control Report template based on COSO 2013',
         'hardcoded-defaults',
         'System',

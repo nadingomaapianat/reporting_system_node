@@ -484,7 +484,7 @@ export class IcrController {
       : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     res.set({
       'Content-Type': mime,
-      'Content-Disposition': `attachment; filename="ADIB_ICR_${id}.${ext}"`,
+      'Content-Disposition': `attachment; filename="UnitedBank_ICR_${id}.${ext}"`,
       'Content-Length': buffer.length.toString(),
     });
     res.end(buffer);
@@ -513,7 +513,7 @@ export class IcrController {
       : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     res.set({
       'Content-Type': mime,
-      'Content-Disposition': `attachment; filename="ADIB_ICR_Tagged_${id}.${ext}"`,
+      'Content-Disposition': `attachment; filename="UnitedBank_ICR_Tagged_${id}.${ext}"`,
       'Content-Length': buffer.length.toString(),
     });
     res.end(buffer);
