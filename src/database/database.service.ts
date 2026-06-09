@@ -24,7 +24,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const domain =
       this.configService.get<string>('DB_DOMAIN') ?? '';
     const configuredAuthType = this.configService.get<string>('DB_AUTH_TYPE');
-    const authType = (configuredAuthType || (domain.trim() ? 'ntlm' : 'sql'))
+    // Auth switch: 'sql' (user + password, default) or 'ntlm' (Windows auth; also set DB_DOMAIN).
+    const authType = (configuredAuthType || 'sql')
       .trim()
       .toLowerCase();
 
