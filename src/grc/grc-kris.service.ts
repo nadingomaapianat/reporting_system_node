@@ -615,16 +615,15 @@ export class GrcKrisService {
 
       // Overdue KRIs by Function
       const overdueKrisByDepartmentQuery = `
-        SELECT DISTINCT 
-          k.code      AS [KRI Code], 
-          k.kriName   AS [KRI Name], 
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function]
+        SELECT
+          k.code      AS [KRI Code],
+          k.kriName   AS [KRI Name],
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function],
+          FORMAT(CONVERT(datetime, ap.implementation_date), 'yyyy-MM-dd') AS [Target Date]
         FROM Kris AS k
-        INNER JOIN Actionplans AS ap
+        LEFT JOIN Actionplans AS ap
           ON ap.kri_id = k.id
           AND ap.deletedAt IS NULL
-          AND ap.implementation_date < GETDATE()
-          AND (ap.done = 0 OR ap.done IS NULL)
         LEFT JOIN KriFunctions AS kf
           ON k.id = kf.kri_id
           AND kf.deletedAt IS NULL
@@ -636,13 +635,14 @@ export class GrcKrisService {
           ON frel.id = k.related_function_id
           AND frel.isDeleted = 0
           AND frel.deletedAt IS NULL
-        WHERE 
+        WHERE
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
           ${functionFilter}
-        ORDER BY 
-          [Function], [KRI Name]
+        ORDER BY
+          CASE WHEN ap.implementation_date IS NULL THEN 1 ELSE 0 END,
+          ap.implementation_date ASC, [Function], [KRI Name]
       `;
       const overdueKrisByDepartmentTask = () => this.runDashboardQuery<any[]>('Overdue KRIs by department', overdueKrisByDepartmentQuery, []);
 
@@ -1003,6 +1003,7 @@ export class GrcKrisService {
             kriCode: item['KRI Code'] || null,
             kriName: item['KRI Name'] || 'Unknown',
             function_name: item['Function'] || 'Unknown',
+            target_date: item['Target Date'] || '',
           })),
           allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map((item) => ({
             function_name: item['Function Name'] || 'Unknown',
@@ -1155,7 +1156,8 @@ export class GrcKrisService {
         overdueKrisByDepartment: overdueKrisByDepartmentRows.map(item => ({
           kriCode: item['KRI Code'] || null,
           kriName: item['KRI Name'] || 'Unknown',
-          function_name: item['Function'] || 'Unknown'
+          function_name: item['Function'] || 'Unknown',
+          target_date: item['Target Date'] || ''
         })),
         allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map(item => ({
           function_name: item['Function Name'] || 'Unknown',
@@ -1524,17 +1526,16 @@ export class GrcKrisService {
     const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
     const offset = (pageInt - 1) * limitInt;
     const baseQuery = `
-      SELECT DISTINCT 
-        k.code AS [KRI Code], 
-        k.kriName AS [KRI Name], 
+      SELECT
+        k.code AS [KRI Code],
+        k.kriName AS [KRI Name],
         k.createdAt AS createdAt,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function]
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function],
+        FORMAT(CONVERT(datetime, ap.implementation_date), 'yyyy-MM-dd') AS [Target Date]
       FROM Kris AS k
-      INNER JOIN Actionplans AS ap
+      LEFT JOIN Actionplans AS ap
         ON ap.kri_id = k.id
         AND ap.deletedAt IS NULL
-        AND ap.implementation_date < GETDATE()
-        AND (ap.done = 0 OR ap.done IS NULL)
       LEFT JOIN KriFunctions AS kf
         ON k.id = kf.kri_id
         AND kf.deletedAt IS NULL
@@ -1554,7 +1555,8 @@ export class GrcKrisService {
     const countQuery = `SELECT COUNT(*) as total FROM (${baseQuery}) as overdue_kris`;
     const dataQuery = `
       ${baseQuery}
-      ORDER BY ${orderByFunctionAsc ? '[Function] ASC, createdAt DESC' : 'createdAt DESC'}
+      ORDER BY CASE WHEN ap.implementation_date IS NULL THEN 1 ELSE 0 END,
+               ap.implementation_date ASC, [Function], [KRI Name]
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const [rows, countResult] = await Promise.all([
@@ -1567,6 +1569,7 @@ export class GrcKrisService {
         kriCode: item['KRI Code'] || null,
         kriName: item['KRI Name'] || 'Unknown',
         function_name: item['Function'] || 'Unknown',
+        target_date: item['Target Date'] || '',
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
