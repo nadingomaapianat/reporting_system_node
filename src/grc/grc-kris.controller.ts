@@ -123,7 +123,7 @@ export class GrcKrisController {
       kriCountsByMonthYear: { kriCountsByMonthYear: payload?.kriCountsByMonthYear || [] },
       kriRiskLinkageCounts: { kriRiskLinkageCounts: payload?.kriRiskLinkageCounts || [] },
       deletedKrisPerMonth: { deletedKrisPerMonth: payload?.deletedKrisPerMonth || [] },
-      kriOverdueStatusCounts: { kriOverdueStatusCounts: payload?.kriOverdueStatusCounts || [] },
+      krisSubmittedMonthly: { krisSubmittedMonthly: payload?.krisSubmittedMonthly || [] },
       kriMonthlyAssessment: { kriMonthlyAssessment: payload?.kriMonthlyAssessment || [] },
     };
     return chartPayload[widgetId] ?? {};

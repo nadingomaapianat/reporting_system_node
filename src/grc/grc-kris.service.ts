@@ -611,35 +611,39 @@ export class GrcKrisService {
       `;
       const deletedKrisPerMonthTask = () => this.runDashboardQuery<any[]>('Deleted KRIs per month', deletedKrisPerMonthQuery, []);
 
-      // KRIs Overdue vs Not Overdue based on related Action Plans
-      const kriOverdueStatusCountsQuery = `
-        WITH classified AS (
-          SELECT
-            k.id,
-            CASE
-              WHEN EXISTS (
-                SELECT 1
-                FROM Actionplans ap
-                WHERE ap.kri_id = k.id
-                  AND ap.deletedAt IS NULL
-                  AND ap.implementation_date < GETDATE()
-                  AND (ap.done = 0 OR ap.done IS NULL)
-              ) THEN 'Overdue'
-              ELSE 'Not Overdue'
-            END AS KRIStatus
-          FROM Kris AS k
-          WHERE k.isDeleted = 0
-            AND k.deletedAt IS NULL
-            ${dateFilter}
+      // KRIs Submitted vs Not Submitted per month. For each month present in the data,
+      // every active KRI that already existed by then counts as Submitted (a KriValue was
+      // recorded that month) or Not Submitted (no value that month).
+      const krisSubmittedMonthlyQuery = `
+        WITH Months AS (
+          SELECT DISTINCT TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+          FROM KriValues kv
+          WHERE kv.deletedAt IS NULL AND kv.[year] IS NOT NULL AND kv.[month] IS NOT NULL
+        ),
+        Expected AS (
+          SELECT m.yr, m.mo, k.id AS kri_id
+          FROM Months m
+          INNER JOIN Kris k
+            ON k.isDeleted = 0 AND k.deletedAt IS NULL
+            AND k.createdAt < DATEADD(MONTH, 1, DATEFROMPARTS(m.yr, m.mo, 1))
             ${functionFilter}
+        ),
+        Sub AS (
+          SELECT DISTINCT kv.kriId, TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+          FROM KriValues kv WHERE kv.deletedAt IS NULL
         )
         SELECT
-          KRIStatus AS [KRI Status],
-          COUNT(*)  AS [Count]
-        FROM classified
-        GROUP BY KRIStatus
+          e.yr AS [year],
+          e.mo AS [month],
+          FORMAT(DATEFROMPARTS(e.yr, e.mo, 1), 'MMM yyyy') AS month_year,
+          SUM(CASE WHEN s.kriId IS NOT NULL THEN 1 ELSE 0 END) AS submitted,
+          SUM(CASE WHEN s.kriId IS NULL THEN 1 ELSE 0 END) AS not_submitted
+        FROM Expected e
+        LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
+        GROUP BY e.yr, e.mo
+        ORDER BY e.yr, e.mo
       `;
-      const kriOverdueStatusCountsTask = () => this.runDashboardQuery<any[]>('KRI overdue status counts', kriOverdueStatusCountsQuery, []);
+      const krisSubmittedMonthlyTask = () => this.runDashboardQuery<any[]>('KRIs submitted vs not submitted (monthly)', krisSubmittedMonthlyQuery, []);
 
       // Overdue KRIs by Function
       const overdueKrisByDepartmentQuery = `
@@ -923,7 +927,7 @@ export class GrcKrisService {
           kriAssessmentCount,
           kriMonthlyAssessment,
           deletedKrisPerMonth,
-          kriOverdueStatusCountsRows,
+          krisSubmittedMonthlyRows,
           kriCountsByMonthYear,
           kriCountsByFrequency,
           kriRiskLinkageCountsRows,
@@ -934,7 +938,7 @@ export class GrcKrisService {
           kriAssessmentCountTask,
           kriMonthlyAssessmentTask,
           deletedKrisPerMonthTask,
-          kriOverdueStatusCountsTask,
+          krisSubmittedMonthlyTask,
           kriCountsByMonthYearTask,
           kriCountsByFrequencyTask,
           kriRiskLinkageCountsTask,
@@ -975,9 +979,12 @@ export class GrcKrisService {
             month: item.deletedMonth ? new Date(item.deletedMonth).toISOString().split('T')[0] : null,
             count: item.count || 0,
           })),
-          kriOverdueStatusCounts: kriOverdueStatusCountsRows.map((item) => ({
-            status: item['KRI Status'] || 'Unknown',
-            count: item['Count'] || 0,
+          krisSubmittedMonthly: krisSubmittedMonthlyRows.map((item) => ({
+            month_year: item.month_year || `${item.month || ''}/${item.year || ''}`,
+            year: Number(item.year || 0),
+            month: Number(item.month || 0),
+            submitted: Number(item.submitted || 0),
+            not_submitted: Number(item.not_submitted || 0),
           })),
           kriCountsByMonthYear: kriCountsByMonthYear.map((item) => ({
             month_year: item.month_year || `${item.month_name || item.month || ''} ${item.year || item['year'] || ''}`.trim() || 'Unknown',
@@ -1076,7 +1083,7 @@ export class GrcKrisService {
         kriMonthlyAssessment,
         newlyCreatedKrisPerMonth,
         deletedKrisPerMonth,
-        kriOverdueStatusCountsRows,
+        krisSubmittedMonthlyRows,
         overdueKrisByDepartmentRows,
         allKrisSubmittedByFunctionRows,
         kriCountsByMonthYear,
@@ -1096,7 +1103,7 @@ export class GrcKrisService {
         kriMonthlyAssessmentTask,
         newlyCreatedKrisPerMonthTask,
         deletedKrisPerMonthTask,
-        kriOverdueStatusCountsTask,
+        krisSubmittedMonthlyTask,
         overdueKrisByDepartmentTask,
         allKrisSubmittedByFunctionTask,
         kriCountsByMonthYearTask,
@@ -1169,9 +1176,12 @@ export class GrcKrisService {
           month: item.deletedMonth ? new Date(item.deletedMonth).toISOString().split('T')[0] : null,
           count: item.count || 0
         })),
-        kriOverdueStatusCounts: kriOverdueStatusCountsRows.map(item => ({
-          status: item['KRI Status'] || 'Unknown',
-          count: item['Count'] || 0
+        krisSubmittedMonthly: krisSubmittedMonthlyRows.map(item => ({
+          month_year: item.month_year || `${item.month || ''}/${item.year || ''}`,
+          year: Number(item.year || 0),
+          month: Number(item.month || 0),
+          submitted: Number(item.submitted || 0),
+          not_submitted: Number(item.not_submitted || 0)
         })),
         overdueKrisByDepartment: overdueKrisByDepartmentRows.map(item => ({
           kriCode: item['KRI Code'] || null,
