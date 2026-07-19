@@ -1024,8 +1024,14 @@ export class GrcKrisService {
           selectedFunctionIds,
           kriValueDateFilter,
         );
+        // Large per-KRI-per-month table: send only page 1 + total; the rest is fetched
+        // server-side via getMonthlyKriSubmissionByFunctionTablePage on page change.
+        const monthlyKriSubmissionByFunction = await this.getMonthlyKriSubmissionByFunctionTablePage(
+          user, 1, 10, timeframe, startDate, endDate, selectedFunctionIds, false,
+        );
 
         return {
+          monthlyKriSubmissionByFunction,
           overdueKrisByDepartment: overdueKrisByDepartmentRows.map((item) => ({
             kriCode: item['KRI Code'] || null,
             kriName: item['KRI Name'] || 'Unknown',
@@ -1289,6 +1295,9 @@ export class GrcKrisService {
     }
     if (tableId === 'kriRiskRelationships') {
       return this.getKriRiskRelationshipsTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'monthlyKriSubmissionByFunction') {
+      return this.getMonthlyKriSubmissionByFunctionTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
     }
 
     const tablesPayload = await this.getKrisDashboard(
@@ -1729,6 +1738,78 @@ export class GrcKrisService {
         function_name: item.function_name || 'Unknown',
         risk_code: item.risk_code || null,
         risk_name: item.risk_name || 'Unknown',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  // Monthly KRI submission by function: one row per KRI per month (all months in the data),
+  // ordered by function, showing whether a value was recorded that month (Submitted?).
+  private async getMonthlyKriSubmissionByFunctionTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const ctes = `
+      WITH Months AS (
+        SELECT DISTINCT TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+        FROM KriValues kv
+        WHERE kv.deletedAt IS NULL AND kv.[year] IS NOT NULL AND kv.[month] IS NOT NULL
+      ),
+      Expected AS (
+        SELECT m.yr, m.mo, k.id AS kri_id, k.code AS kri_code, k.kriName AS kri_name,
+               ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
+        FROM Months m
+        INNER JOIN Kris k
+          ON k.isDeleted = 0 AND k.deletedAt IS NULL
+          AND k.createdAt < DATEADD(MONTH, 1, DATEFROMPARTS(m.yr, m.mo, 1))
+          ${functionFilter}
+        LEFT JOIN KriFunctions kf ON kf.kri_id = k.id AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      ),
+      Sub AS (
+        SELECT DISTINCT kv.kriId, TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+        FROM KriValues kv WHERE kv.deletedAt IS NULL
+      )`;
+    const countQuery = `${ctes}
+      SELECT COUNT(*) AS total
+      FROM Expected e LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo`;
+    const dataQuery = `${ctes}
+      SELECT
+        e.kri_code AS kri_code,
+        e.kri_name AS kri_name,
+        e.function_name AS function_name,
+        DATENAME(MONTH, DATEFROMPARTS(e.yr, e.mo, 1)) AS month,
+        e.yr AS year,
+        CASE WHEN s.kriId IS NOT NULL THEN 'Yes' ELSE 'No' END AS submitted
+      FROM Expected e
+      LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
+      ORDER BY e.function_name, e.kri_name, e.yr, e.mo
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        kri_code: item.kri_code || null,
+        kri_name: item.kri_name || 'Unknown',
+        function_name: item.function_name || 'Unknown',
+        month: item.month || '',
+        year: item.year || '',
+        submitted: item.submitted || 'No',
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
