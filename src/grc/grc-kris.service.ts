@@ -859,8 +859,9 @@ export class GrcKrisService {
       // Active KRIs details
       const activeKrisDetailsQuery = `
         SELECT
+          k.code             AS code,
           k.kriName          AS kriName,
-          CASE 
+          CASE
             WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
             WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
             WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
@@ -1064,6 +1065,7 @@ export class GrcKrisService {
           })),
           kriDetailsWithActionPlans: kriDetailsWithActionPlansGrouped,
           activeKrisDetails: activeKrisDetailsRows.map((item) => ({
+            code: item.code || null,
             kriName: item.kriName || 'Unknown',
             combined_status: item.combined_status || 'Unknown',
             assignedPersonId: item.assignedPersonId || null,
@@ -1235,6 +1237,7 @@ export class GrcKrisService {
         })),
         kriDetailsWithActionPlans: kriDetailsWithActionPlansGrouped,
         activeKrisDetails: activeKrisDetailsRows.map(item => ({
+          code: item.code || null,
           kriName: item.kriName || 'Unknown',
           combined_status: item.combined_status || 'Unknown',
           assignedPersonId: item.assignedPersonId || null,
@@ -1491,8 +1494,9 @@ export class GrcKrisService {
     const countQuery = `SELECT COUNT(*) as total FROM Kris k WHERE k.isDeleted = 0 AND k.deletedAt IS NULL AND k.status = 'active' ${dateFilter} ${functionFilter}`;
     const dataQuery = `
       SELECT
+        k.code AS code,
         k.kriName AS kriName,
-        CASE 
+        CASE
           WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
           WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
           WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
@@ -1530,6 +1534,7 @@ export class GrcKrisService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: rows.map((item: any) => ({
+        code: item.code || null,
         kriName: item.kriName || 'Unknown',
         combined_status: item.combined_status || 'Unknown',
         assignedPersonId: item.assignedPersonId || null,
