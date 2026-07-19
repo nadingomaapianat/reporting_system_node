@@ -208,8 +208,8 @@ export class GrcKrisService {
     const kriDetailsMap = new Map<string, {
       kri_code: string;
       kri_name: string;
-      kri_created_at: any;
       function_name: string;
+      kri_created_at: any;
       assigned_person_name: string;
       kri_type: string;
       added_by_name: string;
@@ -240,8 +240,8 @@ export class GrcKrisService {
         kriDetailsMap.set(kriId, {
           kri_code: row.kri_code ?? 'N/A',
           kri_name: row.kri_name ?? 'N/A',
-          kri_created_at: row.kri_created_at ?? null,
           function_name: row.function_name ?? 'N/A',
+          kri_created_at: row.kri_created_at ?? null,
           assigned_person_name: row.assigned_person_name ?? 'N/A',
           kri_type: row.kri_type ?? 'N/A',
           added_by_name: row.added_by_name ?? 'N/A',
@@ -1748,7 +1748,7 @@ export class GrcKrisService {
 
     // Catalog columns (same as ADIB /kris_catalog except Deleted): code, kri_name, function_name, frequency, threshold, added_by_name, assigned_person_name, type, type_percentage_or_figure, rcm_functions, risk_mapping, status, created_by_name, kri_status, first_approval, review, second_approval, createdAt
     const dataQuery = `
-      SELECT 
+      SELECT
         k.code,
         k.kriName AS kri_name,
         ISNULL(f.name, '') AS function_name,
