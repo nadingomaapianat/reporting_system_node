@@ -121,7 +121,7 @@ export class GrcKrisController {
       kriAssessmentCount: { kriAssessmentCount: payload?.kriAssessmentCount || [] },
       kriCountsByFrequency: { kriCountsByFrequency: payload?.kriCountsByFrequency || [] },
       kriCountsByMonthYear: { kriCountsByMonthYear: payload?.kriCountsByMonthYear || [] },
-      kriRisksByKriName: { kriRisksByKriName: payload?.kriRisksByKriName || [] },
+      kriRiskLinkageCounts: { kriRiskLinkageCounts: payload?.kriRiskLinkageCounts || [] },
       deletedKrisPerMonth: { deletedKrisPerMonth: payload?.deletedKrisPerMonth || [] },
       kriOverdueStatusCounts: { kriOverdueStatusCounts: payload?.kriOverdueStatusCounts || [] },
       kriMonthlyAssessment: { kriMonthlyAssessment: payload?.kriMonthlyAssessment || [] },
