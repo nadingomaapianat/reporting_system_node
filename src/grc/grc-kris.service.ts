@@ -719,31 +719,25 @@ export class GrcKrisService {
       `;
       const kriCountsByFrequencyTask = () => this.runDashboardQuery<any[]>('KRI counts by frequency', kriCountsByFrequencyQuery, []);
 
-      // Risks linked to KRIs (count per KRI name)
-      const kriRisksByKriNameQuery = `
-        SELECT 
-          k.kriName AS kriName,
-          COUNT(*) AS count
-        FROM Risks r
-        INNER JOIN KriRisks kr
-          ON r.id = kr.risk_id
-          AND kr.deletedAt IS NULL
-        INNER JOIN Kris k
-          ON kr.kri_id = k.id
-          AND k.isDeleted = 0
-          AND k.deletedAt IS NULL
-          ${dateFilter}
-          ${functionFilter}
-        WHERE 
-          r.isDeleted = 0
-          AND r.deletedAt IS NULL
-          AND k.kriName IS NOT NULL
-        GROUP BY 
-          k.kriName
-        ORDER BY 
-          k.kriName ASC
+      // Count of KRIs linked vs not linked to risks
+      const kriRiskLinkageCountsQuery = `
+        SELECT
+          SUM(CASE WHEN linked_flag = 1 THEN 1 ELSE 0 END) AS linked,
+          SUM(CASE WHEN linked_flag = 0 THEN 1 ELSE 0 END) AS notLinked
+        FROM (
+          SELECT
+            CASE WHEN EXISTS (
+              SELECT 1 FROM KriRisks kr WHERE kr.kri_id = k.id AND kr.deletedAt IS NULL
+            ) THEN 1 ELSE 0 END AS linked_flag
+          FROM Kris k
+          WHERE
+            k.isDeleted = 0
+            AND k.deletedAt IS NULL
+            ${dateFilter}
+            ${functionFilter}
+        ) t
       `;
-      const kriRisksByKriNameTask = () => this.runDashboardQuery<any[]>('KRI risks by KRI name', kriRisksByKriNameQuery, []);
+      const kriRiskLinkageCountsTask = () => this.runDashboardQuery<any[]>('KRI risk linkage counts', kriRiskLinkageCountsQuery, []);
 
       // KRI and Risk relationships (detailed list)
       const kriRiskRelationshipsQuery = `
@@ -906,7 +900,7 @@ export class GrcKrisService {
           kriOverdueStatusCountsRows,
           kriCountsByMonthYear,
           kriCountsByFrequency,
-          kriRisksByKriName,
+          kriRiskLinkageCountsRows,
         ] = await this.runQueryBatches<any[]>([
           statusCountsTask,
           krisByLevelTask,
@@ -917,7 +911,7 @@ export class GrcKrisService {
           kriOverdueStatusCountsTask,
           kriCountsByMonthYearTask,
           kriCountsByFrequencyTask,
-          kriRisksByKriNameTask,
+          kriRiskLinkageCountsTask,
         ]);
         const statusCountsRow = statusCountsResults[0] || {};
         const pendingPreparer = Number(statusCountsRow?.pendingPreparer || 0);
@@ -969,10 +963,10 @@ export class GrcKrisService {
             frequency: item.frequency || 'Unknown',
             count: item.count || 0,
           })),
-          kriRisksByKriName: kriRisksByKriName.map((item) => ({
-            kriName: item.kriName || 'Unknown',
-            count: item.count || 0,
-          })),
+          kriRiskLinkageCounts: [
+            { name: 'Linked with Risks', value: Number(kriRiskLinkageCountsRows[0]?.linked || 0), color: '#4472C4' },
+            { name: 'Not Linked with Risks', value: Number(kriRiskLinkageCountsRows[0]?.notLinked || 0), color: '#EF3D3D' },
+          ],
         };
       }
 
@@ -1061,7 +1055,7 @@ export class GrcKrisService {
         allKrisSubmittedByFunctionRows,
         kriCountsByMonthYear,
         kriCountsByFrequency,
-        kriRisksByKriName,
+        kriRiskLinkageCountsRows,
         kriRiskRelationships,
         kriWithoutLinkedRisks,
         kriStatusRows,
@@ -1081,7 +1075,7 @@ export class GrcKrisService {
         allKrisSubmittedByFunctionTask,
         kriCountsByMonthYearTask,
         kriCountsByFrequencyTask,
-        kriRisksByKriNameTask,
+        kriRiskLinkageCountsTask,
         kriRiskRelationshipsTask,
         kriWithoutLinkedRisksTask,
         kriStatusTask,
@@ -1175,10 +1169,10 @@ export class GrcKrisService {
           frequency: item.frequency || 'Unknown',
           count: item.count || 0
         })),
-        kriRisksByKriName: kriRisksByKriName.map(item => ({
-          kriName: item.kriName || 'Unknown',
-          count: item.count || 0
-        })),
+        kriRiskLinkageCounts: [
+          { name: 'Linked with Risks', value: Number(kriRiskLinkageCountsRows[0]?.linked || 0), color: '#4472C4' },
+          { name: 'Not Linked with Risks', value: Number(kriRiskLinkageCountsRows[0]?.notLinked || 0), color: '#EF3D3D' },
+        ],
         kriRiskRelationships: kriRiskRelationships.map(item => ({
           kri_code: item.kri_code || null,
           kri_name: item.kri_name || 'Unknown',
