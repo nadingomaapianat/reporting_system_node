@@ -653,12 +653,10 @@ export class GrcKrisService {
           COUNT(k.id) AS [Total KRIs],
           COUNT(CASE
             WHEN ISNULL(k.preparerStatus, '') = 'sent'
-             AND ISNULL(k.acceptanceStatus, '') = 'approved'
             THEN 1 END) AS [Submitted KRIs],
           CASE
             WHEN COUNT(k.id) = COUNT(CASE
               WHEN ISNULL(k.preparerStatus, '') = 'sent'
-               AND ISNULL(k.acceptanceStatus, '') = 'approved'
               THEN 1 END)
             THEN 'Yes' ELSE 'No'
           END AS [All KRIs Submitted?]
@@ -1404,12 +1402,10 @@ export class GrcKrisService {
         COUNT(k.id) AS [Total KRIs],
         COUNT(CASE
           WHEN ISNULL(k.preparerStatus, '') = 'sent'
-           AND ISNULL(k.acceptanceStatus, '') = 'approved'
           THEN 1 END) AS [Submitted KRIs],
         CASE
           WHEN COUNT(k.id) = COUNT(CASE
             WHEN ISNULL(k.preparerStatus, '') = 'sent'
-             AND ISNULL(k.acceptanceStatus, '') = 'approved'
             THEN 1 END)
           THEN 'Yes' ELSE 'No'
         END AS [All KRIs Submitted?]
