@@ -848,12 +848,37 @@ export class GrcIncidentsService {
         selectedFunctionIds,
       );
       const incidentActionPlanQuery = `
-        SELECT 
+        SELECT
           i.code AS incident_code,
+          ISNULL(i.importance, '') as importance,
+          i.reported_date as reportedDate,
+          i.occurrence_date as occurrenceDate,
+          ISNULL(i.timeFrame, '') as timeFrame,
+          ISNULL(u.name, '') as owner,
           i.title AS incident_title,
           f_inc.name AS incident_function_name,
+          ISNULL(c.name, '') as categoryName,
+          ISNULL(sc.name, '') as subCategoryName,
           CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
           CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
+          ISNULL(rc.name, '') as causeName,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+          ISNULL(kr.kriName, '') as kriName,
+          ISNULL(dt.name, '') as discoveredType,
+          ISNULL(i.total_loss, 0) as totalLoss,
+          ISNULL(i.recovery_amount, 0) as recoveryAmount,
+          ISNULL(i.net_loss, 0) as netLoss,
+          ISNULL(fi.name, '') as financialImpactName,
+          ISNULL(cu.name, '') as currencyName,
+          ISNULL(i.exchange_rate, 0) as exchangeRate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+          ISNULL(i.status, '') as recoveryStatus,
+          ISNULL(ie.name, '') as eventType,
+          ISNULL(i.preparerStatus, '') as preparerStatus,
+          ISNULL(i.reviewerStatus, '') as reviewerStatus,
+          ISNULL(i.checkerStatus, '') as checkerStatus,
+          ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+          FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as incident_createdAt,
           a.control_procedure AS action_taken,
           f_owner.name AS action_owner_name,
           a.business_unit AS business_unit_status,
@@ -866,6 +891,15 @@ export class GrcIncidentsService {
         LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
           AND f_owner.isDeleted = 0
           AND f_owner.deletedAt IS NULL
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         WHERE a.deletedAt IS NULL
           AND a.[from] = 'incident'
           AND i.isDeleted = 0
@@ -903,12 +937,37 @@ export class GrcIncidentsService {
       // 14c. Overdue Incidents — same rows/columns as Incident Action Plan, filtered by
       // Actionplans.business_unit = pending|overdue (case-insensitive) and implementation date before today.
       const overdueIncidentsQuery = `
-        SELECT 
+        SELECT
           i.code AS incident_code,
+          ISNULL(i.importance, '') as importance,
+          i.reported_date as reportedDate,
+          i.occurrence_date as occurrenceDate,
+          ISNULL(i.timeFrame, '') as timeFrame,
+          ISNULL(u.name, '') as owner,
           i.title AS incident_title,
           f_inc.name AS incident_function_name,
+          ISNULL(c.name, '') as categoryName,
+          ISNULL(sc.name, '') as subCategoryName,
           CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
           CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
+          ISNULL(rc.name, '') as causeName,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+          ISNULL(kr.kriName, '') as kriName,
+          ISNULL(dt.name, '') as discoveredType,
+          ISNULL(i.total_loss, 0) as totalLoss,
+          ISNULL(i.recovery_amount, 0) as recoveryAmount,
+          ISNULL(i.net_loss, 0) as netLoss,
+          ISNULL(fi.name, '') as financialImpactName,
+          ISNULL(cu.name, '') as currencyName,
+          ISNULL(i.exchange_rate, 0) as exchangeRate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+          ISNULL(i.status, '') as recoveryStatus,
+          ISNULL(ie.name, '') as eventType,
+          ISNULL(i.preparerStatus, '') as preparerStatus,
+          ISNULL(i.reviewerStatus, '') as reviewerStatus,
+          ISNULL(i.checkerStatus, '') as checkerStatus,
+          ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+          FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as incident_createdAt,
           a.control_procedure AS action_taken,
           f_owner.name AS action_owner_name,
           a.business_unit AS business_unit_status,
@@ -921,6 +980,15 @@ export class GrcIncidentsService {
         LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
           AND f_owner.isDeleted = 0
           AND f_owner.deletedAt IS NULL
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         WHERE a.deletedAt IS NULL
           AND a.[from] = 'incident'
           AND i.isDeleted = 0
@@ -1157,9 +1225,34 @@ export class GrcIncidentsService {
           })),
           incidentActionPlan: incidentActionPlan.map((row: any) => ({
             code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+            importance: row.importance || null,
+            reportedDate: row.reportedDate || null,
+            occurrenceDate: row.occurrenceDate || null,
+            timeFrame: row.timeFrame || null,
+            owner: row.owner || null,
             incident_name: row.incident_title || 'N/A',
             incident_department: row.incident_function_name || 'N/A',
+            categoryName: row.categoryName || null,
+            subCategoryName: row.subCategoryName || null,
             root_cause: row.incident_root_cause || '',
+            causeName: row.causeName || null,
+            rcm: row.rcm || null,
+            kriName: row.kriName || null,
+            discoveredType: row.discoveredType || null,
+            totalLoss: row.totalLoss || null,
+            recoveryAmount: row.recoveryAmount || null,
+            netLoss: row.netLoss || null,
+            financialImpactName: row.financialImpactName || null,
+            currencyName: row.currencyName || null,
+            exchangeRate: row.exchangeRate || null,
+            financialEquivalent: row.financialEquivalent || null,
+            recoveryStatus: row.recoveryStatus || null,
+            eventType: row.eventType || null,
+            preparerStatus: row.preparerStatus || null,
+            reviewerStatus: row.reviewerStatus || null,
+            checkerStatus: row.checkerStatus || null,
+            acceptanceStatus: row.acceptanceStatus || null,
+            incident_createdAt: row.incident_createdAt || null,
             description: row.incident_description || '',
             action_taken: row.action_taken || row.control_procedure || '',
             action_owner: row.action_owner_name || '',
@@ -1168,9 +1261,34 @@ export class GrcIncidentsService {
           })),
           overdueIncidents: (overdueIncidentsRows || []).map((row: any) => ({
             code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+            importance: row.importance || null,
+            reportedDate: row.reportedDate || null,
+            occurrenceDate: row.occurrenceDate || null,
+            timeFrame: row.timeFrame || null,
+            owner: row.owner || null,
             incident_name: row.incident_title || 'N/A',
             incident_department: row.incident_function_name || 'N/A',
+            categoryName: row.categoryName || null,
+            subCategoryName: row.subCategoryName || null,
             root_cause: row.incident_root_cause || '',
+            causeName: row.causeName || null,
+            rcm: row.rcm || null,
+            kriName: row.kriName || null,
+            discoveredType: row.discoveredType || null,
+            totalLoss: row.totalLoss || null,
+            recoveryAmount: row.recoveryAmount || null,
+            netLoss: row.netLoss || null,
+            financialImpactName: row.financialImpactName || null,
+            currencyName: row.currencyName || null,
+            exchangeRate: row.exchangeRate || null,
+            financialEquivalent: row.financialEquivalent || null,
+            recoveryStatus: row.recoveryStatus || null,
+            eventType: row.eventType || null,
+            preparerStatus: row.preparerStatus || null,
+            reviewerStatus: row.reviewerStatus || null,
+            checkerStatus: row.checkerStatus || null,
+            acceptanceStatus: row.acceptanceStatus || null,
+            incident_createdAt: row.incident_createdAt || null,
             description: row.incident_description || '',
             action_taken: row.action_taken || row.control_procedure || '',
             action_owner: row.action_owner_name || '',
@@ -1299,9 +1417,34 @@ export class GrcIncidentsService {
         // Incident Action Plans (tabular view)
         incidentActionPlan: incidentActionPlan.map((row: any) => ({
           code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+          importance: row.importance || null,
+          reportedDate: row.reportedDate || null,
+          occurrenceDate: row.occurrenceDate || null,
+          timeFrame: row.timeFrame || null,
+          owner: row.owner || null,
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
+          categoryName: row.categoryName || null,
+          subCategoryName: row.subCategoryName || null,
           root_cause: row.incident_root_cause || '',
+          causeName: row.causeName || null,
+          rcm: row.rcm || null,
+          kriName: row.kriName || null,
+          discoveredType: row.discoveredType || null,
+          totalLoss: row.totalLoss || null,
+          recoveryAmount: row.recoveryAmount || null,
+          netLoss: row.netLoss || null,
+          financialImpactName: row.financialImpactName || null,
+          currencyName: row.currencyName || null,
+          exchangeRate: row.exchangeRate || null,
+          financialEquivalent: row.financialEquivalent || null,
+          recoveryStatus: row.recoveryStatus || null,
+          eventType: row.eventType || null,
+          preparerStatus: row.preparerStatus || null,
+          reviewerStatus: row.reviewerStatus || null,
+          checkerStatus: row.checkerStatus || null,
+          acceptanceStatus: row.acceptanceStatus || null,
+          incident_createdAt: row.incident_createdAt || null,
           description: row.incident_description || '',
           action_taken: row.action_taken || row.control_procedure || '',
           action_owner: row.action_owner_name || '',
@@ -1315,9 +1458,34 @@ export class GrcIncidentsService {
         })),
         overdueIncidents: (overdueIncidentsRows || []).map((row: any) => ({
           code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+          importance: row.importance || null,
+          reportedDate: row.reportedDate || null,
+          occurrenceDate: row.occurrenceDate || null,
+          timeFrame: row.timeFrame || null,
+          owner: row.owner || null,
           incident_name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
+          categoryName: row.categoryName || null,
+          subCategoryName: row.subCategoryName || null,
           root_cause: row.incident_root_cause || '',
+          causeName: row.causeName || null,
+          rcm: row.rcm || null,
+          kriName: row.kriName || null,
+          discoveredType: row.discoveredType || null,
+          totalLoss: row.totalLoss || null,
+          recoveryAmount: row.recoveryAmount || null,
+          netLoss: row.netLoss || null,
+          financialImpactName: row.financialImpactName || null,
+          currencyName: row.currencyName || null,
+          exchangeRate: row.exchangeRate || null,
+          financialEquivalent: row.financialEquivalent || null,
+          recoveryStatus: row.recoveryStatus || null,
+          eventType: row.eventType || null,
+          preparerStatus: row.preparerStatus || null,
+          reviewerStatus: row.reviewerStatus || null,
+          checkerStatus: row.checkerStatus || null,
+          acceptanceStatus: row.acceptanceStatus || null,
+          incident_createdAt: row.incident_createdAt || null,
           description: row.incident_description || '',
           action_taken: row.action_taken || row.control_procedure || '',
           action_owner: row.action_owner_name || '',
@@ -1427,11 +1595,33 @@ export class GrcIncidentsService {
     const offset = (pageInt - 1) * limitInt;
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
     const dataQuery = `
-      SELECT 
+      SELECT
         i.code,
-        i.title,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
         ISNULL(f.name, 'Unknown') AS function_name,
-        CASE 
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        CASE
           WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
           WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
           WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
@@ -1439,12 +1629,25 @@ export class GrcIncidentsService {
           WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
           ELSE 'Other'
         END as status,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
         FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
       LEFT JOIN Functions f ON i.function_id = f.id
         AND f.isDeleted = 0
         AND f.deletedAt IS NULL
-      WHERE i.isDeleted = 0 
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
+      WHERE i.isDeleted = 0
         AND i.deletedAt IS NULL
         ${dateFilter}
         ${functionFilter}
@@ -1485,15 +1688,50 @@ export class GrcIncidentsService {
     `;
     const dataQuery = `
       SELECT
+        i.code,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
+        ISNULL(f.name, 'Unknown') as function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
         i.title as incident_title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
         i.net_loss,
         i.recovery_amount,
-        ISNULL(f.name, 'Unknown') as function_name
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
       LEFT JOIN Functions f ON i.function_id = f.id
         AND f.isDeleted = 0
         AND f.deletedAt IS NULL
-      WHERE i.isDeleted = 0 
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
+      WHERE i.isDeleted = 0
         AND i.deletedAt IS NULL
         ${dateFilter}
         ${functionFilter}
@@ -1508,10 +1746,36 @@ export class GrcIncidentsService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: rows.map((item: any) => ({
+        code: item.code || 'N/A',
+        importance: item.importance || null,
+        reportedDate: item.reportedDate || null,
+        occurrenceDate: item.occurrenceDate || null,
+        timeFrame: item.timeFrame || null,
+        owner: item.owner || null,
+        function_name: item.function_name || 'Unknown',
+        categoryName: item.categoryName || null,
+        subCategoryName: item.subCategoryName || null,
         incident_title: item.incident_title || 'Unknown',
+        description: item.description || null,
+        rootCause: item.rootCause || null,
+        causeName: item.causeName || null,
+        rcm: item.rcm || null,
+        kriName: item.kriName || null,
+        discoveredType: item.discoveredType || null,
+        totalLoss: item.totalLoss || null,
         net_loss: item.net_loss || 0,
         recovery_amount: item.recovery_amount || 0,
-        function_name: item.function_name || 'Unknown',
+        financialImpactName: item.financialImpactName || null,
+        currencyName: item.currencyName || null,
+        exchangeRate: item.exchangeRate || null,
+        financialEquivalent: item.financialEquivalent || null,
+        recoveryStatus: item.recoveryStatus || null,
+        eventType: item.eventType || null,
+        preparerStatus: item.preparerStatus || null,
+        reviewerStatus: item.reviewerStatus || null,
+        checkerStatus: item.checkerStatus || null,
+        acceptanceStatus: item.acceptanceStatus || null,
+        createdAt: item.createdAt || null,
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
@@ -1535,27 +1799,60 @@ export class GrcIncidentsService {
     const offset = (pageInt - 1) * limitInt;
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
     const dataQuery = `
-      SELECT 
-        i.title AS title, 
-        i.rootCause AS rootCause, 
-        ISNULL(f.name, 'Unknown') AS function_name, 
-        i.net_loss AS netLoss, 
-        i.total_loss AS totalLoss, 
-        i.recovery_amount AS recoveryAmount, 
-        (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount, 
-        CASE 
+      SELECT
+        i.code,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
+        ISNULL(f.name, 'Unknown') AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title AS title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        i.rootCause AS rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        i.net_loss AS netLoss,
+        i.total_loss AS totalLoss,
+        i.recovery_amount AS recoveryAmount,
+        (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        CASE
           WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
           WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
           WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
           WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
           WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
           ELSE 'Other'
-        END AS status 
+        END AS status,
+        FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
       LEFT JOIN Functions f ON i.function_id = f.id
         AND f.isDeleted = 0
         AND f.deletedAt IS NULL
-      WHERE i.isDeleted = 0 
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
+      WHERE i.isDeleted = 0
         AND i.deletedAt IS NULL
         ${dateFilter}
         ${functionFilter}
@@ -1569,14 +1866,37 @@ export class GrcIncidentsService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: rows.map((item: any) => ({
-        title: item.title || 'Unknown',
-        rootCause: item.rootCause || '',
+        code: item.code || 'N/A',
+        importance: item.importance || null,
+        reportedDate: item.reportedDate || null,
+        occurrenceDate: item.occurrenceDate || null,
+        timeFrame: item.timeFrame || null,
+        owner: item.owner || null,
         function_name: item.function_name || 'Unknown',
+        categoryName: item.categoryName || null,
+        subCategoryName: item.subCategoryName || null,
+        title: item.title || 'Unknown',
+        description: item.description || null,
+        rootCause: item.rootCause || '',
+        causeName: item.causeName || null,
+        rcm: item.rcm || null,
+        kriName: item.kriName || null,
+        discoveredType: item.discoveredType || null,
         netLoss: item.netLoss || 0,
         totalLoss: item.totalLoss || 0,
         recoveryAmount: item.recoveryAmount || 0,
         grossAmount: item.grossAmount || 0,
+        financialImpactName: item.financialImpactName || null,
+        currencyName: item.currencyName || null,
+        exchangeRate: item.exchangeRate || null,
+        financialEquivalent: item.financialEquivalent || null,
+        eventType: item.eventType || null,
+        preparerStatus: item.preparerStatus || null,
+        reviewerStatus: item.reviewerStatus || null,
+        checkerStatus: item.checkerStatus || null,
+        acceptanceStatus: item.acceptanceStatus || null,
         status: item.status || 'Unknown',
+        createdAt: item.createdAt || null,
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
@@ -1600,14 +1920,50 @@ export class GrcIncidentsService {
     const offset = (pageInt - 1) * limitInt;
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 ${dateFilter} ${functionFilter} AND i.deletedAt IS NULL`;
     const dataQuery = `
-      SELECT 
-        i.title AS incident_name, 
+      SELECT
+        i.code,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(u.name, '') as owner,
+        ISNULL(f.name, 'Unknown') AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title AS incident_name,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
         i.timeFrame AS time_frame,
-        ISNULL(f.name, 'Unknown') AS function_name
+        FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
       LEFT JOIN Functions f ON i.function_id = f.id
         AND f.isDeleted = 0
         AND f.deletedAt IS NULL
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
       WHERE i.isDeleted = 0 ${dateFilter}
         ${functionFilter}
         AND i.deletedAt IS NULL
@@ -1621,9 +1977,36 @@ export class GrcIncidentsService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: rows.map((item: any) => ({
-        incident_name: item.incident_name || 'Unknown',
-        time_frame: item.time_frame || '',
+        code: item.code || 'N/A',
+        importance: item.importance || null,
+        reportedDate: item.reportedDate || null,
+        occurrenceDate: item.occurrenceDate || null,
+        owner: item.owner || null,
         function_name: item.function_name || 'Unknown',
+        categoryName: item.categoryName || null,
+        subCategoryName: item.subCategoryName || null,
+        incident_name: item.incident_name || 'Unknown',
+        description: item.description || null,
+        rootCause: item.rootCause || null,
+        causeName: item.causeName || null,
+        rcm: item.rcm || null,
+        kriName: item.kriName || null,
+        discoveredType: item.discoveredType || null,
+        totalLoss: item.totalLoss || null,
+        recoveryAmount: item.recoveryAmount || null,
+        netLoss: item.netLoss || null,
+        financialImpactName: item.financialImpactName || null,
+        currencyName: item.currencyName || null,
+        exchangeRate: item.exchangeRate || null,
+        financialEquivalent: item.financialEquivalent || null,
+        recoveryStatus: item.recoveryStatus || null,
+        eventType: item.eventType || null,
+        preparerStatus: item.preparerStatus || null,
+        reviewerStatus: item.reviewerStatus || null,
+        checkerStatus: item.checkerStatus || null,
+        acceptanceStatus: item.acceptanceStatus || null,
+        time_frame: item.time_frame || '',
+        createdAt: item.createdAt || null,
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
@@ -1647,10 +2030,37 @@ export class GrcIncidentsService {
     const offset = (pageInt - 1) * limitInt;
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 ${dateFilter} ${functionFilter} AND i.deletedAt IS NULL`;
     const dataQuery = `
-      SELECT 
-        i.title AS title, 
-        ISNULL(fi.name, 'Unknown') AS financial_impact_name, 
-        ISNULL(f.name, 'Unknown') AS function_name 
+      SELECT
+        i.code,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
+        ISNULL(f.name, 'Unknown') AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title AS title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, 'Unknown') AS financial_impact_name,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
       LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id
         AND fi.isDeleted = 0
@@ -1658,6 +2068,14 @@ export class GrcIncidentsService {
       LEFT JOIN Functions f ON i.function_id = f.id
         AND f.isDeleted = 0
         AND f.deletedAt IS NULL
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
       WHERE i.isDeleted = 0 ${dateFilter}
         ${functionFilter}
         AND i.deletedAt IS NULL
@@ -1671,9 +2089,36 @@ export class GrcIncidentsService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: rows.map((item: any) => ({
-        title: item.title || 'Unknown',
-        financial_impact_name: item.financial_impact_name || 'Unknown',
+        code: item.code || 'N/A',
+        importance: item.importance || null,
+        reportedDate: item.reportedDate || null,
+        occurrenceDate: item.occurrenceDate || null,
+        timeFrame: item.timeFrame || null,
+        owner: item.owner || null,
         function_name: item.function_name || 'Unknown',
+        categoryName: item.categoryName || null,
+        subCategoryName: item.subCategoryName || null,
+        title: item.title || 'Unknown',
+        description: item.description || null,
+        rootCause: item.rootCause || null,
+        causeName: item.causeName || null,
+        rcm: item.rcm || null,
+        kriName: item.kriName || null,
+        discoveredType: item.discoveredType || null,
+        totalLoss: item.totalLoss || null,
+        recoveryAmount: item.recoveryAmount || null,
+        netLoss: item.netLoss || null,
+        financial_impact_name: item.financial_impact_name || 'Unknown',
+        currencyName: item.currencyName || null,
+        exchangeRate: item.exchangeRate || null,
+        financialEquivalent: item.financialEquivalent || null,
+        recoveryStatus: item.recoveryStatus || null,
+        eventType: item.eventType || null,
+        preparerStatus: item.preparerStatus || null,
+        reviewerStatus: item.reviewerStatus || null,
+        checkerStatus: item.checkerStatus || null,
+        acceptanceStatus: item.acceptanceStatus || null,
+        createdAt: item.createdAt || null,
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
@@ -1721,12 +2166,37 @@ export class GrcIncidentsService {
         ${overdueFilter}
     `;
     const dataQuery = `
-      SELECT 
+      SELECT
         i.code AS incident_code,
-        i.title AS incident_title,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
         ISNULL(f_inc.name, 'N/A') AS incident_function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title AS incident_title,
         CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
         CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as incident_createdAt,
         a.control_procedure AS action_taken,
         f_owner.name AS action_owner_name,
         a.business_unit AS business_unit_status,
@@ -1739,6 +2209,15 @@ export class GrcIncidentsService {
       LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
         AND f_owner.isDeleted = 0
         AND f_owner.deletedAt IS NULL
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
       WHERE a.deletedAt IS NULL
         AND a.[from] = 'incident'
         AND i.isDeleted = 0
@@ -1757,9 +2236,34 @@ export class GrcIncidentsService {
     return {
       data: rows.map((row: any) => ({
         code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+        importance: row.importance || null,
+        reportedDate: row.reportedDate || null,
+        occurrenceDate: row.occurrenceDate || null,
+        timeFrame: row.timeFrame || null,
+        owner: row.owner || null,
         incident_name: row.incident_title || 'N/A',
         incident_department: row.incident_function_name || 'N/A',
+        categoryName: row.categoryName || null,
+        subCategoryName: row.subCategoryName || null,
         root_cause: row.incident_root_cause || '',
+        causeName: row.causeName || null,
+        rcm: row.rcm || null,
+        kriName: row.kriName || null,
+        discoveredType: row.discoveredType || null,
+        totalLoss: row.totalLoss || null,
+        recoveryAmount: row.recoveryAmount || null,
+        netLoss: row.netLoss || null,
+        financialImpactName: row.financialImpactName || null,
+        currencyName: row.currencyName || null,
+        exchangeRate: row.exchangeRate || null,
+        financialEquivalent: row.financialEquivalent || null,
+        recoveryStatus: row.recoveryStatus || null,
+        eventType: row.eventType || null,
+        preparerStatus: row.preparerStatus || null,
+        reviewerStatus: row.reviewerStatus || null,
+        checkerStatus: row.checkerStatus || null,
+        acceptanceStatus: row.acceptanceStatus || null,
+        incident_createdAt: row.incident_createdAt || null,
         description: row.incident_description || '',
         action_taken: row.action_taken || row.control_procedure || '',
         action_owner: row.action_owner_name || '',
@@ -1873,9 +2377,13 @@ export class GrcIncidentsService {
         ISNULL(sc.name, '') as subCategoryName,
         CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
         ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
         ISNULL(fi.name, '') as financialImpactName,
         ISNULL(cu.name, '') as currencyName,
         ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(i.preparerStatus, '') as preparerStatus,
         ISNULL(i.reviewerStatus, '') as reviewerStatus,
@@ -1890,6 +2398,8 @@ export class GrcIncidentsService {
       LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
       LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
       LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'functionName ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1933,14 +2443,49 @@ export class GrcIncidentsService {
     const total = totalRes?.[0]?.total || 0
 
     const dataQuery = `
-      SELECT 
+      SELECT
         i.code,
-        i.title,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
         f.name AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
         'Pending Preparer' as status,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
         i.createdAt
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -1990,14 +2535,49 @@ export class GrcIncidentsService {
     const total = totalRes?.[0]?.total || 0
 
     const dataQuery = `
-      SELECT 
+      SELECT
         i.code,
-        i.title,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
         f.name AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
         'Pending Checker' as status,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
         i.createdAt
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2047,14 +2627,49 @@ export class GrcIncidentsService {
     const total = totalRes?.[0]?.total || 0
 
     const dataQuery = `
-      SELECT 
+      SELECT
         i.code,
-        i.title,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
         f.name AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
         'Pending Reviewer' as status,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
         i.createdAt
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2103,14 +2718,49 @@ export class GrcIncidentsService {
     const total = totalRes?.[0]?.total || 0
 
     const dataQuery = `
-      SELECT 
+      SELECT
         i.code,
-        i.title,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
         f.name AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
         'Pending Acceptance' as status,
+        ISNULL(i.preparerStatus, '') as preparerStatus,
+        ISNULL(i.reviewerStatus, '') as reviewerStatus,
+        ISNULL(i.checkerStatus, '') as checkerStatus,
+        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
         i.createdAt
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2185,18 +2835,50 @@ export class GrcIncidentsService {
       
       // Use LEFT JOIN with Categories table (matching chart query exactly)
       const query = `
-        SELECT 
+        SELECT
           i.code,
           i.title AS name,
+          ISNULL(i.importance, '') AS importance,
+          i.reported_date AS reportedDate,
+          i.occurrence_date AS occurrenceDate,
+          ISNULL(i.timeFrame, '') AS timeFrame,
+          ISNULL(u.name, '') AS owner,
           f.name AS function_name,
-          i.createdAt,
-          i.net_loss,
-          i.recovery_amount
+          ISNULL(c.name, '') AS categoryName,
+          ISNULL(sc.name, '') AS subCategoryName,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS description,
+          i.rootCause AS rootCause,
+          ISNULL(rc.name, '') AS causeName,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) AS rcm,
+          ISNULL(kr.kriName, '') AS kriName,
+          ISNULL(dt.name, '') AS discoveredType,
+          i.total_loss AS totalLoss,
+          i.recovery_amount AS recoveryAmount,
+          i.net_loss AS netLoss,
+          ISNULL(fi.name, '') AS financialImpactName,
+          ISNULL(cu.name, '') AS currencyName,
+          ISNULL(i.exchange_rate, 0) AS exchangeRate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
+          ISNULL(i.status, '') AS recoveryStatus,
+          ISNULL(ie.name, '') AS eventType,
+          ISNULL(i.preparerStatus, '') AS preparerStatus,
+          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
+          ISNULL(i.checkerStatus, '') AS checkerStatus,
+          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          i.createdAt
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         LEFT JOIN Categories c ON i.category_id = c.id
           AND c.isDeleted = 0
           AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         ${whereSql}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2221,10 +2903,34 @@ export class GrcIncidentsService {
         data: result.map((row: any) => ({
           code: row.code || 'N/A',
           name: row.name || 'N/A',
+          importance: row.importance || null,
+          reportedDate: row.reportedDate || null,
+          occurrenceDate: row.occurrenceDate || null,
+          timeFrame: row.timeFrame || null,
+          owner: row.owner || null,
           function_name: row.function_name || null,
-          createdAt: row.createdAt || null,
-          netLoss: row.net_loss || null,
-          recoveryAmount: row.recovery_amount || null
+          categoryName: row.categoryName || null,
+          subCategoryName: row.subCategoryName || null,
+          description: row.description || null,
+          rootCause: row.rootCause || null,
+          causeName: row.causeName || null,
+          rcm: row.rcm || null,
+          kriName: row.kriName || null,
+          discoveredType: row.discoveredType || null,
+          totalLoss: row.totalLoss || null,
+          recoveryAmount: row.recoveryAmount || null,
+          netLoss: row.netLoss || null,
+          financialImpactName: row.financialImpactName || null,
+          currencyName: row.currencyName || null,
+          exchangeRate: row.exchangeRate || null,
+          financialEquivalent: row.financialEquivalent || null,
+          recoveryStatus: row.recoveryStatus || null,
+          eventType: row.eventType || null,
+          preparerStatus: row.preparerStatus || null,
+          reviewerStatus: row.reviewerStatus || null,
+          checkerStatus: row.checkerStatus || null,
+          acceptanceStatus: row.acceptanceStatus || null,
+          createdAt: row.createdAt || null
         })),
         pagination: {
           page: pageInt,
@@ -2284,16 +2990,48 @@ export class GrcIncidentsService {
       }
       
       const query = `
-        SELECT 
+        SELECT
           i.code as incident_code,
-          i.title as incident_title,
+          ISNULL(i.importance, '') as importance,
+          i.reported_date as reported_date,
+          i.occurrence_date as occurrence_date,
+          ISNULL(i.timeFrame, '') as time_frame,
+          ISNULL(u.name, '') as owner,
           f.name AS function_name,
-          FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at,
+          ISNULL(c.name, '') as category_name,
+          ISNULL(sc.name, '') as sub_category_name,
+          i.title as incident_title,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as root_cause,
+          ISNULL(rc.name, '') as cause_name,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+          ISNULL(kr.kriName, '') as kri_name,
+          ISNULL(dt.name, '') as discovered_type,
+          ISNULL(i.total_loss, 0) as total_loss,
           i.net_loss,
-          i.recovery_amount
+          i.recovery_amount,
+          ISNULL(fi.name, '') as financial_impact_name,
+          ISNULL(cu.name, '') as currency_name,
+          ISNULL(i.exchange_rate, 0) as exchange_rate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
+          ISNULL(i.status, '') as recovery_status,
+          ISNULL(ie.name, '') as event_type,
+          ISNULL(i.preparerStatus, '') as preparer_status,
+          ISNULL(i.reviewerStatus, '') as reviewer_status,
+          ISNULL(i.checkerStatus, '') as checker_status,
+          ISNULL(i.acceptanceStatus, '') as acceptance_status,
+          FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at
         FROM dbo.[Incidents] i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         LEFT JOIN dbo.[IncidentEvents] ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           ${eventTypeFilter}
           ${dateFilter}
@@ -2327,10 +3065,34 @@ export class GrcIncidentsService {
         data: result.map((row: any) => ({
           code: row.incident_code || 'N/A',
           name: row.incident_title || 'N/A',
+          importance: row.importance || null,
+          reportedDate: row.reported_date || null,
+          occurrenceDate: row.occurrence_date || null,
+          timeFrame: row.time_frame || null,
+          owner: row.owner || null,
           function_name: row.function_name || null,
-          createdAt: row.created_at || null,
+          categoryName: row.category_name || null,
+          subCategoryName: row.sub_category_name || null,
+          description: row.description || null,
+          rootCause: row.root_cause || null,
+          causeName: row.cause_name || null,
+          rcm: row.rcm || null,
+          kriName: row.kri_name || null,
+          discoveredType: row.discovered_type || null,
+          totalLoss: row.total_loss || null,
           netLoss: row.net_loss || null,
-          recoveryAmount: row.recovery_amount || null
+          recoveryAmount: row.recovery_amount || null,
+          financialImpactName: row.financial_impact_name || null,
+          currencyName: row.currency_name || null,
+          exchangeRate: row.exchange_rate || null,
+          financialEquivalent: row.financial_equivalent || null,
+          recoveryStatus: row.recovery_status || null,
+          eventType: row.event_type || null,
+          preparerStatus: row.preparer_status || null,
+          reviewerStatus: row.reviewer_status || null,
+          checkerStatus: row.checker_status || null,
+          acceptanceStatus: row.acceptance_status || null,
+          createdAt: row.created_at || null
         })),
         pagination: {
           page: pageInt,
@@ -2373,16 +3135,48 @@ export class GrcIncidentsService {
       const offset = Math.floor((pageInt - 1) * limitInt);
       
       const query = `
-        SELECT 
+        SELECT
           i.code as incident_code,
           i.title as incident_title,
+          ISNULL(i.importance, '') as importance,
+          i.reported_date as reported_date,
+          i.occurrence_date as occurrence_date,
+          ISNULL(i.timeFrame, '') as time_frame,
+          ISNULL(u.name, '') as owner,
           f.name AS function_name,
-          FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at,
-          ISNULL(i.net_loss, 0) as net_loss,
-          ISNULL(i.recovery_amount, 0) as recovery_amount
+          ISNULL(c.name, '') as category_name,
+          ISNULL(sc.name, '') as sub_category_name,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as root_cause,
+          ISNULL(rc.name, '') as cause_name,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+          ISNULL(kr.kriName, '') as kri_name,
+          ISNULL(dt.name, '') as discovered_type,
+          ISNULL(i.total_loss, 0) as total_loss,
+          i.net_loss,
+          i.recovery_amount,
+          ISNULL(fi.name, '') as financial_impact_name,
+          ISNULL(cu.name, '') as currency_name,
+          ISNULL(i.exchange_rate, 0) as exchange_rate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
+          ISNULL(i.status, '') as recovery_status,
+          ISNULL(ie.name, '') as event_type,
+          ISNULL(i.preparerStatus, '') as preparer_status,
+          ISNULL(i.reviewerStatus, '') as reviewer_status,
+          ISNULL(i.checkerStatus, '') as checker_status,
+          ISNULL(i.acceptanceStatus, '') as acceptance_status,
+          FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at
         FROM dbo.[Incidents] i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         LEFT JOIN dbo.[FinancialImpacts] fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN dbo.[IncidentEvents] ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           AND ISNULL(fi.name, 'Unknown') = @param0
           ${dateFilter}
@@ -2410,10 +3204,34 @@ export class GrcIncidentsService {
         data: result.map((row: any) => ({
           code: row.incident_code || 'N/A',
           name: row.incident_title || 'N/A',
+          importance: row.importance || null,
+          reportedDate: row.reported_date || null,
+          occurrenceDate: row.occurrence_date || null,
+          timeFrame: row.time_frame || null,
+          owner: row.owner || null,
           function_name: row.function_name || null,
-          createdAt: row.created_at || null,
+          categoryName: row.category_name || null,
+          subCategoryName: row.sub_category_name || null,
+          description: row.description || null,
+          rootCause: row.root_cause || null,
+          causeName: row.cause_name || null,
+          rcm: row.rcm || null,
+          kriName: row.kri_name || null,
+          discoveredType: row.discovered_type || null,
+          totalLoss: row.total_loss || null,
           netLoss: row.net_loss || 0,
-          recoveryAmount: row.recovery_amount || 0
+          recoveryAmount: row.recovery_amount || 0,
+          financialImpactName: row.financial_impact_name || null,
+          currencyName: row.currency_name || null,
+          exchangeRate: row.exchange_rate || null,
+          financialEquivalent: row.financial_equivalent || null,
+          recoveryStatus: row.recovery_status || null,
+          eventType: row.event_type || null,
+          preparerStatus: row.preparer_status || null,
+          reviewerStatus: row.reviewer_status || null,
+          checkerStatus: row.checker_status || null,
+          acceptanceStatus: row.acceptance_status || null,
+          createdAt: row.created_at || null
         })),
         pagination: {
           page: pageInt,
@@ -2501,13 +3319,48 @@ export class GrcIncidentsService {
       }
       
       const query = `
-        SELECT 
+        SELECT
           i.code as incident_code,
           i.title as incident_title,
+          ISNULL(i.importance, '') as importance,
+          i.reported_date as reported_date,
+          i.occurrence_date as occurrence_date,
+          ISNULL(i.timeFrame, '') as time_frame,
+          ISNULL(u.name, '') as owner,
           f.name AS function_name,
+          ISNULL(c.name, '') as category_name,
+          ISNULL(sc.name, '') as sub_category_name,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as root_cause,
+          ISNULL(rc.name, '') as cause_name,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+          ISNULL(kr.kriName, '') as kri_name,
+          ISNULL(dt.name, '') as discovered_type,
+          ISNULL(i.total_loss, 0) as total_loss,
+          i.net_loss,
+          i.recovery_amount,
+          ISNULL(fi.name, '') as financial_impact_name,
+          ISNULL(cu.name, '') as currency_name,
+          ISNULL(i.exchange_rate, 0) as exchange_rate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
+          ISNULL(i.status, '') as recovery_status,
+          ISNULL(ie.name, '') as event_type,
+          ISNULL(i.preparerStatus, '') as preparer_status,
+          ISNULL(i.reviewerStatus, '') as reviewer_status,
+          ISNULL(i.checkerStatus, '') as checker_status,
+          ISNULL(i.acceptanceStatus, '') as acceptance_status,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at
         FROM dbo.[Incidents] i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN dbo.[IncidentEvents] ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
           AND ${statusCondition}
           ${dateFilter}
@@ -2529,14 +3382,40 @@ export class GrcIncidentsService {
       `;
       const countResult = await this.databaseService.query(countQuery);
       const total = countResult[0]?.total || 0;
-      
+
       // console.log('[getIncidentsByStatus] Total count:', total);
 
       return {
         data: result.map((row: any) => ({
           code: row.incident_code || 'N/A',
           name: row.incident_title || 'N/A',
+          importance: row.importance || null,
+          reportedDate: row.reported_date || null,
+          occurrenceDate: row.occurrence_date || null,
+          timeFrame: row.time_frame || null,
+          owner: row.owner || null,
           function_name: row.function_name || null,
+          categoryName: row.category_name || null,
+          subCategoryName: row.sub_category_name || null,
+          description: row.description || null,
+          rootCause: row.root_cause || null,
+          causeName: row.cause_name || null,
+          rcm: row.rcm || null,
+          kriName: row.kri_name || null,
+          discoveredType: row.discovered_type || null,
+          totalLoss: row.total_loss || null,
+          netLoss: row.net_loss || null,
+          recoveryAmount: row.recovery_amount || null,
+          financialImpactName: row.financial_impact_name || null,
+          currencyName: row.currency_name || null,
+          exchangeRate: row.exchange_rate || null,
+          financialEquivalent: row.financial_equivalent || null,
+          recoveryStatus: row.recovery_status || null,
+          eventType: row.event_type || null,
+          preparerStatus: row.preparer_status || null,
+          reviewerStatus: row.reviewer_status || null,
+          checkerStatus: row.checker_status || null,
+          acceptanceStatus: row.acceptance_status || null,
           createdAt: row.created_at || null
         })),
         pagination: {
@@ -2610,9 +3489,37 @@ export class GrcIncidentsService {
       const total = countResult[0]?.total || 0;
 
       const dataQuery = `
-        SELECT 
+        SELECT
+          i.code AS incident_code,
+          ISNULL(i.importance, '') as importance,
+          i.reported_date as reportedDate,
+          i.occurrence_date as occurrenceDate,
+          ISNULL(i.timeFrame, '') as timeFrame,
+          ISNULL(u.name, '') as owner,
           i.title AS incident_title,
           f_inc.name AS incident_function_name,
+          ISNULL(c.name, '') as categoryName,
+          ISNULL(sc.name, '') as subCategoryName,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS incident_description,
+          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) AS incident_root_cause,
+          ISNULL(rc.name, '') as causeName,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+          ISNULL(kr.kriName, '') as kriName,
+          ISNULL(dt.name, '') as discoveredType,
+          ISNULL(i.total_loss, 0) as totalLoss,
+          ISNULL(i.recovery_amount, 0) as recoveryAmount,
+          ISNULL(i.net_loss, 0) as netLoss,
+          ISNULL(fi.name, '') as financialImpactName,
+          ISNULL(cu.name, '') as currencyName,
+          ISNULL(i.exchange_rate, 0) as exchangeRate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+          ISNULL(i.status, '') as recoveryStatus,
+          ISNULL(ie.name, '') as eventType,
+          ISNULL(i.preparerStatus, '') as preparerStatus,
+          ISNULL(i.reviewerStatus, '') as reviewerStatus,
+          ISNULL(i.checkerStatus, '') as checkerStatus,
+          ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+          FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as incident_createdAt,
           a.control_procedure AS action_taken,
           f_owner.name AS action_owner_name,
           a.business_unit AS business_unit_status,
@@ -2625,6 +3532,15 @@ export class GrcIncidentsService {
         LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
           AND f_owner.isDeleted = 0
           AND f_owner.deletedAt IS NULL
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         WHERE a.deletedAt IS NULL
           AND a.[from] = 'incident'
           AND i.isDeleted = 0
@@ -2640,10 +3556,39 @@ export class GrcIncidentsService {
 
       return {
         data: result.map((row: any) => ({
+          code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
+          importance: row.importance || null,
+          reportedDate: row.reportedDate || null,
+          occurrenceDate: row.occurrenceDate || null,
+          timeFrame: row.timeFrame || null,
+          owner: row.owner || null,
           incident_name: row.incident_title || 'N/A',
           name: row.incident_title || 'N/A',
           incident_department: row.incident_function_name || 'N/A',
           function_name: row.incident_function_name || null,
+          categoryName: row.categoryName || null,
+          subCategoryName: row.subCategoryName || null,
+          description: row.incident_description || '',
+          rootCause: row.incident_root_cause || '',
+          causeName: row.causeName || null,
+          rcm: row.rcm || null,
+          kriName: row.kriName || null,
+          discoveredType: row.discoveredType || null,
+          totalLoss: row.totalLoss || null,
+          recoveryAmount: row.recoveryAmount || null,
+          netLoss: row.netLoss || null,
+          financialImpactName: row.financialImpactName || null,
+          currencyName: row.currencyName || null,
+          exchangeRate: row.exchangeRate || null,
+          financialEquivalent: row.financialEquivalent || null,
+          recoveryStatus: row.recoveryStatus || null,
+          eventType: row.eventType || null,
+          preparerStatus: row.preparerStatus || null,
+          reviewerStatus: row.reviewerStatus || null,
+          checkerStatus: row.checkerStatus || null,
+          acceptanceStatus: row.acceptanceStatus || null,
+          incident_createdAt: row.incident_createdAt || null,
+          createdAt: row.incident_createdAt || null,
           action_taken: row.action_taken || row.control_procedure || '',
           action_owner: row.action_owner_name || '',
           status: row.business_unit_status || '',
@@ -2724,13 +3669,48 @@ export class GrcIncidentsService {
       const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`
 
       const dataQuery = `
-        SELECT 
+        SELECT
           i.code AS incident_code,
           i.title AS incident_title,
+          ISNULL(i.importance, '') AS importance,
+          i.reported_date AS reportedDate,
+          i.occurrence_date AS occurrenceDate,
+          ISNULL(i.timeFrame, '') AS timeFrame,
+          ISNULL(u.name, '') AS owner,
           f.name AS function_name,
+          ISNULL(c.name, '') AS categoryName,
+          ISNULL(sc.name, '') AS subCategoryName,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS description,
+          i.rootCause AS rootCause,
+          ISNULL(rc.name, '') AS causeName,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) AS rcm,
+          ISNULL(kr.kriName, '') AS kriName,
+          ISNULL(dt.name, '') AS discoveredType,
+          i.total_loss AS totalLoss,
+          i.recovery_amount AS recoveryAmount,
+          i.net_loss AS netLoss,
+          ISNULL(fi.name, '') AS financialImpactName,
+          ISNULL(cu.name, '') AS currencyName,
+          ISNULL(i.exchange_rate, 0) AS exchangeRate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
+          ISNULL(i.status, '') AS recoveryStatus,
+          ISNULL(ie.name, '') AS eventType,
+          ISNULL(i.preparerStatus, '') AS preparerStatus,
+          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
+          ISNULL(i.checkerStatus, '') AS checkerStatus,
+          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') AS created_at
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         ${whereSql}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2752,7 +3732,33 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.incident_code || 'N/A',
           name: r.incident_title || 'N/A',
+          importance: r.importance || null,
+          reportedDate: r.reportedDate || null,
+          occurrenceDate: r.occurrenceDate || null,
+          timeFrame: r.timeFrame || null,
+          owner: r.owner || null,
           function_name: r.function_name || null,
+          categoryName: r.categoryName || null,
+          subCategoryName: r.subCategoryName || null,
+          description: r.description || null,
+          rootCause: r.rootCause || null,
+          causeName: r.causeName || null,
+          rcm: r.rcm || null,
+          kriName: r.kriName || null,
+          discoveredType: r.discoveredType || null,
+          totalLoss: r.totalLoss || null,
+          recoveryAmount: r.recoveryAmount || null,
+          netLoss: r.netLoss || null,
+          financialImpactName: r.financialImpactName || null,
+          currencyName: r.currencyName || null,
+          exchangeRate: r.exchangeRate || null,
+          financialEquivalent: r.financialEquivalent || null,
+          recoveryStatus: r.recoveryStatus || null,
+          eventType: r.eventType || null,
+          preparerStatus: r.preparerStatus || null,
+          reviewerStatus: r.reviewerStatus || null,
+          checkerStatus: r.checkerStatus || null,
+          acceptanceStatus: r.acceptanceStatus || null,
           createdAt: r.created_at || null
         })),
         pagination: {
@@ -2818,20 +3824,52 @@ export class GrcIncidentsService {
       const whereSql = `WHERE ${whereParts.join(' AND ')}${operationalLossFilter} ${functionFilter}`;
       
       const dataQuery = `
-        SELECT 
+        SELECT
           i.code,
-          i.title AS name,
+          ISNULL(i.importance, '') as importance,
+          i.reported_date as reported_date,
+          i.occurrence_date as occurrence_date,
+          ISNULL(i.timeFrame, '') as time_frame,
+          ISNULL(u.name, '') as owner,
           f.name AS function_name,
-          CASE 
-            WHEN i.createdAt IS NOT NULL 
+          ISNULL(c.name, '') as category_name,
+          sc.name as sub_category_name,
+          i.title AS name,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as root_cause,
+          ISNULL(rc.name, '') as cause_name,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+          ISNULL(kr.kriName, '') as kri_name,
+          ISNULL(dt.name, '') as discovered_type,
+          ISNULL(i.total_loss, 0) as total_loss,
+          i.net_loss,
+          i.recovery_amount,
+          ISNULL(fi.name, '') as financial_impact_name,
+          ISNULL(cu.name, '') as currency_name,
+          ISNULL(i.exchange_rate, 0) as exchange_rate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
+          ISNULL(i.status, '') as recovery_status,
+          ISNULL(ie.name, '') as event_type,
+          ISNULL(i.preparerStatus, '') as preparer_status,
+          ISNULL(i.reviewerStatus, '') as reviewer_status,
+          ISNULL(i.checkerStatus, '') as checker_status,
+          ISNULL(i.acceptanceStatus, '') as acceptance_status,
+          CASE
+            WHEN i.createdAt IS NOT NULL
             THEN CONVERT(VARCHAR(23), i.createdAt, 126)
             ELSE NULL
-          END as created_at,
-          i.net_loss,
-          i.recovery_amount
+          END as created_at
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
         INNER JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         ${whereSql}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2855,10 +3893,34 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          importance: r.importance || null,
+          reportedDate: r.reported_date || null,
+          occurrenceDate: r.occurrence_date || null,
+          timeFrame: r.time_frame || null,
+          owner: r.owner || null,
           function_name: r.function_name || null,
-          createdAt: r.created_at || null,
+          categoryName: r.category_name || null,
+          subCategoryName: r.sub_category_name || null,
+          description: r.description || null,
+          rootCause: r.root_cause || null,
+          causeName: r.cause_name || null,
+          rcm: r.rcm || null,
+          kriName: r.kri_name || null,
+          discoveredType: r.discovered_type || null,
+          totalLoss: r.total_loss || null,
           netLoss: r.net_loss || null,
-          recoveryAmount: r.recovery_amount || null
+          recoveryAmount: r.recovery_amount || null,
+          financialImpactName: r.financial_impact_name || null,
+          currencyName: r.currency_name || null,
+          exchangeRate: r.exchange_rate || null,
+          financialEquivalent: r.financial_equivalent || null,
+          recoveryStatus: r.recovery_status || null,
+          eventType: r.event_type || null,
+          preparerStatus: r.preparer_status || null,
+          reviewerStatus: r.reviewer_status || null,
+          checkerStatus: r.checker_status || null,
+          acceptanceStatus: r.acceptance_status || null,
+          createdAt: r.created_at || null
         })),
         pagination: {
           page: pageInt,
@@ -2913,16 +3975,49 @@ export class GrcIncidentsService {
       const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`;
       
       const dataQuery = `
-        SELECT 
+        SELECT
           i.code,
-          i.title AS name,
+          ISNULL(i.importance, '') as importance,
+          ISNULL(i.timeFrame, '') as time_frame,
+          ISNULL(u.name, '') as owner,
           f.name AS function_name,
+          ISNULL(c.name, '') as category_name,
+          ISNULL(sc.name, '') as sub_category_name,
+          i.title AS name,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+          CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as root_cause,
+          ISNULL(rc.name, '') as cause_name,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+          ISNULL(kr.kriName, '') as kri_name,
+          ISNULL(dt.name, '') as discovered_type,
+          ISNULL(i.total_loss, 0) as total_loss,
+          ISNULL(i.recovery_amount, 0) as recovery_amount,
+          ISNULL(i.net_loss, 0) as net_loss,
+          ISNULL(fi.name, '') as financial_impact_name,
+          ISNULL(cu.name, '') as currency_name,
+          ISNULL(i.exchange_rate, 0) as exchange_rate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
+          ISNULL(i.status, '') as recovery_status,
+          ISNULL(ie.name, '') as event_type,
+          ISNULL(i.preparerStatus, '') as preparer_status,
+          ISNULL(i.reviewerStatus, '') as reviewer_status,
+          ISNULL(i.checkerStatus, '') as checker_status,
+          ISNULL(i.acceptanceStatus, '') as acceptance_status,
           i.occurrence_date,
           i.reported_date,
           DATEDIFF(DAY, i.occurrence_date, i.reported_date) AS recognition_days,
           CAST(DATEDIFF(DAY, i.occurrence_date, i.reported_date) AS FLOAT) / 30.44 AS recognition_months
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         ${whereSql}
         ORDER BY recognition_months DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2945,7 +4040,31 @@ export class GrcIncidentsService {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          importance: r.importance || null,
+          timeFrame: r.time_frame || null,
+          owner: r.owner || null,
           function_name: r.function_name || null,
+          categoryName: r.category_name || null,
+          subCategoryName: r.sub_category_name || null,
+          description: r.description || null,
+          rootCause: r.root_cause || null,
+          causeName: r.cause_name || null,
+          rcm: r.rcm || null,
+          kriName: r.kri_name || null,
+          discoveredType: r.discovered_type || null,
+          totalLoss: r.total_loss || null,
+          recoveryAmount: r.recovery_amount || null,
+          netLoss: r.net_loss || null,
+          financialImpactName: r.financial_impact_name || null,
+          currencyName: r.currency_name || null,
+          exchangeRate: r.exchange_rate || null,
+          financialEquivalent: r.financial_equivalent || null,
+          recoveryStatus: r.recovery_status || null,
+          eventType: r.event_type || null,
+          preparerStatus: r.preparer_status || null,
+          reviewerStatus: r.reviewer_status || null,
+          checkerStatus: r.checker_status || null,
+          acceptanceStatus: r.acceptance_status || null,
           occurrence_date: r.occurrence_date || null,
           reported_date: r.reported_date || null,
           recognition_time: r.recognition_days || null,
@@ -3016,41 +4135,98 @@ export class GrcIncidentsService {
       const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`;
       
       const dataQuery = `
-        SELECT 
+        SELECT
           i.code,
           i.title AS name,
+          ISNULL(i.importance, '') AS importance,
+          i.reported_date AS reportedDate,
+          i.occurrence_date AS occurrenceDate,
+          ISNULL(i.timeFrame, '') AS timeFrame,
+          ISNULL(u.name, '') AS owner,
           f.name AS function_name,
-          i.createdAt,
-          i.net_loss,
-          i.recovery_amount
+          ISNULL(c.name, '') AS categoryName,
+          ISNULL(sc.name, '') AS subCategoryName,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS description,
+          i.rootCause AS rootCause,
+          ISNULL(rc.name, '') AS causeName,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) AS rcm,
+          ISNULL(kr.kriName, '') AS kriName,
+          ISNULL(dt.name, '') AS discoveredType,
+          i.total_loss AS totalLoss,
+          i.recovery_amount AS recoveryAmount,
+          i.net_loss AS netLoss,
+          ISNULL(fi.name, '') AS financialImpactName,
+          ISNULL(cu.name, '') AS currencyName,
+          ISNULL(i.exchange_rate, 0) AS exchangeRate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
+          ISNULL(i.status, '') AS recoveryStatus,
+          ISNULL(ie.name, '') AS eventType,
+          ISNULL(i.preparerStatus, '') AS preparerStatus,
+          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
+          ISNULL(i.checkerStatus, '') AS checkerStatus,
+          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          i.createdAt
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+        LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         ${whereSql}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
-      
+
       const countQuery = `
         SELECT COUNT(*) AS total
         FROM Incidents i
         ${whereSql}
       `;
-      
+
       const [rows, countRows] = await Promise.all([
         this.databaseService.query(dataQuery),
         this.databaseService.query(countQuery)
       ]);
-      
+
       const total = countRows?.[0]?.total || 0;
-      
+
       return {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          importance: r.importance || null,
+          reportedDate: r.reportedDate || null,
+          occurrenceDate: r.occurrenceDate || null,
+          timeFrame: r.timeFrame || null,
+          owner: r.owner || null,
           function_name: r.function_name || null,
-          createdAt: r.createdAt || null,
-          netLoss: r.net_loss || null,
-          recoveryAmount: r.recovery_amount || null
+          categoryName: r.categoryName || null,
+          subCategoryName: r.subCategoryName || null,
+          description: r.description || null,
+          rootCause: r.rootCause || null,
+          causeName: r.causeName || null,
+          rcm: r.rcm || null,
+          kriName: r.kriName || null,
+          discoveredType: r.discoveredType || null,
+          totalLoss: r.totalLoss || null,
+          recoveryAmount: r.recoveryAmount || null,
+          netLoss: r.netLoss || null,
+          financialImpactName: r.financialImpactName || null,
+          currencyName: r.currencyName || null,
+          exchangeRate: r.exchangeRate || null,
+          financialEquivalent: r.financialEquivalent || null,
+          recoveryStatus: r.recoveryStatus || null,
+          eventType: r.eventType || null,
+          preparerStatus: r.preparerStatus || null,
+          reviewerStatus: r.reviewerStatus || null,
+          checkerStatus: r.checkerStatus || null,
+          acceptanceStatus: r.acceptanceStatus || null,
+          createdAt: r.createdAt || null
         })),
         pagination: {
           page: pageInt,
@@ -3160,42 +4336,99 @@ export class GrcIncidentsService {
       `;
       
       const dataQuery = `
-        SELECT 
+        SELECT
           i.code,
           i.title AS name,
+          ISNULL(i.importance, '') AS importance,
+          i.reported_date AS reportedDate,
+          i.occurrence_date AS occurrenceDate,
+          ISNULL(i.timeFrame, '') AS timeFrame,
+          ISNULL(u.name, '') AS owner,
           f.name AS function_name,
-          i.createdAt,
-          i.net_loss,
-          i.recovery_amount
+          ISNULL(cat.name, '') AS categoryName,
+          ISNULL(sc2.name, '') AS subCategoryName,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS description,
+          i.rootCause AS rootCause,
+          ISNULL(rc.name, '') AS causeName,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) AS rcm,
+          ISNULL(kr.kriName, '') AS kriName,
+          ISNULL(dt.name, '') AS discoveredType,
+          i.total_loss AS totalLoss,
+          i.recovery_amount AS recoveryAmount,
+          i.net_loss AS netLoss,
+          ISNULL(fi.name, '') AS financialImpactName,
+          ISNULL(cu.name, '') AS currencyName,
+          ISNULL(i.exchange_rate, 0) AS exchangeRate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
+          ISNULL(i.status, '') AS recoveryStatus,
+          ISNULL(ie2.name, '') AS eventType,
+          ISNULL(i.preparerStatus, '') AS preparerStatus,
+          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
+          ISNULL(i.checkerStatus, '') AS checkerStatus,
+          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          i.createdAt
         FROM Incidents i
         ${joinClause}
+        LEFT JOIN Categories cat ON i.category_id = cat.id AND cat.isDeleted = 0 AND cat.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc2 ON i.sub_category_id = sc2.id AND sc2.isDeleted = 0 AND sc2.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie2 ON i.event_type_id = ie2.id AND ie2.isDeleted = 0 AND ie2.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         ${whereSql}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
-      
+
       const countQuery = `
         SELECT COUNT(*) AS total
         FROM Incidents i
         ${joinClause}
         ${whereSql}
       `;
-      
+
       const [rows, countRows] = await Promise.all([
         this.databaseService.query(dataQuery),
         this.databaseService.query(countQuery)
       ]);
-      
+
       const total = countRows?.[0]?.total || 0;
-      
+
       return {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          importance: r.importance || null,
+          reportedDate: r.reportedDate || null,
+          occurrenceDate: r.occurrenceDate || null,
+          timeFrame: r.timeFrame || null,
+          owner: r.owner || null,
           function_name: r.function_name || null,
-          createdAt: r.createdAt || null,
-          netLoss: r.net_loss || null,
-          recoveryAmount: r.recovery_amount || null
+          categoryName: r.categoryName || null,
+          subCategoryName: r.subCategoryName || null,
+          description: r.description || null,
+          rootCause: r.rootCause || null,
+          causeName: r.causeName || null,
+          rcm: r.rcm || null,
+          kriName: r.kriName || null,
+          discoveredType: r.discoveredType || null,
+          totalLoss: r.totalLoss || null,
+          recoveryAmount: r.recoveryAmount || null,
+          netLoss: r.netLoss || null,
+          financialImpactName: r.financialImpactName || null,
+          currencyName: r.currencyName || null,
+          exchangeRate: r.exchangeRate || null,
+          financialEquivalent: r.financialEquivalent || null,
+          recoveryStatus: r.recoveryStatus || null,
+          eventType: r.eventType || null,
+          preparerStatus: r.preparerStatus || null,
+          reviewerStatus: r.reviewerStatus || null,
+          checkerStatus: r.checkerStatus || null,
+          acceptanceStatus: r.acceptanceStatus || null,
+          createdAt: r.createdAt || null
         })),
         pagination: {
           page: pageInt,
@@ -3280,43 +4513,100 @@ export class GrcIncidentsService {
       const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter} ${metricFilter}`;
       
       const dataQuery = `
-        SELECT 
+        SELECT
           i.code,
           i.title AS name,
+          ISNULL(i.importance, '') AS importance,
+          i.reported_date AS reportedDate,
+          i.occurrence_date AS occurrenceDate,
+          ISNULL(i.timeFrame, '') AS timeFrame,
+          ISNULL(u.name, '') AS owner,
           f.name AS function_name,
-          i.createdAt,
-          i.net_loss,
-          i.recovery_amount
+          ISNULL(cat.name, '') AS categoryName,
+          ISNULL(sc2.name, '') AS subCategoryName,
+          CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS description,
+          i.rootCause AS rootCause,
+          ISNULL(rc.name, '') AS causeName,
+          (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) AS rcm,
+          ISNULL(kr.kriName, '') AS kriName,
+          ISNULL(dt.name, '') AS discoveredType,
+          i.total_loss AS totalLoss,
+          i.recovery_amount AS recoveryAmount,
+          i.net_loss AS netLoss,
+          ISNULL(fi.name, '') AS financialImpactName,
+          ISNULL(cu.name, '') AS currencyName,
+          ISNULL(i.exchange_rate, 0) AS exchangeRate,
+          (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
+          ISNULL(i.status, '') AS recoveryStatus,
+          ISNULL(ie2.name, '') AS eventType,
+          ISNULL(i.preparerStatus, '') AS preparerStatus,
+          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
+          ISNULL(i.checkerStatus, '') AS checkerStatus,
+          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          i.createdAt
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+        LEFT JOIN Categories cat ON i.category_id = cat.id AND cat.isDeleted = 0 AND cat.deletedAt IS NULL
+        LEFT JOIN IncidentSubCategories sc2 ON i.sub_category_id = sc2.id AND sc2.isDeleted = 0 AND sc2.deletedAt IS NULL
+        LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+        LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+        LEFT JOIN IncidentEvents ie2 ON i.event_type_id = ie2.id AND ie2.isDeleted = 0 AND ie2.deletedAt IS NULL
+        LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+        LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+        LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+        LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
         ${joinClause}
         ${whereSql}
         ORDER BY i.createdAt DESC
         OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
       `;
-      
+
       const countQuery = `
         SELECT COUNT(*) AS total
         FROM Incidents i
         ${joinClause}
         ${whereSql}
       `;
-      
+
       const [rows, countRows] = await Promise.all([
         this.databaseService.query(dataQuery),
         this.databaseService.query(countQuery)
       ]);
-      
+
       const total = countRows?.[0]?.total || 0;
-      
+
       return {
         data: rows.map((r: any) => ({
           code: r.code || 'N/A',
           name: r.name || 'N/A',
+          importance: r.importance || null,
+          reportedDate: r.reportedDate || null,
+          occurrenceDate: r.occurrenceDate || null,
+          timeFrame: r.timeFrame || null,
+          owner: r.owner || null,
           function_name: r.function_name || null,
-          createdAt: r.createdAt || null,
-          netLoss: r.net_loss || null,
-          recoveryAmount: r.recovery_amount || null
+          categoryName: r.categoryName || null,
+          subCategoryName: r.subCategoryName || null,
+          description: r.description || null,
+          rootCause: r.rootCause || null,
+          causeName: r.causeName || null,
+          rcm: r.rcm || null,
+          kriName: r.kriName || null,
+          discoveredType: r.discoveredType || null,
+          totalLoss: r.totalLoss || null,
+          recoveryAmount: r.recoveryAmount || null,
+          netLoss: r.netLoss || null,
+          financialImpactName: r.financialImpactName || null,
+          currencyName: r.currencyName || null,
+          exchangeRate: r.exchangeRate || null,
+          financialEquivalent: r.financialEquivalent || null,
+          recoveryStatus: r.recoveryStatus || null,
+          eventType: r.eventType || null,
+          preparerStatus: r.preparerStatus || null,
+          reviewerStatus: r.reviewerStatus || null,
+          checkerStatus: r.checkerStatus || null,
+          acceptanceStatus: r.acceptanceStatus || null,
+          createdAt: r.createdAt || null
         })),
         pagination: {
           page: pageInt,

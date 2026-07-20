@@ -4,21 +4,6 @@ import { DB_BRACKETED, fq } from './db-config';
 
 @Injectable()
 export class DashboardConfigService {
-  private static orderedFunctionNamesSubquery(parentIdExpression: string): string {
-    return `STUFF((
-      SELECT ', ' + f2.name
-      FROM ${fq('ControlFunctions')} cf2
-      INNER JOIN ${fq('Functions')} f2
-        ON f2.id = cf2.function_id
-       AND f2.isDeleted = 0
-       AND f2.deletedAt IS NULL
-      WHERE cf2.control_id = ${parentIdExpression}
-        AND cf2.deletedAt IS NULL
-      ORDER BY f2.name
-      FOR XML PATH(''), TYPE
-    ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')`;
-  }
-
   // Chart templates for easy reuse
   static readonly CHART_TEMPLATES = {
     departmentDistribution: (tableName: string, countField: string = 'count') => ({
@@ -503,13 +488,24 @@ export class DashboardConfigService {
             c.name AS name,
             c.createdAt,
             c.code AS code,
-            ${this.orderedFunctionNamesSubquery('c.id')} AS business_unit,
+            STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS business_unit,
             c.preparerStatus,
             c.checkerStatus,
             c.reviewerStatus,
             c.acceptanceStatus
           FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id AND cf.deletedAt IS NULL
+          LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id
           WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
+          GROUP BY 
+            c.id,
+            c.name,
+            c.createdAt,
+            c.code,
+            c.preparerStatus,
+            c.checkerStatus,
+            c.reviewerStatus,
+            c.acceptanceStatus
           ORDER BY 
             c.createdAt DESC,
             c.name`,
@@ -807,9 +803,10 @@ export class DashboardConfigService {
         {
           id: 'controlSubmissionStatusByQuarterFunction',
           name: 'Control Submission Status by Quarter and Function',
-          query: `SELECT 
-            c.name AS [Control Name], 
-            f.name AS [Function Name], 
+          query: `SELECT
+            c.code AS [Code],
+            c.name AS [Control Name],
+            f.name AS [Function Name],
             CASE WHEN cdt.quarter = 'quarterOne' THEN 1 
                  WHEN cdt.quarter = 'quarterTwo' THEN 2 
                  WHEN cdt.quarter = 'quarterThree' THEN 3 
@@ -826,6 +823,7 @@ export class DashboardConfigService {
           WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
           ORDER BY cdt.createdAt DESC, c.name`,
           columns: [
+            { key: 'Code', label: 'Code', type: 'text' as const },
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
             { key: 'Function Name', label: 'Function Name', type: 'text' as const },
             { key: 'Quarter', label: 'Quarter', type: 'number' as const },
@@ -877,13 +875,18 @@ export class DashboardConfigService {
         {
           id: 'controlsNotMappedToAssertions',
           name: 'Controls not mapped to any Account',
-          query: `SELECT 
-            c.name AS [Control Name], 
-            ${this.orderedFunctionNamesSubquery('c.id')} AS [Function Name]
+          query: `SELECT
+            c.code AS [Code],
+            c.name AS [Control Name],
+            STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS [Function Name]
           FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id AND cf.deletedAt IS NULL
+          LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id
           WHERE c.icof_id IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}
-          ORDER BY c.createdAt DESC`,
+          GROUP BY c.id, c.code, c.name
+          ORDER BY MAX(c.createdAt) DESC`,
           columns: [
+            { key: 'Code', label: 'Code', type: 'text' as const },
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
             { key: 'Function Name', label: 'Function Name', type: 'text' as const }
           ],
@@ -892,14 +895,19 @@ export class DashboardConfigService {
         {
           id: 'controlsNotMappedToPrinciples',
           name: 'Controls not mapped to any Principles',
-          query: `SELECT 
-            c.name AS [Control Name], 
-            ${this.orderedFunctionNamesSubquery('c.id')} AS [Function Name]
+          query: `SELECT
+            c.code AS [Code],
+            c.name AS [Control Name],
+            STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS [Function Name]
           FROM ${fq('Controls')} c
-          LEFT JOIN ${fq('ControlCosos')} ccx ON ccx.control_id = c.id AND ccx.deletedAt IS NULL 
+          LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id AND cf.deletedAt IS NULL
+          LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id
+          LEFT JOIN ${fq('ControlCosos')} ccx ON ccx.control_id = c.id AND ccx.deletedAt IS NULL
           WHERE ccx.control_id IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilter} {functionFilter}
-          ORDER BY c.createdAt DESC`,
+          GROUP BY c.id, c.code, c.name
+          ORDER BY MAX(c.createdAt) DESC`,
           columns: [
+            { key: 'Code', label: 'Code', type: 'text' as const },
             { key: 'Control Name', label: 'Control Name', type: 'text' as const },
             { key: 'Function Name', label: 'Function Name', type: 'text' as const }
           ],
