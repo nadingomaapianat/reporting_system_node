@@ -147,6 +147,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const dataQuery = `
         WITH CandidateControls AS (
           SELECT
+            c.code AS control_code,
             c.name AS control_name,
             ISNULL(cfn.function_name, 'Unknown') AS function_name,
             c.createdAt AS created_at
@@ -164,6 +165,7 @@ export class GrcDashboardService extends BaseDashboardService {
           FROM CandidateControls
         )
         SELECT
+          control_code AS [Code],
           control_name AS [Control Name],
           function_name AS [Function Name]
         FROM RankedControls
@@ -178,6 +180,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const total = Number(countResult?.[0]?.total ?? 0);
       return {
         data: (rows || []).map((row: any) => ({
+          Code: row['Code'],
           'Control Name': row['Control Name'],
           'Function Name': row['Function Name'],
         })),
@@ -189,6 +192,7 @@ export class GrcDashboardService extends BaseDashboardService {
       WITH PagedControls AS (
         SELECT
           c.id,
+          c.code,
           c.name,
           ROW_NUMBER() OVER (ORDER BY c.createdAt DESC, c.name ASC) AS rn
         FROM ${fq('Controls')} c
@@ -199,6 +203,7 @@ export class GrcDashboardService extends BaseDashboardService {
           ${functionFilter}
       )
       SELECT
+        pc.code AS [Code],
         pc.name AS [Control Name],
         ISNULL(cfn.function_name, 'Unknown') AS [Function Name]
       FROM PagedControls pc
@@ -214,6 +219,7 @@ export class GrcDashboardService extends BaseDashboardService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: (rows || []).map((row: any) => ({
+        Code: row['Code'],
         'Control Name': row['Control Name'],
         'Function Name': row['Function Name'],
       })),
@@ -255,6 +261,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const dataQuery = `
         WITH CandidateControls AS (
           SELECT
+            c.code AS control_code,
             c.name AS control_name,
             ISNULL(cfn.function_name, 'Unknown') AS function_name,
             c.createdAt AS created_at
@@ -277,6 +284,7 @@ export class GrcDashboardService extends BaseDashboardService {
           FROM CandidateControls
         )
         SELECT
+          control_code AS [Code],
           control_name AS [Control Name],
           function_name AS [Function Name]
         FROM RankedControls
@@ -291,6 +299,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const total = Number(countResult?.[0]?.total ?? 0);
       return {
         data: (rows || []).map((row: any) => ({
+          Code: row['Code'],
           'Control Name': row['Control Name'],
           'Function Name': row['Function Name'],
         })),
@@ -302,6 +311,7 @@ export class GrcDashboardService extends BaseDashboardService {
       WITH PagedControls AS (
         SELECT
           c.id,
+          c.code,
           c.name,
           ROW_NUMBER() OVER (ORDER BY c.createdAt DESC, c.name ASC) AS rn
         FROM ${fq('Controls')} c
@@ -317,6 +327,7 @@ export class GrcDashboardService extends BaseDashboardService {
           )
       )
       SELECT
+        pc.code AS [Code],
         pc.name AS [Control Name],
         ISNULL(cfn.function_name, 'Unknown') AS [Function Name]
       FROM PagedControls pc
@@ -332,6 +343,7 @@ export class GrcDashboardService extends BaseDashboardService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: (rows || []).map((row: any) => ({
+        Code: row['Code'],
         'Control Name': row['Control Name'],
         'Function Name': row['Function Name'],
       })),
@@ -356,6 +368,7 @@ export class GrcDashboardService extends BaseDashboardService {
 
     const baseQuery = `
       SELECT
+        c.code AS [Code],
         c.name AS [Control Name],
         f.name AS [Function Name],
         CASE WHEN cdt.quarter = 'quarterOne' THEN 1
@@ -414,6 +427,7 @@ export class GrcDashboardService extends BaseDashboardService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: (rows || []).map((row: any) => ({
+        Code: row['Code'],
         'Control Name': row['Control Name'],
         'Function Name': row['Function Name'],
         Quarter: row['Quarter'],
