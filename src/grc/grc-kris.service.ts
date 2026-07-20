@@ -661,13 +661,34 @@ export class GrcKrisService {
       `;
       const krisSubmittedMonthlyTask = () => this.runDashboardQuery<any[]>('KRIs submitted vs not submitted (monthly)', krisSubmittedMonthlyQuery, []);
 
-      // Overdue KRIs by Function
+      // Overdue KRIs by Function (KRIs Target Date by Function) — mirrors the Excel/PDF
+      // export column set (Threshold, Low/Medium/High, Month, Year, Value, Action Plan, Status).
       const overdueKrisByDepartmentQuery = `
         SELECT
           k.code      AS [KRI Code],
           k.kriName   AS [KRI Name],
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function],
-          FORMAT(CONVERT(datetime, ap.implementation_date), 'yyyy-MM-dd') AS [Target Date]
+          ISNULL(k.threshold, '') AS [Threshold],
+          k.low_from AS [Low From],
+          k.medium_from AS [Medium From],
+          k.high_from AS [High From],
+          CASE
+            -- Actionplans.year/month are 0 (not NULL) as a sentinel on many rows,
+            -- and DATEFROMPARTS errors on an out-of-range month/year, so check ranges
+            -- explicitly rather than just IS NOT NULL.
+            WHEN ap.[month] BETWEEN 1 AND 12 AND ap.[year] BETWEEN 1 AND 9999
+            THEN DATENAME(MONTH, DATEFROMPARTS(ap.[year], ap.[month], 1))
+            ELSE ''
+          END AS [Month],
+          CASE WHEN ap.[year] BETWEEN 1 AND 9999 THEN ap.[year] ELSE NULL END AS [Year],
+          kv.value AS [Value],
+          ISNULL(ap.control_procedure, '') AS [Action Plan],
+          FORMAT(CONVERT(datetime, ap.implementation_date), 'yyyy-MM-dd') AS [Target Date],
+          CASE
+            WHEN ap.id IS NULL THEN ''
+            WHEN ISNULL(ap.business_unit, '') = '' THEN 'Pending'
+            ELSE ap.business_unit
+          END AS [Status]
         FROM Kris AS k
         LEFT JOIN Actionplans AS ap
           ON ap.kri_id = k.id
@@ -683,6 +704,11 @@ export class GrcKrisService {
           ON frel.id = k.related_function_id
           AND frel.isDeleted = 0
           AND frel.deletedAt IS NULL
+        LEFT JOIN KriValues AS kv
+          ON kv.kriId = k.id
+          AND kv.[year] = ap.[year]
+          AND kv.[month] = ap.[month]
+          AND kv.deletedAt IS NULL
         WHERE
           k.isDeleted = 0
           AND k.deletedAt IS NULL
@@ -1053,7 +1079,16 @@ export class GrcKrisService {
             kriCode: item['KRI Code'] || null,
             kriName: item['KRI Name'] || 'Unknown',
             function_name: item['Function'] || 'Unknown',
+            threshold: item['Threshold'] ?? '',
+            low_from: item['Low From'] ?? null,
+            medium_from: item['Medium From'] ?? null,
+            high_from: item['High From'] ?? null,
+            month: item['Month'] || '',
+            year: item['Year'] ?? '',
+            value: item['Value'] ?? null,
+            action_plan: item['Action Plan'] || '',
             target_date: item['Target Date'] || '',
+            status: item['Status'] || '',
           })),
           allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map((item) => ({
             function_name: item['Function Name'] || 'Unknown',
@@ -1211,7 +1246,16 @@ export class GrcKrisService {
           kriCode: item['KRI Code'] || null,
           kriName: item['KRI Name'] || 'Unknown',
           function_name: item['Function'] || 'Unknown',
-          target_date: item['Target Date'] || ''
+          threshold: item['Threshold'] ?? '',
+          low_from: item['Low From'] ?? null,
+          medium_from: item['Medium From'] ?? null,
+          high_from: item['High From'] ?? null,
+          month: item['Month'] || '',
+          year: item['Year'] ?? '',
+          value: item['Value'] ?? null,
+          action_plan: item['Action Plan'] || '',
+          target_date: item['Target Date'] || '',
+          status: item['Status'] || ''
         })),
         allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map(item => ({
           function_name: item['Function Name'] || 'Unknown',
@@ -1611,7 +1655,24 @@ export class GrcKrisService {
         k.kriName AS [KRI Name],
         k.createdAt AS createdAt,
         ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function],
-        FORMAT(CONVERT(datetime, ap.implementation_date), 'yyyy-MM-dd') AS [Target Date]
+        ISNULL(k.threshold, '') AS [Threshold],
+        k.low_from AS [Low From],
+        k.medium_from AS [Medium From],
+        k.high_from AS [High From],
+        CASE
+          WHEN ap.[month] BETWEEN 1 AND 12 AND ap.[year] BETWEEN 1 AND 9999
+          THEN DATENAME(MONTH, DATEFROMPARTS(ap.[year], ap.[month], 1))
+          ELSE ''
+        END AS [Month],
+        CASE WHEN ap.[year] BETWEEN 1 AND 9999 THEN ap.[year] ELSE NULL END AS [Year],
+        kv.value AS [Value],
+        ISNULL(ap.control_procedure, '') AS [Action Plan],
+        FORMAT(CONVERT(datetime, ap.implementation_date), 'yyyy-MM-dd') AS [Target Date],
+        CASE
+          WHEN ap.id IS NULL THEN ''
+          WHEN ISNULL(ap.business_unit, '') = '' THEN 'Pending'
+          ELSE ap.business_unit
+        END AS [Status]
       FROM Kris AS k
       LEFT JOIN Actionplans AS ap
         ON ap.kri_id = k.id
@@ -1627,6 +1688,11 @@ export class GrcKrisService {
         ON frel.id = k.related_function_id
         AND frel.isDeleted = 0
         AND frel.deletedAt IS NULL
+      LEFT JOIN KriValues AS kv
+        ON kv.kriId = k.id
+        AND kv.[year] = ap.[year]
+        AND kv.[month] = ap.[month]
+        AND kv.deletedAt IS NULL
       WHERE k.isDeleted = 0
         AND k.deletedAt IS NULL
         ${dateFilter}
@@ -1649,7 +1715,16 @@ export class GrcKrisService {
         kriCode: item['KRI Code'] || null,
         kriName: item['KRI Name'] || 'Unknown',
         function_name: item['Function'] || 'Unknown',
+        threshold: item['Threshold'] ?? '',
+        low_from: item['Low From'] ?? null,
+        medium_from: item['Medium From'] ?? null,
+        high_from: item['High From'] ?? null,
+        month: item['Month'] || '',
+        year: item['Year'] ?? '',
+        value: item['Value'] ?? null,
+        action_plan: item['Action Plan'] || '',
         target_date: item['Target Date'] || '',
+        status: item['Status'] || '',
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
