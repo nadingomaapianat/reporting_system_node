@@ -721,38 +721,47 @@ export class GrcKrisService {
       const overdueKrisByDepartmentTask = () => this.runDashboardQuery<any[]>('Overdue KRIs by department', overdueKrisByDepartmentQuery, []);
 
       // All KRIs Submitted by Function
+      // Total KRIs = sum, per KRI, of how many months it has been active (createdAt -> now,
+      // inclusive) — i.e. total expected monthly reporting slots for that function, not a count
+      // of KRI definitions. Submitted KRIs = sum of months that actually have a recorded value.
+      // Function attribution prioritizes related_function_id over KriFunctions, matching the
+      // main app/heatmap's authoritative logic (adib_backend kri.service.ts), so a KRI is never
+      // silently reassigned to a different function here than it belongs to there.
       const allKrisSubmittedByFunctionQuery = `
         SELECT
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function Name],
-          COUNT(k.id) AS [Total KRIs],
-          COUNT(CASE
-            WHEN ISNULL(k.preparerStatus, '') = 'sent'
-            THEN 1 END) AS [Submitted KRIs],
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS [Function Name],
+          SUM(DATEDIFF(MONTH, k.createdAt, GETDATE()) + 1) AS [Total KRIs],
+          SUM(ISNULL(kv_counts.months_submitted, 0)) AS [Submitted KRIs],
           CASE
-            WHEN COUNT(k.id) = COUNT(CASE
-              WHEN ISNULL(k.preparerStatus, '') = 'sent'
-              THEN 1 END)
+            WHEN SUM(DATEDIFF(MONTH, k.createdAt, GETDATE()) + 1) = SUM(ISNULL(kv_counts.months_submitted, 0))
             THEN 'Yes' ELSE 'No'
           END AS [All KRIs Submitted?]
         FROM Kris AS k
-        LEFT JOIN KriFunctions AS kf
-          ON k.id = kf.kri_id
-          AND kf.deletedAt IS NULL
-        LEFT JOIN Functions AS fkf
-          ON fkf.id = kf.function_id
-          AND fkf.isDeleted = 0
-          AND fkf.deletedAt IS NULL
         LEFT JOIN Functions AS frel
           ON frel.id = k.related_function_id
           AND frel.isDeleted = 0
           AND frel.deletedAt IS NULL
+        OUTER APPLY (
+          -- A KRI can have several KriFunctions rows; TOP 1 keeps this to one row per KRI so
+          -- SUM() below never double/triple-counts a KRI linked to multiple functions.
+          SELECT TOP 1 f2.name
+          FROM KriFunctions kf2
+          INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+          WHERE kf2.kri_id = k.id AND kf2.deletedAt IS NULL
+          ORDER BY kf2.function_id
+        ) fkf(name)
+        OUTER APPLY (
+          SELECT COUNT(DISTINCT CONCAT(kv.[year], '-', kv.[month])) AS months_submitted
+          FROM KriValues kv
+          WHERE kv.kriId = k.id AND kv.deletedAt IS NULL
+        ) kv_counts
         WHERE
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
           ${functionFilter}
-        GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
-        ORDER BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
+        GROUP BY ISNULL(COALESCE(frel.name, fkf.name), 'Unknown')
+        ORDER BY ISNULL(COALESCE(frel.name, fkf.name), 'Unknown')
       `;
       const allKrisSubmittedByFunctionTask = () => this.runDashboardQuery<any[]>('All KRIs submitted by function', allKrisSubmittedByFunctionQuery, []);
 
@@ -1504,36 +1513,39 @@ export class GrcKrisService {
     const offset = (pageInt - 1) * limitInt;
     const groupedQuery = `
       SELECT
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function Name],
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS [Function Name],
         MAX(k.createdAt) AS latest_created_at,
-        COUNT(k.id) AS [Total KRIs],
-        COUNT(CASE
-          WHEN ISNULL(k.preparerStatus, '') = 'sent'
-          THEN 1 END) AS [Submitted KRIs],
+        SUM(DATEDIFF(MONTH, k.createdAt, GETDATE()) + 1) AS [Total KRIs],
+        SUM(ISNULL(kv_counts.months_submitted, 0)) AS [Submitted KRIs],
         CASE
-          WHEN COUNT(k.id) = COUNT(CASE
-            WHEN ISNULL(k.preparerStatus, '') = 'sent'
-            THEN 1 END)
+          WHEN SUM(DATEDIFF(MONTH, k.createdAt, GETDATE()) + 1) = SUM(ISNULL(kv_counts.months_submitted, 0))
           THEN 'Yes' ELSE 'No'
         END AS [All KRIs Submitted?]
       FROM Kris AS k
-      LEFT JOIN KriFunctions AS kf
-        ON k.id = kf.kri_id
-        AND kf.deletedAt IS NULL
-      LEFT JOIN Functions AS fkf
-        ON fkf.id = kf.function_id
-        AND fkf.isDeleted = 0
-        AND fkf.deletedAt IS NULL
       LEFT JOIN Functions AS frel
         ON frel.id = k.related_function_id
         AND frel.isDeleted = 0
         AND frel.deletedAt IS NULL
+      OUTER APPLY (
+        -- A KRI can have several KriFunctions rows; TOP 1 keeps this to one row per KRI so
+        -- SUM() below never double/triple-counts a KRI linked to multiple functions.
+        SELECT TOP 1 f2.name
+        FROM KriFunctions kf2
+        INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+        WHERE kf2.kri_id = k.id AND kf2.deletedAt IS NULL
+        ORDER BY kf2.function_id
+      ) fkf(name)
+      OUTER APPLY (
+        SELECT COUNT(DISTINCT CONCAT(kv.[year], '-', kv.[month])) AS months_submitted
+        FROM KriValues kv
+        WHERE kv.kriId = k.id AND kv.deletedAt IS NULL
+      ) kv_counts
       WHERE
         k.isDeleted = 0
         AND k.deletedAt IS NULL
         ${dateFilter}
         ${functionFilter}
-      GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
+      GROUP BY ISNULL(COALESCE(frel.name, fkf.name), 'Unknown')
     `;
     const countQuery = `SELECT COUNT(*) as total FROM (${groupedQuery}) as grouped_kris`;
     const dataQuery = `
@@ -2484,46 +2496,73 @@ export class GrcKrisService {
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
     const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
-    
-    // Handle function filter
-    if (functionName === 'Unknown') {
-      where.push("(COALESCE(fkf.name, frel.name) IS NULL OR COALESCE(fkf.name, frel.name) = '')");
-    } else {
-      where.push(`(fkf.name = '${functionName.replace(/'/g, "''")}' OR frel.name = '${functionName.replace(/'/g, "''")}')`);
+
+    if (submissionStatus === 'submitted') {
+      // "Submitted KRIs" on the parent table is a sum of submitted MONTHS, not a count of KRIs,
+      // so this drill-down must return one row per (KRI, month) to match that number exactly —
+      // unlike the default path below (KRI-level), which is shared with Breached KRIs by Function
+      // and must stay untouched.
+      return this.getSubmittedKriMonthsByFunction(functionName, pageInt, limitInt, offset, functionFilter);
     }
-    
+    if (submissionStatus === 'total') {
+      // "Total KRIs" on the parent table is likewise a sum of active MONTHS (submitted or not),
+      // gated behind its own param (only sent when clicking that table's "Total KRIs" column) so
+      // the shared default path below — used by Breached KRIs by Function — stays untouched.
+      return this.getTotalKriMonthsByFunction(functionName, pageInt, limitInt, offset, functionFilter);
+    }
+
+    const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
+
+    // Handle function filter — match on the resolved function name (related_function_id
+    // prioritized over KriFunctions, same as allKrisSubmittedByFunctionQuery) rather than an
+    // OR of both raw fields, so a KRI is only matched under the one function it's bucketed as.
+    if (functionName === 'Unknown') {
+      where.push("(COALESCE(frel.name, fkf.name) IS NULL OR COALESCE(frel.name, fkf.name) = '')");
+    } else {
+      where.push(`ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') = '${functionName.replace(/'/g, "''")}'`);
+    }
+
     // Handle submission status filter (for "Submitted KRIs" column)
     if (submissionStatus === 'submitted') {
       // Match the logic from allKrisSubmittedByFunctionQuery: preparerStatus = 'sent' (submitted means sent by preparer, not necessarily approved)
       where.push("ISNULL(k.preparerStatus, '') = 'sent'");
     }
-    
+
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
+    // A KRI can have several KriFunctions rows; TOP 1 keeps this to one row per KRI so a KRI
+    // never appears multiple times under different function labels.
+    const fkfApply = `
+      OUTER APPLY (
+        SELECT TOP 1 f2.name
+        FROM KriFunctions kf2
+        INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+        WHERE kf2.kri_id = k.id AND kf2.deletedAt IS NULL
+        ORDER BY kf2.function_id
+      ) fkf(name)
+    `;
+
     const countQuery = `
-      SELECT COUNT(DISTINCT k.id) as total 
+      SELECT COUNT(*) as total
       FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
       LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      ${fkfApply}
       ${whereSql}
     `;
     const totalRes = await this.databaseService.query(countQuery);
     const total = totalRes?.[0]?.total || 0;
 
     const dataQuery = `
-      SELECT DISTINCT
+      SELECT
         k.code,
         k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
       LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      ${fkfApply}
       ${whereSql}
       ORDER BY k.createdAt DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2540,6 +2579,171 @@ export class GrcKrisService {
         hasNext: offset + limitInt < total,
         hasPrev: pageInt > 1
       }
+    };
+  }
+
+  // One row per (KRI, month) that was actually submitted, for a single function — the exact
+  // per-month breakdown behind "Submitted KRIs" in allKrisSubmittedByFunctionQuery, so the
+  // drill-down's row count always matches that parent number.
+  private async getSubmittedKriMonthsByFunction(
+    functionName: string,
+    pageInt: number,
+    limitInt: number,
+    offset: number,
+    functionFilter: string,
+  ) {
+    const functionMatch =
+      functionName === 'Unknown'
+        ? "(COALESCE(frel.name, fkf.name) IS NULL OR COALESCE(frel.name, fkf.name) = '')"
+        : `ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') = '${functionName.replace(/'/g, "''")}'`;
+    const ctes = `
+      WITH KriMonths AS (
+        SELECT
+          k.id AS kri_id, k.code AS kri_code, k.kriName AS kri_name, k.createdAt AS kri_created_at,
+          DATEFROMPARTS(YEAR(k.createdAt), MONTH(k.createdAt), 1) AS period,
+          DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) AS end_period,
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name
+        FROM Kris k
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+        OUTER APPLY (
+          SELECT TOP 1 f2.name
+          FROM KriFunctions kf2
+          INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+          WHERE kf2.kri_id = k.id AND kf2.deletedAt IS NULL
+          ORDER BY kf2.function_id
+        ) fkf(name)
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL ${functionFilter}
+          AND ${functionMatch}
+        UNION ALL
+        SELECT kri_id, kri_code, kri_name, kri_created_at, DATEADD(MONTH, 1, period), end_period, function_name
+        FROM KriMonths
+        WHERE period < end_period
+      ),
+      Expected AS (
+        SELECT YEAR(period) AS yr, MONTH(period) AS mo, kri_id, kri_code, kri_name, kri_created_at, function_name
+        FROM KriMonths
+      ),
+      Sub AS (
+        SELECT DISTINCT kv.kriId, TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+        FROM KriValues kv WHERE kv.deletedAt IS NULL
+      )`;
+    const countQuery = `${ctes}
+      SELECT COUNT(*) AS total, COUNT(DISTINCT e.kri_id) AS uniqueKris
+      FROM Expected e INNER JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
+      OPTION (MAXRECURSION 1000)`;
+    const dataQuery = `${ctes}
+      SELECT
+        e.kri_code AS code,
+        e.kri_name AS name,
+        e.function_name AS function_name,
+        DATENAME(MONTH, DATEFROMPARTS(e.yr, e.mo, 1)) AS month,
+        e.yr AS year,
+        e.kri_created_at AS createdAt
+      FROM Expected e
+      INNER JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
+      ORDER BY e.yr DESC, e.mo DESC, e.kri_name
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+      OPTION (MAXRECURSION 1000)`;
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    const uniqueKrisCount = Number(countResult?.[0]?.uniqueKris ?? 0);
+    return {
+      data,
+      uniqueKrisCount,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1,
+      },
+    };
+  }
+
+  // One row per (KRI, month) the KRI was active for, for a single function — the exact per-month
+  // breakdown behind "Total KRIs" in allKrisSubmittedByFunctionQuery (submitted or not), so the
+  // drill-down's row count always matches that parent number.
+  private async getTotalKriMonthsByFunction(
+    functionName: string,
+    pageInt: number,
+    limitInt: number,
+    offset: number,
+    functionFilter: string,
+  ) {
+    const functionMatch =
+      functionName === 'Unknown'
+        ? "(COALESCE(frel.name, fkf.name) IS NULL OR COALESCE(frel.name, fkf.name) = '')"
+        : `ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') = '${functionName.replace(/'/g, "''")}'`;
+    const ctes = `
+      WITH KriMonths AS (
+        SELECT
+          k.id AS kri_id, k.code AS kri_code, k.kriName AS kri_name, k.createdAt AS kri_created_at,
+          DATEFROMPARTS(YEAR(k.createdAt), MONTH(k.createdAt), 1) AS period,
+          DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) AS end_period,
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name
+        FROM Kris k
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+        OUTER APPLY (
+          SELECT TOP 1 f2.name
+          FROM KriFunctions kf2
+          INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+          WHERE kf2.kri_id = k.id AND kf2.deletedAt IS NULL
+          ORDER BY kf2.function_id
+        ) fkf(name)
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL ${functionFilter}
+          AND ${functionMatch}
+        UNION ALL
+        SELECT kri_id, kri_code, kri_name, kri_created_at, DATEADD(MONTH, 1, period), end_period, function_name
+        FROM KriMonths
+        WHERE period < end_period
+      ),
+      Expected AS (
+        SELECT YEAR(period) AS yr, MONTH(period) AS mo, kri_id, kri_code, kri_name, kri_created_at, function_name
+        FROM KriMonths
+      ),
+      Sub AS (
+        SELECT DISTINCT kv.kriId, TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+        FROM KriValues kv WHERE kv.deletedAt IS NULL
+      )`;
+    const countQuery = `${ctes}
+      SELECT COUNT(*) AS total, COUNT(DISTINCT e.kri_id) AS uniqueKris
+      FROM Expected e
+      OPTION (MAXRECURSION 1000)`;
+    const dataQuery = `${ctes}
+      SELECT
+        e.kri_code AS code,
+        e.kri_name AS name,
+        e.function_name AS function_name,
+        DATENAME(MONTH, DATEFROMPARTS(e.yr, e.mo, 1)) AS month,
+        e.yr AS year,
+        CASE WHEN s.kriId IS NOT NULL THEN 'Yes' ELSE 'No' END AS submitted,
+        e.kri_created_at AS createdAt
+      FROM Expected e
+      LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
+      ORDER BY e.yr DESC, e.mo DESC, e.kri_name
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+      OPTION (MAXRECURSION 1000)`;
+    const [data, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    const uniqueKrisCount = Number(countResult?.[0]?.uniqueKris ?? 0);
+    return {
+      data,
+      uniqueKrisCount,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1,
+      },
     };
   }
 
