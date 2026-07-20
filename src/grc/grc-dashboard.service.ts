@@ -550,10 +550,26 @@ export class GrcDashboardService extends BaseDashboardService {
           WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
-          'Not Mapped' as coso_component,
-          'Not Mapped' as coso_point
-          FROM ${fq('Controls')} c 
-          JOIN ${fq('Assertions')} a ON c.icof_id = a.id 
+          ISNULL((
+            SELECT STRING_AGG(comp.name, ', ') FROM ${fq('ControlCosos')} ccx2
+            JOIN ${fq('CosoPoints')} cp2 ON cp2.id = ccx2.coso_id AND cp2.deletedAt IS NULL
+            JOIN ${fq('CosoPrinciples')} cpr2 ON cpr2.id = cp2.principle_id AND cpr2.deletedAt IS NULL
+            JOIN ${fq('CosoComponents')} comp ON comp.id = cpr2.component_id AND comp.deletedAt IS NULL
+            WHERE ccx2.control_id = c.id AND ccx2.deletedAt IS NULL
+          ), 'Not Mapped') as coso_component,
+          ISNULL((
+            SELECT STRING_AGG(cpr2.name, ', ') FROM ${fq('ControlCosos')} ccx2
+            JOIN ${fq('CosoPoints')} cp2 ON cp2.id = ccx2.coso_id AND cp2.deletedAt IS NULL
+            JOIN ${fq('CosoPrinciples')} cpr2 ON cpr2.id = cp2.principle_id AND cpr2.deletedAt IS NULL
+            WHERE ccx2.control_id = c.id AND ccx2.deletedAt IS NULL
+          ), 'Not Mapped') as coso_principle,
+          ISNULL((
+            SELECT STRING_AGG(cp2.name, ', ') FROM ${fq('ControlCosos')} ccx2
+            JOIN ${fq('CosoPoints')} cp2 ON cp2.id = ccx2.coso_id AND cp2.deletedAt IS NULL
+            WHERE ccx2.control_id = c.id AND ccx2.deletedAt IS NULL
+          ), 'Not Mapped') as coso_point
+          FROM ${fq('Controls')} c
+          JOIN ${fq('Assertions')} a ON c.icof_id = a.id
           WHERE c.isDeleted = 0 AND c.icof_id IS NOT NULL 
           AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
           AND ((a.C = 1 OR a.E = 1 OR a.A = 1 OR a.V = 1 OR a.O = 1 OR a.P = 1) 
@@ -570,10 +586,26 @@ export class GrcDashboardService extends BaseDashboardService {
           AND a.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter}`;
       } else if (cardType === 'unmappedNonIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
-          'Not Mapped' as coso_component,
-          'Not Mapped' as coso_point
-          FROM ${fq('Controls')} c 
-          LEFT JOIN ${fq('Assertions')} a ON c.icof_id = a.id 
+          ISNULL((
+            SELECT STRING_AGG(comp.name, ', ') FROM ${fq('ControlCosos')} ccx2
+            JOIN ${fq('CosoPoints')} cp2 ON cp2.id = ccx2.coso_id AND cp2.deletedAt IS NULL
+            JOIN ${fq('CosoPrinciples')} cpr2 ON cpr2.id = cp2.principle_id AND cpr2.deletedAt IS NULL
+            JOIN ${fq('CosoComponents')} comp ON comp.id = cpr2.component_id AND comp.deletedAt IS NULL
+            WHERE ccx2.control_id = c.id AND ccx2.deletedAt IS NULL
+          ), 'Not Mapped') as coso_component,
+          ISNULL((
+            SELECT STRING_AGG(cpr2.name, ', ') FROM ${fq('ControlCosos')} ccx2
+            JOIN ${fq('CosoPoints')} cp2 ON cp2.id = ccx2.coso_id AND cp2.deletedAt IS NULL
+            JOIN ${fq('CosoPrinciples')} cpr2 ON cpr2.id = cp2.principle_id AND cpr2.deletedAt IS NULL
+            WHERE ccx2.control_id = c.id AND ccx2.deletedAt IS NULL
+          ), 'Not Mapped') as coso_principle,
+          ISNULL((
+            SELECT STRING_AGG(cp2.name, ', ') FROM ${fq('ControlCosos')} ccx2
+            JOIN ${fq('CosoPoints')} cp2 ON cp2.id = ccx2.coso_id AND cp2.deletedAt IS NULL
+            WHERE ccx2.control_id = c.id AND ccx2.deletedAt IS NULL
+          ), 'Not Mapped') as coso_point
+          FROM ${fq('Controls')} c
+          LEFT JOIN ${fq('Assertions')} a ON c.icof_id = a.id
           WHERE c.isDeleted = 0 
           AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) 
           AND (c.icof_id IS NULL OR ((a.C IS NULL OR a.C = 0) AND (a.E IS NULL OR a.E = 0) AND (a.A IS NULL OR a.A = 0) 

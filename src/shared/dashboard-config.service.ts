@@ -213,7 +213,7 @@ export class DashboardConfigService {
         },
         {
           id: 'unmapped',
-          name: 'Unmapped Controls',
+          name: 'Unmapped Controls to COSO',
           query: `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 {dateFilter} {functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`,
           color: 'yellow',
           icon: 'exclamation-triangle'
