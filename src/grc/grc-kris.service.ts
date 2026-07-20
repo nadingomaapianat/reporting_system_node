@@ -208,8 +208,8 @@ export class GrcKrisService {
     const kriDetailsMap = new Map<string, {
       kri_code: string;
       kri_name: string;
-      kri_created_at: any;
       function_name: string;
+      kri_created_at: any;
       assigned_person_name: string;
       kri_type: string;
       added_by_name: string;
@@ -240,8 +240,8 @@ export class GrcKrisService {
         kriDetailsMap.set(kriId, {
           kri_code: row.kri_code ?? 'N/A',
           kri_name: row.kri_name ?? 'N/A',
-          kri_created_at: row.kri_created_at ?? null,
           function_name: row.function_name ?? 'N/A',
+          kri_created_at: row.kri_created_at ?? null,
           assigned_person_name: row.assigned_person_name ?? 'N/A',
           kri_type: row.kri_type ?? 'N/A',
           added_by_name: row.added_by_name ?? 'N/A',
@@ -443,28 +443,56 @@ export class GrcKrisService {
       `;
       const krisByLevelTask = () => this.runDashboardQuery<any[]>('KRIs by level', krisByLevelQuery, []);
 
-      // KRIs by function (simplified - just count KRIs per function)
+      // Breached KRIs by function: a KRI is "breached" when its latest assessment
+      // sits in the High-risk band (or an explicit High kri_level). Mirrors the
+      // level logic used by the "KRIs by Risk Level" chart.
       const breachedKRIsByDepartmentQuery = `
-        SELECT 
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-          COUNT(k.id) AS breached_count
-        FROM Kris k
-        LEFT JOIN KriFunctions kf
-          ON kf.kri_id = k.id
-          AND kf.deletedAt IS NULL
-        LEFT JOIN Functions fkf
-          ON fkf.id = kf.function_id
-          AND fkf.isDeleted = 0
-          AND fkf.deletedAt IS NULL
-        LEFT JOIN Functions frel
-          ON frel.id = k.related_function_id
-          AND frel.isDeleted = 0
-          AND frel.deletedAt IS NULL
-        WHERE k.isDeleted = 0 
-          AND k.deletedAt IS NULL
-          ${dateFilter}
-          ${functionFilter}
-        GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
+        WITH LatestKV AS (
+          SELECT kv.kriId, kv.value,
+                 ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
+          FROM KriValues kv
+          WHERE kv.deletedAt IS NULL
+        ),
+        K AS (
+          SELECT k.id,
+                 ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+                 k.kri_level,
+                 CAST(k.isAscending AS int) AS isAscending,
+                 TRY_CONVERT(float, k.medium_from) AS med_thr,
+                 TRY_CONVERT(float, k.high_from)   AS high_thr
+          FROM Kris k
+          LEFT JOIN KriFunctions kf ON kf.kri_id = k.id AND kf.deletedAt IS NULL
+          LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+          LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+          WHERE k.isDeleted = 0
+            AND k.deletedAt IS NULL
+            ${dateFilter}
+            ${functionFilter}
+        ),
+        KL AS (
+          SELECT K.id, K.function_name, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
+                 TRY_CONVERT(float, kv.value) AS val
+          FROM K
+          LEFT JOIN LatestKV kv ON kv.kriId = K.id AND kv.rn = 1
+        ),
+        Derived AS (
+          SELECT function_name,
+                 CASE
+                   WHEN kri_level IS NOT NULL AND LTRIM(RTRIM(kri_level)) <> '' THEN kri_level
+                   WHEN val IS NULL OR med_thr IS NULL OR high_thr IS NULL THEN 'Unknown'
+                   WHEN isAscending = 1 AND val >= high_thr THEN 'High'
+                   WHEN isAscending = 1 AND val >= med_thr THEN 'Medium'
+                   WHEN isAscending = 1 THEN 'Low'
+                   WHEN isAscending = 0 AND val <= high_thr THEN 'High'
+                   WHEN isAscending = 0 AND val <= med_thr THEN 'Medium'
+                   ELSE 'Low'
+                 END AS level_bucket
+          FROM KL
+        )
+        SELECT function_name, COUNT(*) AS breached_count
+        FROM Derived
+        WHERE UPPER(LTRIM(RTRIM(level_bucket))) = 'HIGH'
+        GROUP BY function_name
         ORDER BY breached_count DESC
       `;
       const breachedKRIsByDepartmentTask = () => this.runDashboardQuery<any[]>('Breached KRIs by function', breachedKRIsByDepartmentQuery, []);
@@ -583,48 +611,51 @@ export class GrcKrisService {
       `;
       const deletedKrisPerMonthTask = () => this.runDashboardQuery<any[]>('Deleted KRIs per month', deletedKrisPerMonthQuery, []);
 
-      // KRIs Overdue vs Not Overdue based on related Action Plans
-      const kriOverdueStatusCountsQuery = `
-        WITH classified AS (
-          SELECT
-            k.id,
-            CASE
-              WHEN EXISTS (
-                SELECT 1
-                FROM Actionplans ap
-                WHERE ap.kri_id = k.id
-                  AND ap.deletedAt IS NULL
-                  AND ap.implementation_date < GETDATE()
-                  AND (ap.done = 0 OR ap.done IS NULL)
-              ) THEN 'Overdue'
-              ELSE 'Not Overdue'
-            END AS KRIStatus
-          FROM Kris AS k
-          WHERE k.isDeleted = 0
-            AND k.deletedAt IS NULL
-            ${dateFilter}
+      // KRIs Submitted vs Not Submitted per month. For each month present in the data,
+      // every active KRI that already existed by then counts as Submitted (a KriValue was
+      // recorded that month) or Not Submitted (no value that month).
+      const krisSubmittedMonthlyQuery = `
+        WITH Months AS (
+          SELECT DISTINCT TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+          FROM KriValues kv
+          WHERE kv.deletedAt IS NULL AND kv.[year] IS NOT NULL AND kv.[month] IS NOT NULL
+        ),
+        Expected AS (
+          SELECT m.yr, m.mo, k.id AS kri_id
+          FROM Months m
+          INNER JOIN Kris k
+            ON k.isDeleted = 0 AND k.deletedAt IS NULL
+            AND k.createdAt < DATEADD(MONTH, 1, DATEFROMPARTS(m.yr, m.mo, 1))
             ${functionFilter}
+        ),
+        Sub AS (
+          SELECT DISTINCT kv.kriId, TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+          FROM KriValues kv WHERE kv.deletedAt IS NULL
         )
         SELECT
-          KRIStatus AS [KRI Status],
-          COUNT(*)  AS [Count]
-        FROM classified
-        GROUP BY KRIStatus
+          e.yr AS [year],
+          e.mo AS [month],
+          FORMAT(DATEFROMPARTS(e.yr, e.mo, 1), 'MMM yyyy') AS month_year,
+          SUM(CASE WHEN s.kriId IS NOT NULL THEN 1 ELSE 0 END) AS submitted,
+          SUM(CASE WHEN s.kriId IS NULL THEN 1 ELSE 0 END) AS not_submitted
+        FROM Expected e
+        LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
+        GROUP BY e.yr, e.mo
+        ORDER BY e.yr, e.mo
       `;
-      const kriOverdueStatusCountsTask = () => this.runDashboardQuery<any[]>('KRI overdue status counts', kriOverdueStatusCountsQuery, []);
+      const krisSubmittedMonthlyTask = () => this.runDashboardQuery<any[]>('KRIs submitted vs not submitted (monthly)', krisSubmittedMonthlyQuery, []);
 
       // Overdue KRIs by Function
       const overdueKrisByDepartmentQuery = `
-        SELECT DISTINCT 
-          k.code      AS [KRI Code], 
-          k.kriName   AS [KRI Name], 
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function]
+        SELECT
+          k.code      AS [KRI Code],
+          k.kriName   AS [KRI Name],
+          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function],
+          FORMAT(CONVERT(datetime, ap.implementation_date), 'yyyy-MM-dd') AS [Target Date]
         FROM Kris AS k
-        INNER JOIN Actionplans AS ap
+        LEFT JOIN Actionplans AS ap
           ON ap.kri_id = k.id
           AND ap.deletedAt IS NULL
-          AND ap.implementation_date < GETDATE()
-          AND (ap.done = 0 OR ap.done IS NULL)
         LEFT JOIN KriFunctions AS kf
           ON k.id = kf.kri_id
           AND kf.deletedAt IS NULL
@@ -636,13 +667,14 @@ export class GrcKrisService {
           ON frel.id = k.related_function_id
           AND frel.isDeleted = 0
           AND frel.deletedAt IS NULL
-        WHERE 
+        WHERE
           k.isDeleted = 0
           AND k.deletedAt IS NULL
           ${dateFilter}
           ${functionFilter}
-        ORDER BY 
-          [Function], [KRI Name]
+        ORDER BY
+          CASE WHEN ap.implementation_date IS NULL THEN 1 ELSE 0 END,
+          ap.implementation_date ASC, [Function], [KRI Name]
       `;
       const overdueKrisByDepartmentTask = () => this.runDashboardQuery<any[]>('Overdue KRIs by department', overdueKrisByDepartmentQuery, []);
 
@@ -653,12 +685,10 @@ export class GrcKrisService {
           COUNT(k.id) AS [Total KRIs],
           COUNT(CASE
             WHEN ISNULL(k.preparerStatus, '') = 'sent'
-             AND ISNULL(k.acceptanceStatus, '') = 'approved'
             THEN 1 END) AS [Submitted KRIs],
           CASE
             WHEN COUNT(k.id) = COUNT(CASE
               WHEN ISNULL(k.preparerStatus, '') = 'sent'
-               AND ISNULL(k.acceptanceStatus, '') = 'approved'
               THEN 1 END)
             THEN 'Yes' ELSE 'No'
           END AS [All KRIs Submitted?]
@@ -719,31 +749,25 @@ export class GrcKrisService {
       `;
       const kriCountsByFrequencyTask = () => this.runDashboardQuery<any[]>('KRI counts by frequency', kriCountsByFrequencyQuery, []);
 
-      // Risks linked to KRIs (count per KRI name)
-      const kriRisksByKriNameQuery = `
-        SELECT 
-          k.kriName AS kriName,
-          COUNT(*) AS count
-        FROM Risks r
-        INNER JOIN KriRisks kr
-          ON r.id = kr.risk_id
-          AND kr.deletedAt IS NULL
-        INNER JOIN Kris k
-          ON kr.kri_id = k.id
-          AND k.isDeleted = 0
-          AND k.deletedAt IS NULL
-          ${dateFilter}
-          ${functionFilter}
-        WHERE 
-          r.isDeleted = 0
-          AND r.deletedAt IS NULL
-          AND k.kriName IS NOT NULL
-        GROUP BY 
-          k.kriName
-        ORDER BY 
-          k.kriName ASC
+      // Count of KRIs linked vs not linked to risks
+      const kriRiskLinkageCountsQuery = `
+        SELECT
+          SUM(CASE WHEN linked_flag = 1 THEN 1 ELSE 0 END) AS linked,
+          SUM(CASE WHEN linked_flag = 0 THEN 1 ELSE 0 END) AS notLinked
+        FROM (
+          SELECT
+            CASE WHEN EXISTS (
+              SELECT 1 FROM KriRisks kr WHERE kr.kri_id = k.id AND kr.deletedAt IS NULL
+            ) THEN 1 ELSE 0 END AS linked_flag
+          FROM Kris k
+          WHERE
+            k.isDeleted = 0
+            AND k.deletedAt IS NULL
+            ${dateFilter}
+            ${functionFilter}
+        ) t
       `;
-      const kriRisksByKriNameTask = () => this.runDashboardQuery<any[]>('KRI risks by KRI name', kriRisksByKriNameQuery, []);
+      const kriRiskLinkageCountsTask = () => this.runDashboardQuery<any[]>('KRI risk linkage counts', kriRiskLinkageCountsQuery, []);
 
       // KRI and Risk relationships (detailed list)
       const kriRiskRelationshipsQuery = `
@@ -835,8 +859,9 @@ export class GrcKrisService {
       // Active KRIs details
       const activeKrisDetailsQuery = `
         SELECT
+          k.code             AS code,
           k.kriName          AS kriName,
-          CASE 
+          CASE
             WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
             WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
             WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
@@ -903,10 +928,10 @@ export class GrcKrisService {
           kriAssessmentCount,
           kriMonthlyAssessment,
           deletedKrisPerMonth,
-          kriOverdueStatusCountsRows,
+          krisSubmittedMonthlyRows,
           kriCountsByMonthYear,
           kriCountsByFrequency,
-          kriRisksByKriName,
+          kriRiskLinkageCountsRows,
         ] = await this.runQueryBatches<any[]>([
           statusCountsTask,
           krisByLevelTask,
@@ -914,10 +939,10 @@ export class GrcKrisService {
           kriAssessmentCountTask,
           kriMonthlyAssessmentTask,
           deletedKrisPerMonthTask,
-          kriOverdueStatusCountsTask,
+          krisSubmittedMonthlyTask,
           kriCountsByMonthYearTask,
           kriCountsByFrequencyTask,
-          kriRisksByKriNameTask,
+          kriRiskLinkageCountsTask,
         ]);
         const statusCountsRow = statusCountsResults[0] || {};
         const pendingPreparer = Number(statusCountsRow?.pendingPreparer || 0);
@@ -955,9 +980,12 @@ export class GrcKrisService {
             month: item.deletedMonth ? new Date(item.deletedMonth).toISOString().split('T')[0] : null,
             count: item.count || 0,
           })),
-          kriOverdueStatusCounts: kriOverdueStatusCountsRows.map((item) => ({
-            status: item['KRI Status'] || 'Unknown',
-            count: item['Count'] || 0,
+          krisSubmittedMonthly: krisSubmittedMonthlyRows.map((item) => ({
+            month_year: item.month_year || `${item.month || ''}/${item.year || ''}`,
+            year: Number(item.year || 0),
+            month: Number(item.month || 0),
+            submitted: Number(item.submitted || 0),
+            not_submitted: Number(item.not_submitted || 0),
           })),
           kriCountsByMonthYear: kriCountsByMonthYear.map((item) => ({
             month_year: item.month_year || `${item.month_name || item.month || ''} ${item.year || item['year'] || ''}`.trim() || 'Unknown',
@@ -969,10 +997,10 @@ export class GrcKrisService {
             frequency: item.frequency || 'Unknown',
             count: item.count || 0,
           })),
-          kriRisksByKriName: kriRisksByKriName.map((item) => ({
-            kriName: item.kriName || 'Unknown',
-            count: item.count || 0,
-          })),
+          kriRiskLinkageCounts: [
+            { name: 'Linked with Risks', value: Number(kriRiskLinkageCountsRows[0]?.linked || 0), color: '#4472C4' },
+            { name: 'Not Linked with Risks', value: Number(kriRiskLinkageCountsRows[0]?.notLinked || 0), color: '#EF3D3D' },
+          ],
         };
       }
 
@@ -997,12 +1025,19 @@ export class GrcKrisService {
           selectedFunctionIds,
           kriValueDateFilter,
         );
+        // Large per-KRI-per-month table: send only page 1 + total; the rest is fetched
+        // server-side via getMonthlyKriSubmissionByFunctionTablePage on page change.
+        const monthlyKriSubmissionByFunction = await this.getMonthlyKriSubmissionByFunctionTablePage(
+          user, 1, 10, timeframe, startDate, endDate, selectedFunctionIds, false,
+        );
 
         return {
+          monthlyKriSubmissionByFunction,
           overdueKrisByDepartment: overdueKrisByDepartmentRows.map((item) => ({
             kriCode: item['KRI Code'] || null,
             kriName: item['KRI Name'] || 'Unknown',
             function_name: item['Function'] || 'Unknown',
+            target_date: item['Target Date'] || '',
           })),
           allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map((item) => ({
             function_name: item['Function Name'] || 'Unknown',
@@ -1030,6 +1065,7 @@ export class GrcKrisService {
           })),
           kriDetailsWithActionPlans: kriDetailsWithActionPlansGrouped,
           activeKrisDetails: activeKrisDetailsRows.map((item) => ({
+            code: item.code || null,
             kriName: item.kriName || 'Unknown',
             combined_status: item.combined_status || 'Unknown',
             assignedPersonId: item.assignedPersonId || null,
@@ -1055,12 +1091,12 @@ export class GrcKrisService {
         kriMonthlyAssessment,
         newlyCreatedKrisPerMonth,
         deletedKrisPerMonth,
-        kriOverdueStatusCountsRows,
+        krisSubmittedMonthlyRows,
         overdueKrisByDepartmentRows,
         allKrisSubmittedByFunctionRows,
         kriCountsByMonthYear,
         kriCountsByFrequency,
-        kriRisksByKriName,
+        kriRiskLinkageCountsRows,
         kriRiskRelationships,
         kriWithoutLinkedRisks,
         kriStatusRows,
@@ -1075,12 +1111,12 @@ export class GrcKrisService {
         kriMonthlyAssessmentTask,
         newlyCreatedKrisPerMonthTask,
         deletedKrisPerMonthTask,
-        kriOverdueStatusCountsTask,
+        krisSubmittedMonthlyTask,
         overdueKrisByDepartmentTask,
         allKrisSubmittedByFunctionTask,
         kriCountsByMonthYearTask,
         kriCountsByFrequencyTask,
-        kriRisksByKriNameTask,
+        kriRiskLinkageCountsTask,
         kriRiskRelationshipsTask,
         kriWithoutLinkedRisksTask,
         kriStatusTask,
@@ -1148,14 +1184,18 @@ export class GrcKrisService {
           month: item.deletedMonth ? new Date(item.deletedMonth).toISOString().split('T')[0] : null,
           count: item.count || 0
         })),
-        kriOverdueStatusCounts: kriOverdueStatusCountsRows.map(item => ({
-          status: item['KRI Status'] || 'Unknown',
-          count: item['Count'] || 0
+        krisSubmittedMonthly: krisSubmittedMonthlyRows.map(item => ({
+          month_year: item.month_year || `${item.month || ''}/${item.year || ''}`,
+          year: Number(item.year || 0),
+          month: Number(item.month || 0),
+          submitted: Number(item.submitted || 0),
+          not_submitted: Number(item.not_submitted || 0)
         })),
         overdueKrisByDepartment: overdueKrisByDepartmentRows.map(item => ({
           kriCode: item['KRI Code'] || null,
           kriName: item['KRI Name'] || 'Unknown',
-          function_name: item['Function'] || 'Unknown'
+          function_name: item['Function'] || 'Unknown',
+          target_date: item['Target Date'] || ''
         })),
         allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map(item => ({
           function_name: item['Function Name'] || 'Unknown',
@@ -1173,10 +1213,10 @@ export class GrcKrisService {
           frequency: item.frequency || 'Unknown',
           count: item.count || 0
         })),
-        kriRisksByKriName: kriRisksByKriName.map(item => ({
-          kriName: item.kriName || 'Unknown',
-          count: item.count || 0
-        })),
+        kriRiskLinkageCounts: [
+          { name: 'Linked with Risks', value: Number(kriRiskLinkageCountsRows[0]?.linked || 0), color: '#4472C4' },
+          { name: 'Not Linked with Risks', value: Number(kriRiskLinkageCountsRows[0]?.notLinked || 0), color: '#EF3D3D' },
+        ],
         kriRiskRelationships: kriRiskRelationships.map(item => ({
           kri_code: item.kri_code || null,
           kri_name: item.kri_name || 'Unknown',
@@ -1197,6 +1237,7 @@ export class GrcKrisService {
         })),
         kriDetailsWithActionPlans: kriDetailsWithActionPlansGrouped,
         activeKrisDetails: activeKrisDetailsRows.map(item => ({
+          code: item.code || null,
           kriName: item.kriName || 'Unknown',
           combined_status: item.combined_status || 'Unknown',
           assignedPersonId: item.assignedPersonId || null,
@@ -1257,6 +1298,9 @@ export class GrcKrisService {
     }
     if (tableId === 'kriRiskRelationships') {
       return this.getKriRiskRelationshipsTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'monthlyKriSubmissionByFunction') {
+      return this.getMonthlyKriSubmissionByFunctionTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
     }
 
     const tablesPayload = await this.getKrisDashboard(
@@ -1383,12 +1427,10 @@ export class GrcKrisService {
         COUNT(k.id) AS [Total KRIs],
         COUNT(CASE
           WHEN ISNULL(k.preparerStatus, '') = 'sent'
-           AND ISNULL(k.acceptanceStatus, '') = 'approved'
           THEN 1 END) AS [Submitted KRIs],
         CASE
           WHEN COUNT(k.id) = COUNT(CASE
             WHEN ISNULL(k.preparerStatus, '') = 'sent'
-             AND ISNULL(k.acceptanceStatus, '') = 'approved'
             THEN 1 END)
           THEN 'Yes' ELSE 'No'
         END AS [All KRIs Submitted?]
@@ -1452,8 +1494,9 @@ export class GrcKrisService {
     const countQuery = `SELECT COUNT(*) as total FROM Kris k WHERE k.isDeleted = 0 AND k.deletedAt IS NULL AND k.status = 'active' ${dateFilter} ${functionFilter}`;
     const dataQuery = `
       SELECT
+        k.code AS code,
         k.kriName AS kriName,
-        CASE 
+        CASE
           WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
           WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
           WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
@@ -1491,6 +1534,7 @@ export class GrcKrisService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: rows.map((item: any) => ({
+        code: item.code || null,
         kriName: item.kriName || 'Unknown',
         combined_status: item.combined_status || 'Unknown',
         assignedPersonId: item.assignedPersonId || null,
@@ -1524,17 +1568,16 @@ export class GrcKrisService {
     const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
     const offset = (pageInt - 1) * limitInt;
     const baseQuery = `
-      SELECT DISTINCT 
-        k.code AS [KRI Code], 
-        k.kriName AS [KRI Name], 
+      SELECT
+        k.code AS [KRI Code],
+        k.kriName AS [KRI Name],
         k.createdAt AS createdAt,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function]
+        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function],
+        FORMAT(CONVERT(datetime, ap.implementation_date), 'yyyy-MM-dd') AS [Target Date]
       FROM Kris AS k
-      INNER JOIN Actionplans AS ap
+      LEFT JOIN Actionplans AS ap
         ON ap.kri_id = k.id
         AND ap.deletedAt IS NULL
-        AND ap.implementation_date < GETDATE()
-        AND (ap.done = 0 OR ap.done IS NULL)
       LEFT JOIN KriFunctions AS kf
         ON k.id = kf.kri_id
         AND kf.deletedAt IS NULL
@@ -1554,7 +1597,8 @@ export class GrcKrisService {
     const countQuery = `SELECT COUNT(*) as total FROM (${baseQuery}) as overdue_kris`;
     const dataQuery = `
       ${baseQuery}
-      ORDER BY ${orderByFunctionAsc ? '[Function] ASC, createdAt DESC' : 'createdAt DESC'}
+      ORDER BY CASE WHEN ap.implementation_date IS NULL THEN 1 ELSE 0 END,
+               ap.implementation_date ASC, [Function], [KRI Name]
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
     const [rows, countResult] = await Promise.all([
@@ -1567,6 +1611,7 @@ export class GrcKrisService {
         kriCode: item['KRI Code'] || null,
         kriName: item['KRI Name'] || 'Unknown',
         function_name: item['Function'] || 'Unknown',
+        target_date: item['Target Date'] || '',
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
@@ -1703,6 +1748,78 @@ export class GrcKrisService {
     };
   }
 
+  // Monthly KRI submission by function: one row per KRI per month (all months in the data),
+  // ordered by function, showing whether a value was recorded that month (Submitted?).
+  private async getMonthlyKriSubmissionByFunctionTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const ctes = `
+      WITH Months AS (
+        SELECT DISTINCT TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+        FROM KriValues kv
+        WHERE kv.deletedAt IS NULL AND kv.[year] IS NOT NULL AND kv.[month] IS NOT NULL
+      ),
+      Expected AS (
+        SELECT m.yr, m.mo, k.id AS kri_id, k.code AS kri_code, k.kriName AS kri_name,
+               ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
+        FROM Months m
+        INNER JOIN Kris k
+          ON k.isDeleted = 0 AND k.deletedAt IS NULL
+          AND k.createdAt < DATEADD(MONTH, 1, DATEFROMPARTS(m.yr, m.mo, 1))
+          ${functionFilter}
+        LEFT JOIN KriFunctions kf ON kf.kri_id = k.id AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+      ),
+      Sub AS (
+        SELECT DISTINCT kv.kriId, TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+        FROM KriValues kv WHERE kv.deletedAt IS NULL
+      )`;
+    const countQuery = `${ctes}
+      SELECT COUNT(*) AS total
+      FROM Expected e LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo`;
+    const dataQuery = `${ctes}
+      SELECT
+        e.kri_code AS kri_code,
+        e.kri_name AS kri_name,
+        e.function_name AS function_name,
+        DATENAME(MONTH, DATEFROMPARTS(e.yr, e.mo, 1)) AS month,
+        e.yr AS year,
+        CASE WHEN s.kriId IS NOT NULL THEN 'Yes' ELSE 'No' END AS submitted
+      FROM Expected e
+      LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
+      ORDER BY e.function_name, e.kri_name, e.yr, e.mo
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows.map((item: any) => ({
+        kri_code: item.kri_code || null,
+        kri_name: item.kri_name || 'Unknown',
+        function_name: item.function_name || 'Unknown',
+        month: item.month || '',
+        year: item.year || '',
+        submitted: item.submitted || 'No',
+      })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
   async getTotalKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
@@ -1723,12 +1840,15 @@ export class GrcKrisService {
 
     // Catalog columns (same as ADIB /kris_catalog except Deleted): code, kri_name, function_name, frequency, threshold, added_by_name, assigned_person_name, type, type_percentage_or_figure, rcm_functions, risk_mapping, status, created_by_name, kri_status, first_approval, review, second_approval, createdAt
     const dataQuery = `
-      SELECT 
+      SELECT
         k.code,
         k.kriName AS kri_name,
         ISNULL(f.name, '') AS function_name,
         ISNULL(k.frequency, '') AS frequency,
         ISNULL(k.threshold, '') AS threshold,
+        k.low_from AS low_risk,
+        k.medium_from AS medium_risk,
+        k.high_from AS high_risk,
         ISNULL(added_by_u.name, '') AS added_by_name,
         ISNULL(assigned_u.name, '') AS assigned_person_name,
         ISNULL(k.type, '') AS type,
