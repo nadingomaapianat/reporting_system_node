@@ -611,14 +611,29 @@ export class GrcKrisService {
       `;
       const deletedKrisPerMonthTask = () => this.runDashboardQuery<any[]>('Deleted KRIs per month', deletedKrisPerMonthQuery, []);
 
-      // KRIs Submitted vs Not Submitted per month. For each month present in the data,
-      // every active KRI that already existed by then counts as Submitted (a KriValue was
-      // recorded that month) or Not Submitted (no value that month).
+      // KRIs Submitted vs Not Submitted per month. Months run continuously from the earliest
+      // KRI's creation month through the later of "now" or the latest month that actually has
+      // data, so zero-submission months still appear (as Not Submitted) instead of being
+      // silently skipped, and no real (even future-dated) submission is ever dropped.
       const krisSubmittedMonthlyQuery = `
-        WITH Months AS (
-          SELECT DISTINCT TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
-          FROM KriValues kv
-          WHERE kv.deletedAt IS NULL AND kv.[year] IS NOT NULL AND kv.[month] IS NOT NULL
+        WITH MonthsBase AS (
+          SELECT
+            (SELECT MIN(createdAt) FROM Kris WHERE isDeleted = 0 AND deletedAt IS NULL) AS start_date,
+            (SELECT MAX(DATEFROMPARTS(TRY_CONVERT(int, [year]), TRY_CONVERT(int, [month]), 1))
+             FROM KriValues WHERE deletedAt IS NULL AND [year] IS NOT NULL AND [month] IS NOT NULL) AS max_data_period
+        ),
+        Months AS (
+          SELECT
+            YEAR(DATEFROMPARTS(YEAR(start_date), MONTH(start_date), 1)) AS yr,
+            MONTH(DATEFROMPARTS(YEAR(start_date), MONTH(start_date), 1)) AS mo,
+            DATEFROMPARTS(YEAR(start_date), MONTH(start_date), 1) AS period,
+            CASE WHEN max_data_period > DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+                 THEN max_data_period ELSE DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) END AS end_period
+          FROM MonthsBase
+          UNION ALL
+          SELECT YEAR(DATEADD(MONTH, 1, period)), MONTH(DATEADD(MONTH, 1, period)), DATEADD(MONTH, 1, period), end_period
+          FROM Months
+          WHERE period < end_period
         ),
         Expected AS (
           SELECT m.yr, m.mo, k.id AS kri_id
@@ -642,6 +657,7 @@ export class GrcKrisService {
         LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
         GROUP BY e.yr, e.mo
         ORDER BY e.yr, e.mo
+        OPTION (MAXRECURSION 1000)
       `;
       const krisSubmittedMonthlyTask = () => this.runDashboardQuery<any[]>('KRIs submitted vs not submitted (monthly)', krisSubmittedMonthlyQuery, []);
 
@@ -1766,10 +1782,27 @@ export class GrcKrisService {
     const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
     const offset = (pageInt - 1) * limitInt;
     const ctes = `
-      WITH Months AS (
-        SELECT DISTINCT TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
-        FROM KriValues kv
-        WHERE kv.deletedAt IS NULL AND kv.[year] IS NOT NULL AND kv.[month] IS NOT NULL
+      WITH MonthsBase AS (
+        SELECT
+          (SELECT MIN(createdAt) FROM Kris WHERE isDeleted = 0 AND deletedAt IS NULL) AS start_date,
+          (SELECT MAX(DATEFROMPARTS(TRY_CONVERT(int, [year]), TRY_CONVERT(int, [month]), 1))
+           FROM KriValues WHERE deletedAt IS NULL AND [year] IS NOT NULL AND [month] IS NOT NULL) AS max_data_period
+      ),
+      Months AS (
+        -- Continuous calendar months from the earliest KRI's creation month through the later
+        -- of "now" or the latest month that actually has data, so zero-submission months still
+        -- appear (as Not Submitted) and no real (even future-dated) submission is ever dropped.
+        SELECT
+          YEAR(DATEFROMPARTS(YEAR(start_date), MONTH(start_date), 1)) AS yr,
+          MONTH(DATEFROMPARTS(YEAR(start_date), MONTH(start_date), 1)) AS mo,
+          DATEFROMPARTS(YEAR(start_date), MONTH(start_date), 1) AS period,
+          CASE WHEN max_data_period > DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+               THEN max_data_period ELSE DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1) END AS end_period
+        FROM MonthsBase
+        UNION ALL
+        SELECT YEAR(DATEADD(MONTH, 1, period)), MONTH(DATEADD(MONTH, 1, period)), DATEADD(MONTH, 1, period), end_period
+        FROM Months
+        WHERE period < end_period
       ),
       Expected AS (
         SELECT m.yr, m.mo, k.id AS kri_id, k.code AS kri_code, k.kriName AS kri_name,
@@ -1784,12 +1817,15 @@ export class GrcKrisService {
         LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ),
       Sub AS (
-        SELECT DISTINCT kv.kriId, TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo
+        SELECT kv.kriId, TRY_CONVERT(int, kv.[year]) AS yr, TRY_CONVERT(int, kv.[month]) AS mo,
+               MAX(CASE WHEN kv.acceptanceStatus = 'approved' THEN 1 ELSE 0 END) AS is_approved
         FROM KriValues kv WHERE kv.deletedAt IS NULL
+        GROUP BY kv.kriId, TRY_CONVERT(int, kv.[year]), TRY_CONVERT(int, kv.[month])
       )`;
     const countQuery = `${ctes}
       SELECT COUNT(*) AS total
-      FROM Expected e LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo`;
+      FROM Expected e LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
+      OPTION (MAXRECURSION 1000)`;
     const dataQuery = `${ctes}
       SELECT
         e.kri_code AS kri_code,
@@ -1797,11 +1833,13 @@ export class GrcKrisService {
         e.function_name AS function_name,
         DATENAME(MONTH, DATEFROMPARTS(e.yr, e.mo, 1)) AS month,
         e.yr AS year,
-        CASE WHEN s.kriId IS NOT NULL THEN 'Yes' ELSE 'No' END AS submitted
+        CASE WHEN s.kriId IS NOT NULL THEN 'Yes' ELSE 'No' END AS submitted,
+        CASE WHEN s.is_approved = 1 THEN 'Yes' ELSE 'No' END AS approved
       FROM Expected e
       LEFT JOIN Sub s ON s.kriId = e.kri_id AND s.yr = e.yr AND s.mo = e.mo
-      ORDER BY e.function_name, e.kri_name, e.yr, e.mo
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY`;
+      ORDER BY e.yr, e.mo, e.function_name, e.kri_name
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+      OPTION (MAXRECURSION 1000)`;
     const [rows, countResult] = await Promise.all([
       this.databaseService.query(dataQuery),
       this.databaseService.query(countQuery),
@@ -1815,6 +1853,7 @@ export class GrcKrisService {
         month: item.month || '',
         year: item.year || '',
         submitted: item.submitted || 'No',
+        approved: item.approved || 'No',
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
