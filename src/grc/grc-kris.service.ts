@@ -13,6 +13,22 @@ export class GrcKrisService {
     private readonly userFunctionAccess: UserFunctionAccessService,
   ) {}
 
+  /**
+   * Scalar subquery: comma-separated function name(s) for a KRI (via KriFunctions,
+   * falling back to related_function_id). Use instead of LEFT JOIN KriFunctions/Functions
+   * for a displayed function_name column — a plain join duplicates the KRI's row once
+   * per linked function when a KRI has more than one function.
+   */
+  private kriFunctionNameSubquery(kriAlias: string = 'k'): string {
+    return `ISNULL(
+      (SELECT STRING_AGG(f2.name, ', ') WITHIN GROUP (ORDER BY f2.name)
+       FROM KriFunctions kf2
+       INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+       WHERE kf2.kri_id = ${kriAlias}.id AND kf2.deletedAt IS NULL),
+      (SELECT frel2.name FROM Functions frel2 WHERE frel2.id = ${kriAlias}.related_function_id AND frel2.isDeleted = 0 AND frel2.deletedAt IS NULL)
+    )`;
+  }
+
   private buildDateFilter(timeframe?: string, startDate?: string, endDate?: string): string {
     // If startDate and endDate are provided, use them
     if (startDate || endDate) {
@@ -2151,16 +2167,13 @@ export class GrcKrisService {
     const total = totalRes?.[0]?.total || 0;
 
     const dataQuery = `
-      SELECT 
+      SELECT
         k.code,
         k.kriName as title,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(${this.kriFunctionNameSubquery('k')}, 'Unknown') AS function_name,
         'Pending Preparer' as status,
         k.createdAt
       FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2205,16 +2218,13 @@ export class GrcKrisService {
     const total = totalRes?.[0]?.total || 0;
 
     const dataQuery = `
-      SELECT 
+      SELECT
         k.code,
         k.kriName as title,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(${this.kriFunctionNameSubquery('k')}, 'Unknown') AS function_name,
         'Pending Checker' as status,
         k.createdAt
       FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2259,16 +2269,13 @@ export class GrcKrisService {
     const total = totalRes?.[0]?.total || 0;
 
     const dataQuery = `
-      SELECT 
+      SELECT
         k.code,
         k.kriName as title,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(${this.kriFunctionNameSubquery('k')}, 'Unknown') AS function_name,
         'Pending Reviewer' as status,
         k.createdAt
       FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2312,16 +2319,13 @@ export class GrcKrisService {
     const total = totalRes?.[0]?.total || 0;
 
     const dataQuery = `
-      SELECT 
+      SELECT
         k.code,
         k.kriName as title,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(${this.kriFunctionNameSubquery('k')}, 'Unknown') AS function_name,
         'Pending Acceptance' as status,
         k.createdAt
       FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
