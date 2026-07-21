@@ -829,7 +829,7 @@ export class DashboardConfigService {
           FROM ${fq('ControlDesignTests')} cdt
           INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id
           INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id
-          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND cdt.deletedAt IS NULL AND cdt.function_id IS NOT NULL {dateFilterCdt} {functionFilterCdt}
           ORDER BY cdt.createdAt DESC, c.name`,
           columns: [
             { key: 'Code', label: 'Code', type: 'text' as const },
@@ -861,7 +861,8 @@ export class DashboardConfigService {
           INNER JOIN ${fq('Functions')} AS f ON f.id = cdt.function_id
           WHERE c.isDeleted = 0
             AND c.deletedAt IS NULL
-            AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
+            AND cdt.deletedAt IS NULL
+            AND cdt.function_id IS NOT NULL {dateFilterCdt} {functionFilterCdt}
           GROUP BY f.name, cdt.quarter, cdt.year
           ORDER BY f.name, cdt.year,
             CASE cdt.quarter

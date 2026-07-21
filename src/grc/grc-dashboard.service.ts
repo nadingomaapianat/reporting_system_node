@@ -388,6 +388,7 @@ export class GrcDashboardService extends BaseDashboardService {
       WHERE c.isDeleted = 0
         AND c.deletedAt IS NULL
         AND cdt.deletedAt IS NULL
+        AND cdt.function_id IS NOT NULL
         ${dateFilterCdt}
         ${functionFilterCdt}
     `;
@@ -400,6 +401,7 @@ export class GrcDashboardService extends BaseDashboardService {
       WHERE c.isDeleted = 0
         AND c.deletedAt IS NULL
         AND cdt.deletedAt IS NULL
+        AND cdt.function_id IS NOT NULL
         ${dateFilterCdt}
         ${functionFilterCdt}
     `;
