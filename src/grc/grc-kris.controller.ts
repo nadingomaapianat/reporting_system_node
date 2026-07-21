@@ -23,7 +23,9 @@ export class GrcKrisController {
     @Query('endDate') endDate?: string,
     @Query('section') section?: 'cards' | 'charts' | 'tables',
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
   ) {
     const ob = orderByFunctionFromRequest(req);
     const raw = await this.grcKrisService.getKrisDashboard(
@@ -33,6 +35,8 @@ export class GrcKrisController {
       endDate,
       parseGrcFunctionIdsFromQueries(functionId, functionIds),
       section,
+      submissionStartDate,
+      submissionEndDate,
     );
     return ob ? applyOrderByFunctionDeep(raw) : raw;
   }
@@ -48,6 +52,8 @@ export class GrcKrisController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
     @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
   ) {
     const ob = orderByFunctionFromRequest(req);
     const raw = await this.grcKrisService.getKrisDashboardTablePage(
@@ -60,6 +66,8 @@ export class GrcKrisController {
       endDate,
       parseGrcFunctionIdsFromQueries(functionId, functionIds),
       ob,
+      submissionStartDate,
+      submissionEndDate,
     );
     return raw;
   }
@@ -75,6 +83,8 @@ export class GrcKrisController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
     @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
   ) {
     const selectedFunctionIds = parseGrcFunctionIdsFromQueries(functionId, functionIds);
 
@@ -90,6 +100,8 @@ export class GrcKrisController {
         endDate,
         selectedFunctionIds,
         ob,
+        submissionStartDate,
+        submissionEndDate,
       );
     }
 
@@ -101,6 +113,8 @@ export class GrcKrisController {
       endDate,
       selectedFunctionIds,
       section,
+      submissionStartDate,
+      submissionEndDate,
     );
 
     if (kind === 'metric') {
@@ -240,12 +254,14 @@ export class GrcKrisController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
       return sortPaginatedResponseIfNeeded(
-        await this.grcKrisService.getKrisByLevel(req.user, level, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
+        await this.grcKrisService.getKrisByLevel(req.user, level, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate),
         ob,
       );
     } catch (error) {
@@ -264,7 +280,9 @@ export class GrcKrisController {
     @Query('endDate') endDate?: string,
     @Query('submissionStatus') submissionStatus?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -278,6 +296,8 @@ export class GrcKrisController {
           endDate,
           submissionStatus,
           parseGrcFunctionIdsFromQueries(functionId, functionIds),
+          submissionStartDate,
+          submissionEndDate,
         ),
         ob,
       );
@@ -296,7 +316,9 @@ export class GrcKrisController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -309,6 +331,8 @@ export class GrcKrisController {
           startDate,
           endDate,
           parseGrcFunctionIdsFromQueries(functionId, functionIds),
+          submissionStartDate,
+          submissionEndDate,
         ),
         ob,
       );
@@ -420,7 +444,9 @@ export class GrcKrisController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -434,6 +460,8 @@ export class GrcKrisController {
           startDate,
           endDate,
           parseGrcFunctionIdsFromQueries(functionId, functionIds),
+          submissionStartDate,
+          submissionEndDate,
         ),
         ob,
       );
