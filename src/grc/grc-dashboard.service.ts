@@ -537,7 +537,12 @@ export class GrcDashboardService extends BaseDashboardService {
           cardType === 'testsPendingReviewer' ? 'reviewerStatus' :
           'acceptanceStatus';
 
-        dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus, f.name AS function_name
+        const statusExpr =
+          statusField === 'preparerStatus' ? `ISNULL(t.preparerStatus, 'draft')` :
+          statusField === 'acceptanceStatus' ? `ISNULL(t.acceptanceStatus, 'pending')` :
+          `CASE WHEN t.${statusField} IS NULL THEN (CASE WHEN LOWER(t.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE t.${statusField} END`;
+
+        dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, ${statusExpr} AS preparerStatus, f.name AS function_name
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
           LEFT JOIN ${fq('Functions')} AS f ON f.id = t.function_id
