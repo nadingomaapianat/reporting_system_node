@@ -85,22 +85,28 @@ export class GrcKrisService {
   }
 
   /**
-   * Filter KriValues by SUBMISSION date (the row's createdAt) within
-   * submissionStartDate..submissionEndDate. This is independent of the KRI
-   * creation-date filter (buildDateFilter) and is applied to every query that
-   * reads the KriValues table. Assumes the KriValues alias is `kv`.
+   * Filter KriValues by SUBMISSION period — the reporting month/year the value is FOR
+   * (kv.[year]/kv.[month]), NOT when the row was entered (kv.createdAt). A value FOR March
+   * that was entered in April must match a "March" submission window. Boundaries are snapped
+   * to whole months so a mid-month from/to still includes that month. This is independent of
+   * the KRI creation-date filter (buildDateFilter) and is applied to every query that reads
+   * the KriValues table. Assumes the KriValues alias is `kv`.
    */
   private buildKriValueSubmissionFilter(submissionStartDate?: string, submissionEndDate?: string): string {
     if (!submissionStartDate && !submissionEndDate) return '';
+    const periodExpr = "TRY_CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01'))";
     let filter = '';
     if (submissionStartDate) {
-      filter += ` AND kv.createdAt >= '${submissionStartDate}'`;
+      const s = new Date(submissionStartDate);
+      const startMonth = `${s.getUTCFullYear()}-${String(s.getUTCMonth() + 1).padStart(2, '0')}-01`;
+      filter += ` AND ${periodExpr} >= '${startMonth}'`;
     }
     if (submissionEndDate) {
-      // Add one day so the whole end date is included.
-      const endDateObj = new Date(submissionEndDate);
-      endDateObj.setDate(endDateObj.getDate() + 1);
-      filter += ` AND kv.createdAt < '${endDateObj.toISOString()}'`;
+      // Compare against the first day of the month AFTER the end month, so the whole end month is included.
+      const e = new Date(submissionEndDate);
+      const nextMonth = new Date(Date.UTC(e.getUTCFullYear(), e.getUTCMonth() + 1, 1));
+      const endExclusive = `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, '0')}-01`;
+      filter += ` AND ${periodExpr} < '${endExclusive}'`;
     }
     return filter;
   }
