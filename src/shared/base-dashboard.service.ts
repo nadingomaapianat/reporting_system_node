@@ -891,11 +891,20 @@ export abstract class BaseDashboardService {
           cardType === 'testsPendingReviewer' ? 'reviewerStatus' :
           'acceptanceStatus';
 
-        dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus
-          FROM ${fq('ControlDesignTests')} AS t
-          INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
-          ORDER BY c.createdAt DESC`;
+        // Deduplicate to the latest test per (control, function, risk, year, quarter)
+        // — the same key RCM uses — then apply the status filter on that latest row,
+        // so the detail list matches the (deduped) KPI count and never exceeds RCM.
+        dataQuery = `SELECT latest.id, latest.control_id, latest.name, latest.code, latest.createdAt, latest.${statusField} AS preparerStatus
+          FROM (
+            SELECT t.id, c.id as control_id, c.name, c.code, c.createdAt,
+              t.preparerStatus, t.checkerStatus, t.reviewerStatus, t.acceptanceStatus,
+              ROW_NUMBER() OVER (PARTITION BY t.control_id, t.function_id, t.risk_id, t.year, t.quarter ORDER BY t.createdAt DESC) AS rn
+            FROM ${fq('ControlDesignTests')} AS t
+            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+            WHERE t.function_id IS NOT NULL AND t.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
+          ) latest
+          WHERE latest.rn = 1 AND ${whereClause.replace(/\bt\./g, 'latest.')}
+          ORDER BY latest.createdAt DESC`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
