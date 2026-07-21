@@ -489,15 +489,19 @@ export class DashboardConfigService {
             c.createdAt,
             c.code AS code,
             STRING_AGG(f.name, ', ') WITHIN GROUP (ORDER BY f.name) AS business_unit,
-            c.preparerStatus,
-            c.checkerStatus,
-            c.reviewerStatus,
-            c.acceptanceStatus
+            ISNULL(c.preparerStatus, 'draft') AS preparerStatus,
+            CASE WHEN c.checkerStatus IS NULL THEN
+              CASE WHEN LOWER(c.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END
+            ELSE c.checkerStatus END AS checkerStatus,
+            CASE WHEN c.reviewerStatus IS NULL THEN
+              CASE WHEN LOWER(c.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END
+            ELSE c.reviewerStatus END AS reviewerStatus,
+            ISNULL(c.acceptanceStatus, 'pending') AS acceptanceStatus
           FROM ${fq('Controls')} c
           LEFT JOIN ${fq('ControlFunctions')} cf ON cf.control_id = c.id AND cf.deletedAt IS NULL
           LEFT JOIN ${fq('Functions')} f ON f.id = cf.function_id
           WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
-          GROUP BY 
+          GROUP BY
             c.id,
             c.name,
             c.createdAt,
@@ -505,8 +509,9 @@ export class DashboardConfigService {
             c.preparerStatus,
             c.checkerStatus,
             c.reviewerStatus,
-            c.acceptanceStatus
-          ORDER BY 
+            c.acceptanceStatus,
+            c.preparerStart
+          ORDER BY
             c.createdAt DESC,
             c.name`,
           columns: [
@@ -529,19 +534,23 @@ export class DashboardConfigService {
             c.createdAt AS [Created At],
             c.id AS [Control ID],
             c.code AS [Code],
-            t.preparerStatus AS [Preparer Status],
-            t.checkerStatus AS [Checker Status],
-            t.reviewerStatus AS [Reviewer Status],
-            t.acceptanceStatus AS [Acceptance Status],
             f.name AS [Business Unit],
-            CASE 
+            CASE
               WHEN ISNULL(t.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
               WHEN ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
               WHEN ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
               WHEN ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
               WHEN ISNULL(t.acceptanceStatus, '') = 'approved' THEN 'Approved'
               ELSE 'Other'
-            END AS [Current Status]
+            END AS [Current Status],
+            ISNULL(t.preparerStatus, 'draft') AS [Preparer Status],
+            CASE WHEN t.checkerStatus IS NULL THEN
+              CASE WHEN LOWER(t.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END
+            ELSE t.checkerStatus END AS [Checker Status],
+            CASE WHEN t.reviewerStatus IS NULL THEN
+              CASE WHEN LOWER(t.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END
+            ELSE t.reviewerStatus END AS [Reviewer Status],
+            ISNULL(t.acceptanceStatus, 'pending') AS [Acceptance Status]
           FROM ${fq('ControlDesignTests')} AS t
           INNER JOIN ${fq('Controls')} AS c ON t.control_id = c.id
           INNER JOIN ${fq('Functions')} AS f ON t.function_id = f.id
@@ -820,7 +829,7 @@ export class DashboardConfigService {
           FROM ${fq('ControlDesignTests')} cdt
           INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id
           INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id
-          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
+          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND cdt.deletedAt IS NULL AND cdt.function_id IS NOT NULL {dateFilterCdt} {functionFilterCdt}
           ORDER BY cdt.createdAt DESC, c.name`,
           columns: [
             { key: 'Code', label: 'Code', type: 'text' as const },
@@ -852,7 +861,8 @@ export class DashboardConfigService {
           INNER JOIN ${fq('Functions')} AS f ON f.id = cdt.function_id
           WHERE c.isDeleted = 0
             AND c.deletedAt IS NULL
-            AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
+            AND cdt.deletedAt IS NULL
+            AND cdt.function_id IS NOT NULL {dateFilterCdt} {functionFilterCdt}
           GROUP BY f.name, cdt.quarter, cdt.year
           ORDER BY f.name, cdt.year,
             CASE cdt.quarter
