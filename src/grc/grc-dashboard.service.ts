@@ -541,17 +541,36 @@ export class GrcDashboardService extends BaseDashboardService {
           statusField === 'acceptanceStatus' ? `ISNULL(t.acceptanceStatus, 'pending')` :
           `CASE WHEN t.${statusField} IS NULL THEN (CASE WHEN LOWER(t.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE t.${statusField} END`;
 
-        dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, ${statusExpr} AS preparerStatus, f.name AS function_name
-          FROM ${fq('ControlDesignTests')} AS t
-          INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          LEFT JOIN ${fq('Functions')} AS f ON f.id = t.function_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
+        // Deduplicate to the latest test per (control, function, risk, year, quarter)
+        // — the same key RCM uses — then apply the status filter to that latest row,
+        // so both the count and the detail list match RCM (never exceed its total).
+        // The derived table is aliased `c` and exposes createdAt/function_name because
+        // the pagination step below orders by `c.createdAt` and `function_name`.
+        const latestWhere = whereClause.replace(/\bt\./g, 'c.');
+        const statusExprLatest = statusExpr.replace(/\bt\./g, 'c.');
+
+        dataQuery = `SELECT c.id, c.control_id, c.name, c.code, c.createdAt, ${statusExprLatest} AS preparerStatus, c.function_name
+          FROM (
+            SELECT t.id, ctl.id as control_id, ctl.name, ctl.code, ctl.createdAt,
+              t.preparerStatus, t.checkerStatus, t.reviewerStatus, t.acceptanceStatus, t.preparerStart,
+              f.name AS function_name,
+              ROW_NUMBER() OVER (PARTITION BY t.control_id, t.function_id, t.risk_id, t.year, t.quarter ORDER BY t.createdAt DESC) AS rn
+            FROM ${fq('ControlDesignTests')} AS t
+            INNER JOIN ${fq('Controls')} AS ctl ON ctl.id = t.control_id
+            LEFT JOIN ${fq('Functions')} AS f ON f.id = t.function_id
+            WHERE t.function_id IS NOT NULL AND t.deletedAt IS NULL AND ctl.isDeleted = 0 AND ctl.deletedAt IS NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
+          ) c
+          WHERE c.rn = 1 AND ${latestWhere}
           ORDER BY c.createdAt DESC`;
 
-        countQuery = `SELECT COUNT(DISTINCT t.id) as total
-          FROM ${fq('ControlDesignTests')} AS t
-          INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}`;
+        countQuery = `SELECT COUNT(*) as total FROM (
+            SELECT t.preparerStatus, t.checkerStatus, t.reviewerStatus, t.acceptanceStatus,
+              ROW_NUMBER() OVER (PARTITION BY t.control_id, t.function_id, t.risk_id, t.year, t.quarter ORDER BY t.createdAt DESC) AS rn
+            FROM ${fq('ControlDesignTests')} AS t
+            INNER JOIN ${fq('Controls')} AS ctl ON ctl.id = t.control_id
+            WHERE t.function_id IS NOT NULL AND t.deletedAt IS NULL AND ctl.isDeleted = 0 AND ctl.deletedAt IS NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
+          ) c
+          WHERE c.rn = 1 AND ${latestWhere}`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           ISNULL((
