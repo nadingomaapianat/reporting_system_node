@@ -146,40 +146,56 @@ export class DashboardConfigService {
         {
           id: 'testsPendingPreparer',
           name: 'Control Tests pending Preparer',
-          query: `SELECT COUNT(DISTINCT t.id) AS total
-            FROM ${fq('ControlDesignTests')} AS t
-            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.preparerStatus, '') <> 'sent') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}`,
+          query: `SELECT COUNT(*) AS total FROM (
+              SELECT t.preparerStatus, t.checkerStatus, t.reviewerStatus, t.acceptanceStatus,
+                ROW_NUMBER() OVER (PARTITION BY t.control_id, t.function_id, t.risk_id, t.year, t.quarter ORDER BY t.createdAt DESC) AS rn
+              FROM ${fq('ControlDesignTests')} AS t
+              INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+              WHERE t.function_id IS NOT NULL AND t.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}
+            ) latest
+            WHERE latest.rn = 1 AND (ISNULL(latest.preparerStatus, '') <> 'sent')`,
           color: 'orange',
           icon: 'clock'
         },
         {
           id: 'testsPendingChecker',
           name: 'Control Tests pending Checker',
-          query: `SELECT COUNT(DISTINCT t.id) AS total
-            FROM ${fq('ControlDesignTests')} AS t
-            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}`,
+          query: `SELECT COUNT(*) AS total FROM (
+              SELECT t.preparerStatus, t.checkerStatus, t.reviewerStatus, t.acceptanceStatus,
+                ROW_NUMBER() OVER (PARTITION BY t.control_id, t.function_id, t.risk_id, t.year, t.quarter ORDER BY t.createdAt DESC) AS rn
+              FROM ${fq('ControlDesignTests')} AS t
+              INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+              WHERE t.function_id IS NOT NULL AND t.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}
+            ) latest
+            WHERE latest.rn = 1 AND (ISNULL(latest.preparerStatus, '') = 'sent' AND ISNULL(latest.checkerStatus, '') <> 'approved' AND ISNULL(latest.acceptanceStatus, '') <> 'approved')`,
           color: 'purple',
           icon: 'check-circle'
         },
         {
           id: 'testsPendingReviewer',
           name: 'Control Tests pending Reviewer',
-          query: `SELECT COUNT(DISTINCT t.id) AS total
-            FROM ${fq('ControlDesignTests')} AS t
-            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}`,
+          query: `SELECT COUNT(*) AS total FROM (
+              SELECT t.preparerStatus, t.checkerStatus, t.reviewerStatus, t.acceptanceStatus,
+                ROW_NUMBER() OVER (PARTITION BY t.control_id, t.function_id, t.risk_id, t.year, t.quarter ORDER BY t.createdAt DESC) AS rn
+              FROM ${fq('ControlDesignTests')} AS t
+              INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+              WHERE t.function_id IS NOT NULL AND t.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}
+            ) latest
+            WHERE latest.rn = 1 AND (ISNULL(latest.checkerStatus, '') = 'approved' AND ISNULL(latest.reviewerStatus, '') <> 'sent' AND ISNULL(latest.acceptanceStatus, '') <> 'approved')`,
           color: 'indigo',
           icon: 'document-check'
         },
         {
           id: 'testsPendingAcceptance',
           name: 'Control Tests pending Acceptance',
-          query: `SELECT COUNT(DISTINCT t.id) AS total
-            FROM ${fq('ControlDesignTests')} AS t
-            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}`,
+          query: `SELECT COUNT(*) AS total FROM (
+              SELECT t.preparerStatus, t.checkerStatus, t.reviewerStatus, t.acceptanceStatus,
+                ROW_NUMBER() OVER (PARTITION BY t.control_id, t.function_id, t.risk_id, t.year, t.quarter ORDER BY t.createdAt DESC) AS rn
+              FROM ${fq('ControlDesignTests')} AS t
+              INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
+              WHERE t.function_id IS NOT NULL AND t.deletedAt IS NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}
+            ) latest
+            WHERE latest.rn = 1 AND (ISNULL(latest.reviewerStatus, '') = 'sent' AND ISNULL(latest.acceptanceStatus, '') <> 'approved')`,
           color: 'red',
           icon: 'exclamation-triangle'
         },
