@@ -21,8 +21,8 @@ const wsCorsOrigins = (() => {
     process.env.FRONTEND_URL,
     
 
-    'https://grc-reporting.adib.co.eg',
-    'https://grc-reporting-node.adib.co.eg',
+    'https://grc-reporting-uat.adib.co.eg',
+    'https://grc-reporting-node-uat.adib.co.eg',
     
 
     

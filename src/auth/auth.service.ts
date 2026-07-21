@@ -7,7 +7,7 @@ import axios from 'axios';
 import * as https from 'https';
 
 
-const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://GRCBackend01.adib.co.eg';
+const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://uat-backend.adib.co.eg';
 
 
 /** Path on main backend for IET exchange (some gateways mount under `/api`). */
@@ -17,7 +17,7 @@ const MAIN_BACKEND_ENTRY_VALIDATE_PATH =
 const MAIN_BACKEND_REPORTING_PERMISSIONS_PATH =
   process.env.MAIN_BACKEND_REPORTING_PERMISSIONS_PATH || '/entry/reporting-permissions';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
-const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://grc-reporting.adib.co.eg';
+const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://grc-reporting-uat.adib.co.eg';
 const JWT_EXPIRES_IN = '2h';
 
 /** Result of IET validation: success with token, or failure with reason. */
