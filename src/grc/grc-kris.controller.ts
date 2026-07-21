@@ -131,6 +131,7 @@ export class GrcKrisController {
     const chartPayload: Record<string, any> = {
       krisByStatus: { krisByStatus: payload?.krisByStatus || [] },
       krisByLevel: { krisByLevel: payload?.krisByLevel || [] },
+      assessmentHistoryByLevel: { assessmentHistoryByLevel: payload?.assessmentHistoryByLevel || [] },
       breachedKRIsByDepartment: { breachedKRIsByDepartment: payload?.breachedKRIsByDepartment || [] },
       kriAssessmentCount: { kriAssessmentCount: payload?.kriAssessmentCount || [] },
       kriCountsByFrequency: { kriCountsByFrequency: payload?.kriCountsByFrequency || [] },
