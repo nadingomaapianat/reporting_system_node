@@ -874,10 +874,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
           ISNULL(i.status, '') as recoveryStatus,
           ISNULL(ie.name, '') as eventType,
-          ISNULL(i.preparerStatus, '') as preparerStatus,
-          ISNULL(i.reviewerStatus, '') as reviewerStatus,
-          ISNULL(i.checkerStatus, '') as checkerStatus,
-          ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+          ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+          ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
           FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as incident_createdAt,
           a.control_procedure AS action_taken,
           f_owner.name AS action_owner_name,
@@ -963,10 +963,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
           ISNULL(i.status, '') as recoveryStatus,
           ISNULL(ie.name, '') as eventType,
-          ISNULL(i.preparerStatus, '') as preparerStatus,
-          ISNULL(i.reviewerStatus, '') as reviewerStatus,
-          ISNULL(i.checkerStatus, '') as checkerStatus,
-          ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+          ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+          ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
           FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as incident_createdAt,
           a.control_procedure AS action_taken,
           f_owner.name AS action_owner_name,
@@ -1629,10 +1629,10 @@ export class GrcIncidentsService {
           WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
           ELSE 'Other'
         END as status,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
       LEFT JOIN Functions f ON i.function_id = f.id
@@ -1713,10 +1713,10 @@ export class GrcIncidentsService {
         (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
       LEFT JOIN Functions f ON i.function_id = f.id
@@ -1826,10 +1826,10 @@ export class GrcIncidentsService {
         (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         CASE
           WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
           WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
@@ -1945,10 +1945,10 @@ export class GrcIncidentsService {
         (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         i.timeFrame AS time_frame,
         FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
@@ -2056,10 +2056,10 @@ export class GrcIncidentsService {
         (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
       FROM Incidents i
       LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id
@@ -2192,10 +2192,10 @@ export class GrcIncidentsService {
         (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as incident_createdAt,
         a.control_procedure AS action_taken,
         f_owner.name AS action_owner_name,
@@ -2385,10 +2385,10 @@ export class GrcIncidentsService {
         ISNULL(i.exchange_rate, 0) as exchangeRate,
         (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
         ISNULL(i.status, '') as recoveryStatus,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus
       FROM Incidents i
       LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
       LEFT JOIN Functions f ON i.function_id = f.id AND f.isDeleted = 0 AND f.deletedAt IS NULL
@@ -2470,10 +2470,10 @@ export class GrcIncidentsService {
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
         'Pending Preparer' as status,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         i.createdAt
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -2562,10 +2562,10 @@ export class GrcIncidentsService {
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
         'Pending Checker' as status,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         i.createdAt
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -2654,10 +2654,10 @@ export class GrcIncidentsService {
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
         'Pending Reviewer' as status,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         i.createdAt
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -2745,10 +2745,10 @@ export class GrcIncidentsService {
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
         'Pending Acceptance' as status,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         i.createdAt
       FROM Incidents i
       LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -2861,10 +2861,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
           ISNULL(i.status, '') AS recoveryStatus,
           ISNULL(ie.name, '') AS eventType,
-          ISNULL(i.preparerStatus, '') AS preparerStatus,
-          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
-          ISNULL(i.checkerStatus, '') AS checkerStatus,
-          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          ISNULL(i.preparerStatus, 'draft') AS preparerStatus,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END AS reviewerStatus,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END AS checkerStatus,
+          ISNULL(i.acceptanceStatus, 'pending') AS acceptanceStatus,
           i.createdAt
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -3016,10 +3016,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
           ISNULL(i.status, '') as recovery_status,
           ISNULL(ie.name, '') as event_type,
-          ISNULL(i.preparerStatus, '') as preparer_status,
-          ISNULL(i.reviewerStatus, '') as reviewer_status,
-          ISNULL(i.checkerStatus, '') as checker_status,
-          ISNULL(i.acceptanceStatus, '') as acceptance_status,
+          ISNULL(i.preparerStatus, 'draft') as preparer_status,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewer_status,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checker_status,
+          ISNULL(i.acceptanceStatus, 'pending') as acceptance_status,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at
         FROM dbo.[Incidents] i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -3161,10 +3161,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
           ISNULL(i.status, '') as recovery_status,
           ISNULL(ie.name, '') as event_type,
-          ISNULL(i.preparerStatus, '') as preparer_status,
-          ISNULL(i.reviewerStatus, '') as reviewer_status,
-          ISNULL(i.checkerStatus, '') as checker_status,
-          ISNULL(i.acceptanceStatus, '') as acceptance_status,
+          ISNULL(i.preparerStatus, 'draft') as preparer_status,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewer_status,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checker_status,
+          ISNULL(i.acceptanceStatus, 'pending') as acceptance_status,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at
         FROM dbo.[Incidents] i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -3345,10 +3345,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
           ISNULL(i.status, '') as recovery_status,
           ISNULL(ie.name, '') as event_type,
-          ISNULL(i.preparerStatus, '') as preparer_status,
-          ISNULL(i.reviewerStatus, '') as reviewer_status,
-          ISNULL(i.checkerStatus, '') as checker_status,
-          ISNULL(i.acceptanceStatus, '') as acceptance_status,
+          ISNULL(i.preparerStatus, 'draft') as preparer_status,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewer_status,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checker_status,
+          ISNULL(i.acceptanceStatus, 'pending') as acceptance_status,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at
         FROM dbo.[Incidents] i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -3515,10 +3515,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
           ISNULL(i.status, '') as recoveryStatus,
           ISNULL(ie.name, '') as eventType,
-          ISNULL(i.preparerStatus, '') as preparerStatus,
-          ISNULL(i.reviewerStatus, '') as reviewerStatus,
-          ISNULL(i.checkerStatus, '') as checkerStatus,
-          ISNULL(i.acceptanceStatus, '') as acceptanceStatus,
+          ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+          ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
           FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as incident_createdAt,
           a.control_procedure AS action_taken,
           f_owner.name AS action_owner_name,
@@ -3695,10 +3695,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
           ISNULL(i.status, '') AS recoveryStatus,
           ISNULL(ie.name, '') AS eventType,
-          ISNULL(i.preparerStatus, '') AS preparerStatus,
-          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
-          ISNULL(i.checkerStatus, '') AS checkerStatus,
-          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          ISNULL(i.preparerStatus, 'draft') AS preparerStatus,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END AS reviewerStatus,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END AS checkerStatus,
+          ISNULL(i.acceptanceStatus, 'pending') AS acceptanceStatus,
           FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') AS created_at
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -3850,10 +3850,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
           ISNULL(i.status, '') as recovery_status,
           ISNULL(ie.name, '') as event_type,
-          ISNULL(i.preparerStatus, '') as preparer_status,
-          ISNULL(i.reviewerStatus, '') as reviewer_status,
-          ISNULL(i.checkerStatus, '') as checker_status,
-          ISNULL(i.acceptanceStatus, '') as acceptance_status,
+          ISNULL(i.preparerStatus, 'draft') as preparer_status,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewer_status,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checker_status,
+          ISNULL(i.acceptanceStatus, 'pending') as acceptance_status,
           CASE
             WHEN i.createdAt IS NOT NULL
             THEN CONVERT(VARCHAR(23), i.createdAt, 126)
@@ -3999,10 +3999,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financial_equivalent,
           ISNULL(i.status, '') as recovery_status,
           ISNULL(ie.name, '') as event_type,
-          ISNULL(i.preparerStatus, '') as preparer_status,
-          ISNULL(i.reviewerStatus, '') as reviewer_status,
-          ISNULL(i.checkerStatus, '') as checker_status,
-          ISNULL(i.acceptanceStatus, '') as acceptance_status,
+          ISNULL(i.preparerStatus, 'draft') as preparer_status,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewer_status,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checker_status,
+          ISNULL(i.acceptanceStatus, 'pending') as acceptance_status,
           i.occurrence_date,
           i.reported_date,
           DATEDIFF(DAY, i.occurrence_date, i.reported_date) AS recognition_days,
@@ -4161,10 +4161,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
           ISNULL(i.status, '') AS recoveryStatus,
           ISNULL(ie.name, '') AS eventType,
-          ISNULL(i.preparerStatus, '') AS preparerStatus,
-          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
-          ISNULL(i.checkerStatus, '') AS checkerStatus,
-          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          ISNULL(i.preparerStatus, 'draft') AS preparerStatus,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END AS reviewerStatus,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END AS checkerStatus,
+          ISNULL(i.acceptanceStatus, 'pending') AS acceptanceStatus,
           i.createdAt
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
@@ -4362,10 +4362,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
           ISNULL(i.status, '') AS recoveryStatus,
           ISNULL(ie2.name, '') AS eventType,
-          ISNULL(i.preparerStatus, '') AS preparerStatus,
-          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
-          ISNULL(i.checkerStatus, '') AS checkerStatus,
-          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          ISNULL(i.preparerStatus, 'draft') AS preparerStatus,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END AS reviewerStatus,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END AS checkerStatus,
+          ISNULL(i.acceptanceStatus, 'pending') AS acceptanceStatus,
           i.createdAt
         FROM Incidents i
         ${joinClause}
@@ -4539,10 +4539,10 @@ export class GrcIncidentsService {
           (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) AS financialEquivalent,
           ISNULL(i.status, '') AS recoveryStatus,
           ISNULL(ie2.name, '') AS eventType,
-          ISNULL(i.preparerStatus, '') AS preparerStatus,
-          ISNULL(i.reviewerStatus, '') AS reviewerStatus,
-          ISNULL(i.checkerStatus, '') AS checkerStatus,
-          ISNULL(i.acceptanceStatus, '') AS acceptanceStatus,
+          ISNULL(i.preparerStatus, 'draft') AS preparerStatus,
+          CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END AS reviewerStatus,
+          CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END AS checkerStatus,
+          ISNULL(i.acceptanceStatus, 'pending') AS acceptanceStatus,
           i.createdAt
         FROM Incidents i
         LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
