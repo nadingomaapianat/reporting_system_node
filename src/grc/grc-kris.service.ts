@@ -94,19 +94,20 @@ export class GrcKrisService {
    */
   private buildKriValueSubmissionFilter(submissionStartDate?: string, submissionEndDate?: string): string {
     if (!submissionStartDate && !submissionEndDate) return '';
-    const periodExpr = "TRY_CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01'))";
+    // Take the month & year from the from/to dates and compare against the value's reporting
+    // month & year (kv.[year]/kv.[month]) as a single YYYYMM integer — so the day is ignored
+    // and it works no matter how year/month are stored (strings, spaces, no leading zero).
+    const ym = '(TRY_CONVERT(int, kv.[year]) * 100 + TRY_CONVERT(int, kv.[month]))';
     let filter = '';
     if (submissionStartDate) {
       const s = new Date(submissionStartDate);
-      const startMonth = `${s.getUTCFullYear()}-${String(s.getUTCMonth() + 1).padStart(2, '0')}-01`;
-      filter += ` AND ${periodExpr} >= '${startMonth}'`;
+      const from = s.getUTCFullYear() * 100 + (s.getUTCMonth() + 1);
+      filter += ` AND ${ym} >= ${from}`;
     }
     if (submissionEndDate) {
-      // Compare against the first day of the month AFTER the end month, so the whole end month is included.
       const e = new Date(submissionEndDate);
-      const nextMonth = new Date(Date.UTC(e.getUTCFullYear(), e.getUTCMonth() + 1, 1));
-      const endExclusive = `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, '0')}-01`;
-      filter += ` AND ${periodExpr} < '${endExclusive}'`;
+      const to = e.getUTCFullYear() * 100 + (e.getUTCMonth() + 1);
+      filter += ` AND ${ym} <= ${to}`;
     }
     return filter;
   }
