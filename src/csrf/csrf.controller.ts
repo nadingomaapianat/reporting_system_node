@@ -118,10 +118,17 @@ export class CsrfController {
 
     if (!csrfToken) {
       csrfToken = this.csrfService.generateToken();
+      const isProd = process.env.NODE_ENV === 'production';
       res.cookie('csrfToken', csrfToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProd,
+        // The frontend and API are on different origins, so this double-submit
+        // cookie must ride along on cross-origin credentialed requests, which
+        // requires SameSite=None (only honoured together with Secure). Fall back
+        // to Lax for local http dev where Secure cookies would be dropped.
+        // Protection is unchanged: security comes from the attacker being unable
+        // to read the token (HttpOnly + CORS), not from the SameSite attribute.
+        sameSite: isProd ? 'none' : 'lax',
         path: '/',
       });
       // console.log(`[CSRF] Generated new CSRF token (length: ${csrfToken.length})`);
