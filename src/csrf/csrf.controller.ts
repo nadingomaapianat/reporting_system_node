@@ -14,8 +14,8 @@ export class CsrfController {
     if (fromEnv?.length) return fromEnv;
     return [
       process.env.FRONTEND_URL ,
-      'https://grc-reporting-node-uat.adib.co.eg',
-      'https://grc-reporting-uat.adib.co.eg'
+      'https://grc-reporting-node.adib.co.eg',
+      'https://grc-reporting.adib.co.eg'
     ].filter(Boolean);
   })();
 

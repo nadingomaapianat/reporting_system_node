@@ -7,7 +7,7 @@ import { getJwtSecret } from './jwt-secret';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
 
 
-const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://grc-reporting-uat.adib.co.eg';
+const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://grc-reporting.adib.co.eg';
 const COOKIE_NAME = 'iframe_d_c_c_t_p';
 /** Browsers reject Set-Cookie values much over ~4KB; split across iframe_d_c_c_t_p_1, _2, … */
 const REPORTING_JWT_COOKIE_CHUNK = 3800;
@@ -25,9 +25,9 @@ function getAllowedEntryOrigins(): string[] {
  
 
   if (base.includes('127.0.0.1:3000')) {
-    if (!list.includes('https://grc-reporting-uat.adib.co.eg')) list.push('https://grc-reporting-uat.adib.co.eg');
+    if (!list.includes('https://grc-reporting.adib.co.eg')) list.push('https://grc-reporting.adib.co.eg');
   }
-  // In live UAT, allow both https and http for same host (e.g. https://grc-reporting-uat.adib.co.eg)
+  // In live UAT, allow both https and http for same host (e.g. https://grc-reporting.adib.co.eg)
   if (base.includes('grc-reporting.adib.co.eg')) {
     const other = base.startsWith('https://') ? base.replace('https://', 'http://') : base.replace('http://', 'https://');
     if (!list.includes(other)) list.push(other);
@@ -88,7 +88,7 @@ function isAllowedRedirectUri(uri: string): boolean {
   if (!u) return false;
   if (u === base || u === `${base}/` || u.startsWith(`${base}/`)) return true;
   // Allow 127.0.0.1 when base is localhost (and vice versa) for same port
-  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'https://grc-reporting-node-uat.adib.co.eg' : null;
+  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'https://grc-reporting-node.adib.co.eg' : null;
   if (altBase && (u === altBase || u === `${altBase}/` || u.startsWith(`${altBase}/`))) return true;
   // In live UAT, allow redirect to both https and http for same host (e.g. grc-reporting-node.adib.co.eg)
   if (base.includes('grc-reporting-node.adib.co.eg')) {
