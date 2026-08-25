@@ -44,10 +44,11 @@ async function bootstrap() {
     .map((o) => normalizeOrigin(o))
     .filter(Boolean) as string[];
   const devOrigins = [
-    'https://reporting-system-frontend.pianat.ai',
-    'https://reporting-system-backend.pianat.ai',
+  
     
    
+    'https://reporting-system-frontend.pianat.ai',
+    'https://reporting-system-backend.pianat.ai',
     
    
    
@@ -164,5 +165,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-
-
