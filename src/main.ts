@@ -1,18 +1,18 @@
+import * as path from 'path';
+import * as dotenv from 'dotenv';
+
+// Load .env before importing AppModule (or anything it transitively imports, e.g.
+// AuthService/FrameAncestorsMiddleware) — those modules read process.env.* into
+// top-level consts at import time, so if this runs after them, it's too late and
+// they silently keep their hardcoded fallback values for the whole process lifetime.
+dotenv.config({ path: path.join(process.cwd(), '.env') });
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as bodyParser from 'body-parser';
-import * as path from 'path';
-import * as dotenv from 'dotenv';
 import helmet from 'helmet';
-import 'dotenv/config';
-
-// Load .env first so process.env is set before any module (e.g. AuthService) reads it
-dotenv.config({ path: path.join(process.cwd(), '.env') });
-
-// Load .env first so process.env is set before any module (e.g. AuthService) reads it
-dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 function normalizeOrigin(value?: string): string | null {
   if (!value) return null;
