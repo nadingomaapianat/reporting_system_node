@@ -14,8 +14,8 @@ export class CsrfController {
     if (fromEnv?.length) return fromEnv;
     return [
       process.env.FRONTEND_URL ,
-      'https://dcc-reporting-api-node.theubeg.ub.dom',
-      'https://dcc-reporting.theubeg.ub.dom'
+      'https://reporting-system-backend.pianat.ai',
+      'https://reporting-system-frontend.pianat.ai'
     ].filter(Boolean);
   })();
 
