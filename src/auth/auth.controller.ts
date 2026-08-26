@@ -16,7 +16,7 @@ function reportingFrontendUrl(): string {
   return (
     process.env.REPORTING_FRONTEND_URL ||
     process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL ||
-    'https://dcc-reporting.theubeg.ub.dom'
+    'https://reporting-system-frontend.pianat.ai'
   );
 }
 const COOKIE_NAME = 'iframe_d_c_c_t_p';
@@ -32,21 +32,9 @@ function getAllowedEntryOrigins(): string[] {
   if (base.includes('localhost:3000')) {
     if (!list.includes('http://127.0.0.1:3000')) list.push('http://127.0.0.1:3000');
   }
- 
- 
-
   if (base.includes('127.0.0.1:3000')) {
-    if (!list.includes('https://dcc-reporting.theubeg.ub.dom')) list.push('https://dcc-reporting.theubeg.ub.dom');
+    if (!list.includes('http://localhost:3000')) list.push('http://localhost:3000');
   }
-  // In live UAT, allow both https and http for same host (e.g. https://dcc-reporting.theubeg.ub.dom)
-  if (base.includes('dcc-reporting.theubeg.ub.dom')) {
-    const other = base.startsWith('https://') ? base.replace('https://', 'http://') : base.replace('http://', 'https://');
-    if (!list.includes(other)) list.push(other);
-  }
-
-
-
-
   const extra = process.env.ENTRY_TOKEN_ALLOWED_ORIGINS;
   if (extra) {
     extra.split(',').forEach((o) => {
@@ -99,13 +87,12 @@ function isAllowedRedirectUri(uri: string): boolean {
   if (!u) return false;
   if (u === base || u === `${base}/` || u.startsWith(`${base}/`)) return true;
   // Allow 127.0.0.1 when base is localhost (and vice versa) for same port
-  const altBase = base.includes('localhost:3000') ? 'http://127.0.0.1:3000' : base.includes('127.0.0.1:3000') ? 'https://dcc-reporting-api-node.theubeg.ub.dom' : null;
+  const altBase = base.includes('localhost:3000')
+    ? 'http://127.0.0.1:3000'
+    : base.includes('127.0.0.1:3000')
+      ? 'http://localhost:3000'
+      : null;
   if (altBase && (u === altBase || u === `${altBase}/` || u.startsWith(`${altBase}/`))) return true;
-  // In live UAT, allow redirect to both https and http for same host (e.g. dcc-reporting-api-node.theubeg.ub.dom)
-  if (base.includes('dcc-reporting-api-node.theubeg.ub.dom')) {
-    const other = base.startsWith('https://') ? base.replace('https://', 'http://') : base.replace('http://', 'https://');
-    if (u === other || u === `${other}/` || u.startsWith(`${other}/`)) return true;
-  }
   return false;
 }
 

@@ -43,8 +43,8 @@ async function bootstrap() {
   
     
    
-    'https://dcc-reporting.theubeg.ub.dom',
-    'https://dcc-reporting-api-node.theubeg.ub.dom',
+    'https://reporting-system-frontend.pianat.ai',
+    'https://reporting-system-backend.pianat.ai',
    
    
     
