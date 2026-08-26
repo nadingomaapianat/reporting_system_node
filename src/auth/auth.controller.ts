@@ -7,7 +7,18 @@ import { getJwtSecret } from './jwt-secret';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
 
 
-const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://dcc-reporting.theubeg.ub.dom';
+/**
+ * Read lazily, never as a module-level const: the module body runs at import
+ * time, before dotenv populates process.env, so a const would silently freeze
+ * the UAT fallback and reject the real frontend origin.
+ */
+function reportingFrontendUrl(): string {
+  return (
+    process.env.REPORTING_FRONTEND_URL ||
+    process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL ||
+    'https://dcc-reporting.theubeg.ub.dom'
+  );
+}
 const COOKIE_NAME = 'iframe_d_c_c_t_p';
 /** Browsers reject Set-Cookie values much over ~4KB; split across iframe_d_c_c_t_p_1, _2, … */
 const REPORTING_JWT_COOKIE_CHUNK = 3800;
@@ -15,7 +26,7 @@ const REPORTING_JWT_COOKIE_MAX_PARTS = 16;
 
 /** Allowed origins for entry-token (form POST must come from reporting frontend or listed origins). */
 function getAllowedEntryOrigins(): string[] {
-  const base = REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase();
+  const base = reportingFrontendUrl().replace(/\/+$/, '').toLowerCase();
   const list = [base];
   // In development, allow both localhost and 127.0.0.1 (browser may send either)
   if (base.includes('localhost:3000')) {
@@ -83,7 +94,7 @@ function isAllowedOrigin(origin: string, referer: string, allowed: string[]): bo
 
 /** Bank-grade: allow redirect only to configured reporting frontend origin (no open redirect). */
 function isAllowedRedirectUri(uri: string): boolean {
-  const base = REPORTING_FRONTEND_URL.replace(/\/+$/, '').toLowerCase();
+  const base = reportingFrontendUrl().replace(/\/+$/, '').toLowerCase();
   const u = (uri || '').trim().toLowerCase().replace(/\/+$/, '');
   if (!u) return false;
   if (u === base || u === `${base}/` || u.startsWith(`${base}/`)) return true;
@@ -188,14 +199,14 @@ export class AuthController {
     );
 
     const requestedRedirect = (body?.redirect_uri && String(body.redirect_uri).trim()) || '';
-    const defaultRedirect = REPORTING_FRONTEND_URL.replace(/\/+$/, '') + '/';
+    const defaultRedirect = reportingFrontendUrl().replace(/\/+$/, '') + '/';
     let redirectTo = defaultRedirect;
     if (requestedRedirect) {
       if (isAllowedRedirectUri(requestedRedirect)) {
         redirectTo = requestedRedirect.replace(/\/+$/, '') + '/';
       } else {
         this.logger.warn(
-          `[AUDIT] event=REDIRECT_URI_REJECTED requested=${requestedRedirect} allowed_base=${REPORTING_FRONTEND_URL} timestamp=${new Date().toISOString()}`,
+          `[AUDIT] event=REDIRECT_URI_REJECTED requested=${requestedRedirect} allowed_base=${reportingFrontendUrl()} timestamp=${new Date().toISOString()}`,
         );
       }
     }

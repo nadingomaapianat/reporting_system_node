@@ -1,18 +1,14 @@
+// MUST stay the first import: module-level `const X = process.env.Y` reads (e.g.
+// REPORTING_FRONTEND_URL in auth.controller.ts) run when the module graph below
+// is imported, so .env has to be in process.env before that happens.
+import 'dotenv/config';
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import * as bodyParser from 'body-parser';
-import * as path from 'path';
-import * as dotenv from 'dotenv';
 import helmet from 'helmet';
-import 'dotenv/config';
-
-// Load .env first so process.env is set before any module (e.g. AuthService) reads it
-dotenv.config({ path: path.join(process.cwd(), '.env') });
-
-// Load .env first so process.env is set before any module (e.g. AuthService) reads it
-dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 function normalizeOrigin(value?: string): string | null {
   if (!value) return null;

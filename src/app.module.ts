@@ -1,3 +1,7 @@
+// MUST stay the first import — see src/main.ts. AppModule pulls in AuthModule
+// (and its module-level process.env reads) below.
+import 'dotenv/config';
+
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -18,7 +22,6 @@ import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { FrameAncestorsMiddleware } from './middleware/frame-ancestors.middleware';
 import { RateLimitMiddleware } from './middleware/limitter.middleware';
 import * as cookieParser from 'cookie-parser';
-import 'dotenv/config';
 
 @Module({
   imports: [
