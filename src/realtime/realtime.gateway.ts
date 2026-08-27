@@ -12,6 +12,7 @@ import * as jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../auth/jwt-secret';
 import { getReportingJwtFromCookieHeader } from '../auth/utils/extract-token';
 import { RealtimeService } from './realtime.service';
+import { requireEnv } from '../shared/required-env';
 
 // CORS origins from .env: CORS_ORIGINS (comma-separated) or fallback dev list
 const wsCorsOrigins = (() => {
@@ -19,13 +20,8 @@ const wsCorsOrigins = (() => {
   if (fromEnv?.length) return fromEnv;
   return [
     process.env.FRONTEND_URL,
-    
-
-    'https://reporting-system-frontend.pianat.ai',
-    'https://reporting-system-backend.pianat.ai',
-    
-
-    
+    requireEnv('REPORTING_FRONTEND_URL', 'NEXT_PUBLIC_REPORTING_FRONTEND_URL'),
+    requireEnv('NODE_PUBLIC_URL'),
   ].filter(Boolean);
 })();
 

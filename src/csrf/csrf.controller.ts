@@ -2,6 +2,7 @@ import { Controller, Get, Options, Req, Res, UnauthorizedException } from '@nest
 import { Request, Response } from 'express';
 import { CsrfService } from './csrf.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { requireEnv } from '../shared/required-env';
 
 @Public()
 @Controller('csrf')
@@ -13,9 +14,9 @@ export class CsrfController {
       process.env.CORS_ORIGINS?.split(',').map((o) => o.trim()).filter(Boolean);
     if (fromEnv?.length) return fromEnv;
     return [
-      process.env.FRONTEND_URL ,
-      'https://reporting-system-backend.pianat.ai',
-      'https://reporting-system-frontend.pianat.ai'
+      process.env.FRONTEND_URL,
+      requireEnv('NODE_PUBLIC_URL'),
+      requireEnv('REPORTING_FRONTEND_URL', 'NEXT_PUBLIC_REPORTING_FRONTEND_URL'),
     ].filter(Boolean);
   })();
 

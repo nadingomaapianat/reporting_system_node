@@ -3,11 +3,12 @@ import { JwtService } from '@nestjs/jwt';
 import { DatabaseService } from '../database/database.service';
 import { fq } from '../shared/db-config';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
+import { requireEnv } from '../shared/required-env';
 import axios from 'axios';
 import * as https from 'https';
 
 
-const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://dcc-backend.pianat.ai';
+const MAIN_BACKEND_URL = requireEnv('MAIN_BACKEND_URL', 'NEXT_PUBLIC_NODE_API_URL');
 
 
 /** Path on main backend for IET exchange (some gateways mount under `/api`). */
@@ -17,7 +18,7 @@ const MAIN_BACKEND_ENTRY_VALIDATE_PATH =
 const MAIN_BACKEND_REPORTING_PERMISSIONS_PATH =
   process.env.MAIN_BACKEND_REPORTING_PERMISSIONS_PATH || '/entry/reporting-permissions';
 /** Static origin sent to main backend – must match main backend's allowed origin (e.g. main app URL). */
-const ORIGIN_FOR_MAIN_BACKEND = process.env.IFRAME_MAIN_ORIGIN || process.env.MAIN_APP_ORIGIN || 'https://dcc.pianat.ai';
+const ORIGIN_FOR_MAIN_BACKEND = requireEnv('IFRAME_MAIN_ORIGIN', 'MAIN_APP_ORIGIN');
 const JWT_EXPIRES_IN = '2h';
 
 /** Result of IET validation: success with token, or failure with reason. */

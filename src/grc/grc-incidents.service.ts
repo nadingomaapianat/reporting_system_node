@@ -4,8 +4,9 @@ import { Response } from 'express';
 import { DatabaseService } from '../database/database.service';
 import { UserFunctionAccessService, UserFunctionAccess } from '../shared/user-function-access.service';
 import { sortRowsByFunctionAsc } from '../shared/order-by-function';
+import { requireEnv } from '../shared/required-env';
 
-const PYTHON_API_URL = process.env.PYTHON_API_URL || process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000';
+const PYTHON_API_URL = requireEnv('PYTHON_API_URL', 'NEXT_PUBLIC_PYTHON_API_URL', 'PYTHON_REPORT_SERVICE_URL');
 const DASHBOARD_PREVIEW_LIMIT = 10;
 
 @Injectable()

@@ -5,19 +5,14 @@ import * as jwt from 'jsonwebtoken';
 import { Public } from './decorators/public.decorator';
 import { getJwtSecret } from './jwt-secret';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
-
+import { requireEnv } from '../shared/required-env';
 
 /**
- * Read lazily, never as a module-level const: the module body runs at import
- * time, before dotenv populates process.env, so a const would silently freeze
- * the UAT fallback and reject the real frontend origin.
+ * Read lazily rather than as a module-level const, so a boot-time throw
+ * surfaces from the request that needs it rather than from module import.
  */
 function reportingFrontendUrl(): string {
-  return (
-    process.env.REPORTING_FRONTEND_URL ||
-    process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL ||
-    'https://reporting-system-frontend.pianat.ai'
-  );
+  return requireEnv('REPORTING_FRONTEND_URL', 'NEXT_PUBLIC_REPORTING_FRONTEND_URL');
 }
 const COOKIE_NAME = 'iframe_d_c_c_t_p';
 /** Browsers reject Set-Cookie values much over ~4KB; split across iframe_d_c_c_t_p_1, _2, … */

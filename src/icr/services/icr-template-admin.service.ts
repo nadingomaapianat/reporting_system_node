@@ -17,6 +17,7 @@ import {
   DEFAULT_SECTION_OWNERS,
 } from '../interfaces/icr-section.types';
 import { ICR_SECTION_EDITABLE_KEYS } from '../constants/icr-section-editable';
+import { requireEnv } from '../../shared/required-env';
 
 export interface ParsedSection {
   key: string;
@@ -148,10 +149,7 @@ export class IcrTemplateAdminService {
     private readonly db: DatabaseService,
     private readonly configService: ConfigService,
   ) {
-    this.pythonUrl = this.configService.get<string>(
-      'PYTHON_REPORT_SERVICE_URL',
-      'http://localhost:8000',
-    );
+    this.pythonUrl = requireEnv('PYTHON_REPORT_SERVICE_URL', 'PYTHON_API_URL', 'NEXT_PUBLIC_PYTHON_API_URL');
   }
 
   // ═══════════════════════════════════════════════════════════════════
