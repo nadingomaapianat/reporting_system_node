@@ -5,6 +5,7 @@ import { IcrService } from './icr.service';
 import { IcrTemplateAdminService } from './icr-template-admin.service';
 import { IcrTagConfigService } from './icr-tag-config.service';
 import { IcrReportRecord } from '../interfaces/icr-report.types';
+import { requireEnv } from '../../shared/required-env';
 
 export type ExportFormat = 'WORD' | 'PDF' | 'BOTH';
 
@@ -40,10 +41,7 @@ export class IcrExportService {
     private readonly templateAdminService: IcrTemplateAdminService,
     private readonly tagConfigService: IcrTagConfigService,
   ) {
-    this.pythonServiceUrl = this.configService.get<string>(
-      'PYTHON_REPORT_SERVICE_URL',
-      'http://localhost:8000',
-    );
+    this.pythonServiceUrl = requireEnv('PYTHON_REPORT_SERVICE_URL', 'PYTHON_API_URL', 'NEXT_PUBLIC_PYTHON_API_URL');
   }
 
   async exportToWord(reportId: number): Promise<Buffer> {

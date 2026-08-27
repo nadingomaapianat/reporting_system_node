@@ -3,6 +3,8 @@
 // is imported, so .env has to be in process.env before that happens.
 import 'dotenv/config';
 
+import { requireEnv } from './shared/required-env';
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
@@ -39,15 +41,11 @@ async function bootstrap() {
   ]
     .map((o) => normalizeOrigin(o))
     .filter(Boolean) as string[];
+  // Always-present origins, from .env. No hardcoded hosts: an unset variable
+  // must stop the boot rather than silently allow another deployment's host.
   const devOrigins = [
-  
-    
-   
-    'https://reporting-system-frontend.pianat.ai',
-    'https://reporting-system-backend.pianat.ai',
-   
-   
-    
+    requireEnv('REPORTING_FRONTEND_URL', 'NEXT_PUBLIC_REPORTING_FRONTEND_URL'),
+    requireEnv('NODE_PUBLIC_URL'),
   ];
   // When CORS_ORIGINS not set, use FRONTEND_URL / NODE_PUBLIC_URL from .env so links are env-driven
   const fallbackFromEnv = [
