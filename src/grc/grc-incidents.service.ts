@@ -128,59 +128,6 @@ export class GrcIncidentsService {
       `;
       const totalIncidentsTask = () => this.runDashboardQuery<any[]>('Total incidents', totalIncidentsQuery, []);
 
-      // Get incidents status counts using standardized pending rules
-      const incidentsStatusCountsQuery = `
-        SELECT 
-          SUM(CASE WHEN ISNULL(preparerStatus, '') <> 'sent' THEN 1 ELSE 0 END) AS pendingPreparer,
-          SUM(CASE WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingChecker,
-          SUM(CASE WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingReviewer,
-          SUM(CASE WHEN ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingAcceptance,
-          SUM(CASE WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 1 ELSE 0 END) AS approved
-        FROM Incidents i
-        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
-      `;
-      const statusCountsTask = () => this.runDashboardQuery<any[]>('Incident status counts', incidentsStatusCountsQuery, []);
-
-      // Get incidents by status distribution (for pie charts - same format as Python)
-      const incidentsByStatusDistributionQuery = `
-        WITH IncidentStatus AS (
-          SELECT 
-            i.id,
-            CASE 
-              WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-              WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-              WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-              WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-              WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
-              ELSE 'Other'
-            END AS status
-          FROM Incidents i
-          WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
-        ),
-        StatusCounts AS (
-          SELECT 
-            status as status_name,
-            COUNT(*) as count
-          FROM IncidentStatus
-          GROUP BY status
-        ),
-        AllStatuses AS (
-          SELECT 'Pending Preparer' AS status_name
-          UNION ALL SELECT 'Pending Checker'
-          UNION ALL SELECT 'Pending Reviewer'
-          UNION ALL SELECT 'Pending Acceptance'
-          UNION ALL SELECT 'Approved'
-          UNION ALL SELECT 'Other'
-        )
-        SELECT 
-          a.status_name,
-          ISNULL(s.count, 0) as count
-        FROM AllStatuses a
-        LEFT JOIN StatusCounts s ON a.status_name = s.status_name
-        ORDER BY s.count DESC, a.status_name
-      `;
-      const incidentsByStatusDistributionTask = () => this.runDashboardQuery<any[]>('Incidents by status distribution', incidentsByStatusDistributionQuery, []);
-
       // Get incidents by category
       const incidentsByCategoryQuery = `
         SELECT 
@@ -271,33 +218,6 @@ export class GrcIncidentsService {
       `;
       const incidentsByStatusTask = () => this.runDashboardQuery<any[]>('Incidents by status table', incidentsByStatusQuery, []);
 
-      // Fetch statusOverview (details list) using standardized staged status logic
-      const listQuery = `
-        SELECT 
-          i.code,
-          i.title,
-          f.name AS function_name,
-          CASE 
-            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-            WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
-            ELSE 'Other'
-          END as status,
-          FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
-        FROM Incidents i
-        LEFT JOIN Functions f ON i.function_id = f.id
-          AND f.isDeleted = 0
-          AND f.deletedAt IS NULL
-        WHERE i.isDeleted = 0 
-          AND i.deletedAt IS NULL
-          ${dateFilter}
-          ${functionFilter}
-        ORDER BY i.createdAt DESC
-      `;
-      const statusOverviewTask = () => this.runDashboardQuery<any[]>('Incident status overview', listQuery, []);
-
       // Get incidents financial details
       const incidentsFinancialDetailsQuery = `
         SELECT 
@@ -306,16 +226,8 @@ export class GrcIncidentsService {
           f.name AS function_name, 
           i.net_loss AS netLoss, 
           i.total_loss AS totalLoss, 
-          i.recovery_amount AS recoveryAmount, 
-          (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount, 
-          CASE 
-            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-            WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
-            ELSE 'Other'
-          END AS status 
+          i.recovery_amount AS recoveryAmount,
+          (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount
         FROM Incidents i
         LEFT JOIN Functions f ON i.function_id = f.id
           AND f.isDeleted = 0
@@ -476,14 +388,11 @@ export class GrcIncidentsService {
       const needsTables = !section || section === 'tables';
 
       let totalIncidents = 0;
-      let statusCountsRow: any = {};
-      let incidentsByStatusDistribution: any[] = [];
       let incidentsByCategory: any[] = [];
       let topFinancialImpacts: any[] = [];
       let netLossAndRecovery: any[] = [];
       let monthlyTrend: any[] = [];
       let incidentsByStatus: any[] = [];
-      let statusOverview: any[] = [];
       let incidentsFinancialDetails: any[] = [];
       let incidentsByEventType: any[] = [];
       let incidentsByFinancialImpact: any[] = [];
@@ -493,17 +402,14 @@ export class GrcIncidentsService {
       let incidentsWithFinancialAndFunction: any[] = [];
 
       if (needsCards || needsCharts) {
-        const [totalIncidentsResult, statusCountsResults] = await this.runQueryBatches<any[]>([
+        const [totalIncidentsResult] = await this.runQueryBatches<any[]>([
           totalIncidentsTask,
-          statusCountsTask,
         ], 2);
         totalIncidents = totalIncidentsResult[0]?.total || 0;
-        statusCountsRow = statusCountsResults[0] || {};
       }
 
       if (needsCharts) {
         [
-          incidentsByStatusDistribution,
           incidentsByCategory,
           topFinancialImpacts,
           monthlyTrend,
@@ -513,7 +419,6 @@ export class GrcIncidentsService {
           incidentsTimeSeries,
           newIncidentsByMonth,
         ] = await this.runQueryBatches<any[]>([
-          incidentsByStatusDistributionTask,
           incidentsByCategoryTask,
           topFinancialImpactsTask,
           monthlyTrendTask,
@@ -528,23 +433,16 @@ export class GrcIncidentsService {
       if (needsTables) {
         [
           netLossAndRecovery,
-          statusOverview,
           incidentsFinancialDetails,
           incidentsWithTimeframe,
           incidentsWithFinancialAndFunction,
         ] = await this.runQueryBatches<any[]>([
           netLossAndRecoveryTask,
-          statusOverviewTask,
           incidentsFinancialDetailsTask,
           incidentsWithTimeframeTask,
           incidentsWithFinancialAndFunctionTask,
         ]);
       }
-
-      const pendingPreparer = statusCountsRow?.pendingPreparer || 0;
-      const pendingChecker = statusCountsRow?.pendingChecker || 0;
-      const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
-      const pendingAcceptance = statusCountsRow?.pendingAcceptance || 0;
 
       // Operational Loss Metrics - Calculate date range (last 12 months)
       // Use occurrence_date if available, otherwise fall back to createdAt
@@ -778,10 +676,6 @@ export class GrcIncidentsService {
       if (section === 'cards') {
         return {
           totalIncidents,
-          pendingPreparer,
-          pendingChecker,
-          pendingReviewer,
-          pendingAcceptance,
           atmTheftCount,
           avgRecognitionTime,
           internalFraudCount,
@@ -1065,17 +959,6 @@ export class GrcIncidentsService {
             financial_impact_name: item.financial_impact_name || 'Unknown',
             incident_count: item.incident_count || 0,
           })),
-          incidentsByStatus: [
-            { status: 'Pending Preparer', count: pendingPreparer },
-            { status: 'Pending Checker', count: pendingChecker },
-            { status: 'Pending Reviewer', count: pendingReviewer },
-            { status: 'Pending Acceptance', count: pendingAcceptance },
-            { status: 'Approved', count: statusCountsRow?.approved || 0 },
-          ],
-          incidentsByStatusDistribution: incidentsByStatusDistribution.map(item => ({
-            status_name: item.status_name || 'Unknown',
-            count: item.count || 0,
-          })),
           incidentsByStatusTable: incidentsByStatus.map(item => ({
             status: item.status || 'Unknown',
             count: item.count || 0,
@@ -1122,8 +1005,6 @@ export class GrcIncidentsService {
             recovery_amount: item.recovery_amount || 0,
             function_name: item.function_name || 'Unknown',
           })),
-          statusOverview,
-          overallStatuses: statusOverview,
           incidentsFinancialDetails: incidentsFinancialDetails.map(item => ({
             title: item.title || 'Unknown',
             rootCause: item.rootCause || '',
@@ -1132,7 +1013,6 @@ export class GrcIncidentsService {
             totalLoss: item.totalLoss || 0,
             recoveryAmount: item.recoveryAmount || 0,
             grossAmount: item.grossAmount || 0,
-            status: item.status || 'Unknown',
           })),
           incidentsWithTimeframe: incidentsWithTimeframe.map(item => ({
             incident_name: item.incident_name || 'Unknown',
@@ -1182,10 +1062,6 @@ export class GrcIncidentsService {
 
       return {
         totalIncidents,
-        pendingPreparer,
-        pendingChecker,
-        pendingReviewer,
-        pendingAcceptance,
         incidentsByCategory: incidentsByCategory.map(item => ({
           category_name: item.category_name || 'Unknown',
           count: item.count
@@ -1197,18 +1073,6 @@ export class GrcIncidentsService {
         incidentsByFinancialImpact: incidentsByFinancialImpact.map(item => ({
           financial_impact_name: item.financial_impact_name || 'Unknown',
           incident_count: item.incident_count || 0
-        })),
-        incidentsByStatus: [
-          { status: 'Pending Preparer', count: pendingPreparer },
-          { status: 'Pending Checker', count: pendingChecker },
-          { status: 'Pending Reviewer', count: pendingReviewer },
-          { status: 'Pending Acceptance', count: pendingAcceptance },
-          { status: 'Approved', count: statusCountsRow?.approved || 0 }
-        ],
-        // Status distribution for pie charts (same format as Python: status_name, count)
-        incidentsByStatusDistribution: incidentsByStatusDistribution.map(item => ({
-          status_name: item.status_name || 'Unknown',
-          count: item.count || 0
         })),
         incidentsByStatusTable: incidentsByStatus.map(item => ({
           status: item.status || 'Unknown',
@@ -1228,8 +1092,6 @@ export class GrcIncidentsService {
           month_year: item.month_year,
           incident_count: item.incident_count
         })),
-        statusOverview,
-        overallStatuses: statusOverview,
         incidentsFinancialDetails: incidentsFinancialDetails.map(item => ({
           title: item.title || 'Unknown',
           rootCause: item.rootCause || '',
@@ -1237,8 +1099,7 @@ export class GrcIncidentsService {
           netLoss: item.netLoss || 0,
           totalLoss: item.totalLoss || 0,
           recoveryAmount: item.recoveryAmount || 0,
-          grossAmount: item.grossAmount || 0,
-          status: item.status || 'Unknown'
+          grossAmount: item.grossAmount || 0
         })),
         incidentsTimeSeries: incidentsTimeSeries.map(item => ({
           month: item.month ? new Date(item.month).toISOString().split('T')[0] : null,
@@ -1342,9 +1203,6 @@ export class GrcIncidentsService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc = false,
   ) {
-    if (tableId === 'overallStatuses') {
-      return this.getOverallStatusesTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-    }
     if (tableId === 'netLossAndRecovery') {
       return this.getNetLossAndRecoveryTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
     }
@@ -1374,7 +1232,6 @@ export class GrcIncidentsService {
     ) as Record<string, any[]>;
 
     const tableRows = {
-      overallStatuses: tablesPayload.overallStatuses || [],
       incidentsFinancialDetails: tablesPayload.incidentsFinancialDetails || [],
       incidentsWithTimeframe: tablesPayload.incidentsWithTimeframe || [],
       incidentsWithFinancialAndFunction: tablesPayload.incidentsWithFinancialAndFunction || [],
@@ -1407,56 +1264,6 @@ export class GrcIncidentsService {
       hasNext: safePage < totalPages,
       hasPrev: safePage > 1,
     };
-  }
-
-  private async getOverallStatusesTablePage(
-    user: any,
-    page = 1,
-    limit = 10,
-    timeframe?: string,
-    startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[],
-    orderByFunctionAsc = false,
-  ) {
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
-    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
-    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
-    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
-    const offset = (pageInt - 1) * limitInt;
-    const countQuery = `SELECT COUNT(*) as total FROM Incidents i WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
-    const dataQuery = `
-      SELECT 
-        i.code,
-        i.title,
-        ISNULL(f.name, 'Unknown') AS function_name,
-        CASE 
-          WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-          WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-          WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-          WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
-          ELSE 'Other'
-        END as status,
-        FORMAT(CONVERT(datetime, i.createdAt), 'yyyy-MM-dd HH:mm:ss') as createdAt
-      FROM Incidents i
-      LEFT JOIN Functions f ON i.function_id = f.id
-        AND f.isDeleted = 0
-        AND f.deletedAt IS NULL
-      WHERE i.isDeleted = 0 
-        AND i.deletedAt IS NULL
-        ${dateFilter}
-        ${functionFilter}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `;
-    const [data, countResult] = await Promise.all([
-      this.databaseService.query(dataQuery),
-      this.databaseService.query(countQuery),
-    ]);
-    const total = Number(countResult?.[0]?.total ?? 0);
-    return { data, pagination: this.buildPaginationMeta(pageInt, limitInt, total) };
   }
 
   private async getNetLossAndRecoveryTablePage(
@@ -1541,21 +1348,13 @@ export class GrcIncidentsService {
         ISNULL(f.name, 'Unknown') AS function_name, 
         i.net_loss AS netLoss, 
         i.total_loss AS totalLoss, 
-        i.recovery_amount AS recoveryAmount, 
-        (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount, 
-        CASE 
-          WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-          WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-          WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-          WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
-          ELSE 'Other'
-        END AS status 
+        i.recovery_amount AS recoveryAmount,
+        (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount
       FROM Incidents i
       LEFT JOIN Functions f ON i.function_id = f.id
         AND f.isDeleted = 0
         AND f.deletedAt IS NULL
-      WHERE i.isDeleted = 0 
+      WHERE i.isDeleted = 0
         AND i.deletedAt IS NULL
         ${dateFilter}
         ${functionFilter}
@@ -1576,7 +1375,6 @@ export class GrcIncidentsService {
         totalLoss: item.totalLoss || 0,
         recoveryAmount: item.recoveryAmount || 0,
         grossAmount: item.grossAmount || 0,
-        status: item.status || 'Unknown',
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
@@ -1852,12 +1650,6 @@ export class GrcIncidentsService {
         i.code,
         i.title,
         CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
-        CASE 
-          WHEN i.acceptanceStatus = 'approved' THEN 'approved'
-          WHEN i.reviewerStatus = 'sent' THEN 'sent'
-          WHEN i.checkerStatus = 'approved' THEN 'approved'
-          ELSE ISNULL(i.preparerStatus, i.acceptanceStatus)
-        END as status,
         i.createdAt,
         ISNULL(c.name, '') as categoryName,
         ISNULL(f.name, '') as functionName,
@@ -1876,11 +1668,7 @@ export class GrcIncidentsService {
         ISNULL(fi.name, '') as financialImpactName,
         ISNULL(cu.name, '') as currencyName,
         ISNULL(i.exchange_rate, 0) as exchangeRate,
-        ISNULL(i.status, '') as recoveryStatus,
-        ISNULL(i.preparerStatus, '') as preparerStatus,
-        ISNULL(i.reviewerStatus, '') as reviewerStatus,
-        ISNULL(i.checkerStatus, '') as checkerStatus,
-        ISNULL(i.acceptanceStatus, '') as acceptanceStatus
+        ISNULL(i.status, '') as recoveryStatus
       FROM Incidents i
       LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
       LEFT JOIN Functions f ON i.function_id = f.id AND f.isDeleted = 0 AND f.deletedAt IS NULL
@@ -1892,227 +1680,6 @@ export class GrcIncidentsService {
       LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'functionName ASC, i.createdAt DESC' : 'i.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `
-    const data = await this.databaseService.query(dataQuery)
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
-    }
-  }
-
-  async getPendingPreparerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
-      'i',
-      'function_id',
-      access,
-      selectedFunctionIds,
-    );
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = ["i.isDeleted = 0", "i.deletedAt IS NULL", "ISNULL(i.preparerStatus, '') <> 'sent'"]
-    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
-    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
-
-    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
-    const totalRes = await this.databaseService.query(countQuery)
-    const total = totalRes?.[0]?.total || 0
-
-    const dataQuery = `
-      SELECT 
-        i.code,
-        i.title,
-        f.name AS function_name,
-        'Pending Preparer' as status,
-        i.createdAt
-      FROM Incidents i
-      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
-      ${whereSql}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `
-    const data = await this.databaseService.query(dataQuery)
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
-    }
-  }
-
-  async getPendingCheckerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
-      'i',
-      'function_id',
-      access,
-      selectedFunctionIds,
-    );
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = [
-      "i.isDeleted = 0",
-      "i.deletedAt IS NULL",
-      "ISNULL(i.preparerStatus, '') = 'sent'",
-      "ISNULL(i.checkerStatus, '') <> 'approved'",
-      "ISNULL(i.acceptanceStatus, '') <> 'approved'"
-    ]
-    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
-    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
-
-    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
-    const totalRes = await this.databaseService.query(countQuery)
-    const total = totalRes?.[0]?.total || 0
-
-    const dataQuery = `
-      SELECT 
-        i.code,
-        i.title,
-        f.name AS function_name,
-        'Pending Checker' as status,
-        i.createdAt
-      FROM Incidents i
-      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
-      ${whereSql}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `
-    const data = await this.databaseService.query(dataQuery)
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
-    }
-  }
-
-  async getPendingReviewerIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
-      'i',
-      'function_id',
-      access,
-      selectedFunctionIds,
-    );
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = [
-      "i.isDeleted = 0",
-      "i.deletedAt IS NULL",
-      "ISNULL(i.checkerStatus, '') = 'approved'",
-      "ISNULL(i.reviewerStatus, '') <> 'sent'",
-      "ISNULL(i.acceptanceStatus, '') <> 'approved'"
-    ]
-    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
-    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
-
-    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
-    const totalRes = await this.databaseService.query(countQuery)
-    const total = totalRes?.[0]?.total || 0
-
-    const dataQuery = `
-      SELECT 
-        i.code,
-        i.title,
-        f.name AS function_name,
-        'Pending Reviewer' as status,
-        i.createdAt
-      FROM Incidents i
-      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
-      ${whereSql}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `
-    const data = await this.databaseService.query(dataQuery)
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
-    }
-  }
-
-  async getPendingAcceptanceIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
-      'i',
-      'function_id',
-      access,
-      selectedFunctionIds,
-    );
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = [
-      "i.isDeleted = 0",
-      "i.deletedAt IS NULL",
-      "ISNULL(i.reviewerStatus, '') = 'sent'",
-      "ISNULL(i.acceptanceStatus, '') <> 'approved'"
-    ]
-    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
-    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
-
-    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
-    const totalRes = await this.databaseService.query(countQuery)
-    const total = totalRes?.[0]?.total || 0
-
-    const dataQuery = `
-      SELECT 
-        i.code,
-        i.title,
-        f.name AS function_name,
-        'Pending Acceptance' as status,
-        i.createdAt
-      FROM Incidents i
-      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
-      ${whereSql}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `
     const data = await this.databaseService.query(dataQuery)
@@ -2426,130 +1993,6 @@ export class GrcIncidentsService {
       };
     } catch (error) {
       console.error('Error fetching incidents by financial impact:', error);
-      throw error;
-    }
-  }
-
-  async getIncidentsByStatus(
-    user: any,
-    status: string,
-    page: number = 1,
-    limit: number = 10,
-    startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[]
-  ) {
-    try {
-      // Get user function access
-      const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-      const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
-        'i',
-        'function_id',
-        access,
-        selectedFunctionIds,
-      );
-
-      const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
-      // Ensure page and limit are integers
-      const pageInt = Math.floor(Number(page)) || 1;
-      const limitInt = Math.floor(Number(limit)) || 10;
-      const offset = Math.floor((pageInt - 1) * limitInt);
-      
-      // Decode URL-encoded parameter (handles Arabic and special characters)
-      let decodedStatus = status;
-      try {
-        decodedStatus = decodeURIComponent(status);
-        try {
-          decodedStatus = decodeURIComponent(decodedStatus);
-        } catch (e) {
-          // Already decoded, keep as is
-        }
-      } catch (e) {
-        decodedStatus = status;
-      }
-      
-      // Log for debugging
-      // console.log('[getIncidentsByStatus] Received status:', status);
-      // console.log('[getIncidentsByStatus] Decoded status:', decodedStatus);
-      
-      // Map status names to the appropriate query conditions
-      // Using the same staged status logic as the dashboard
-      let statusCondition = '';
-      if (decodedStatus === 'Pending Preparer') {
-        statusCondition = "ISNULL(i.preparerStatus, '') <> 'sent'";
-      } else if (decodedStatus === 'Pending Checker') {
-        statusCondition = "ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
-      } else if (decodedStatus === 'Pending Reviewer') {
-        statusCondition = "ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
-      } else if (decodedStatus === 'Pending Acceptance') {
-        statusCondition = "ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
-      } else if (decodedStatus === 'Approved') {
-        statusCondition = "ISNULL(i.acceptanceStatus, '') = 'approved'";
-      } else {
-        // For unknown or other statuses, use computed status matching
-        const escapedStatus = decodedStatus.replace(/'/g, "''");
-        statusCondition = `(
-          CASE 
-            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-            WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
-            ELSE 'Other'
-          END
-        ) = N'${escapedStatus}'`;
-      }
-      
-      const query = `
-        SELECT 
-          i.code as incident_code,
-          i.title as incident_title,
-          f.name AS function_name,
-          FORMAT(i.createdAt, 'yyyy-MM-ddTHH:mm:ss') as created_at
-        FROM dbo.[Incidents] i
-        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
-        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
-          AND ${statusCondition}
-          ${dateFilter}
-          ${functionFilter}
-        ORDER BY i.createdAt DESC
-        OFFSET ${offset} ROWS
-        FETCH NEXT ${limitInt} ROWS ONLY
-      `;
-
-      const result = await this.databaseService.query(query);
-
-      const countQuery = `
-        SELECT COUNT(*) as total
-        FROM dbo.[Incidents] i
-        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
-          AND ${statusCondition}
-          ${dateFilter}
-          ${functionFilter}
-      `;
-      const countResult = await this.databaseService.query(countQuery);
-      const total = countResult[0]?.total || 0;
-      
-      // console.log('[getIncidentsByStatus] Total count:', total);
-
-      return {
-        data: result.map((row: any) => ({
-          code: row.incident_code || 'N/A',
-          name: row.incident_title || 'N/A',
-          function_name: row.function_name || null,
-          createdAt: row.created_at || null
-        })),
-        pagination: {
-          page: pageInt,
-          limit: limitInt,
-          total,
-          totalPages: Math.ceil(total / limitInt),
-          hasNext: pageInt * limitInt < total,
-          hasPrev: pageInt > 1
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching incidents by status:', error);
       throw error;
     }
   }

@@ -121,7 +121,6 @@ export class GrcRisksController {
       risksByEventType: { risksByEventType: payload?.risksByEventType || [] },
       createdDeletedRisksPerQuarter: { createdDeletedRisksPerQuarter: payload?.createdDeletedRisksPerQuarter || [] },
       quarterlyRiskCreationTrends: { quarterlyRiskCreationTrends: payload?.quarterlyRiskCreationTrends || [] },
-      riskApprovalStatusDistribution: { riskApprovalStatusDistribution: payload?.riskApprovalStatusDistribution || [] },
       riskDistributionByFinancialImpact: { riskDistributionByFinancialImpact: payload?.riskDistributionByFinancialImpact || [] },
     };
     return chartPayload[widgetId] ?? {};
@@ -320,29 +319,6 @@ export class GrcRisksController {
       );
     } catch (error) {
       console.error('Error in getRisksByQuarter:', error);
-      throw error;
-    }
-  }
-
-  @Get('by-approval-status')
-  async getRisksByApprovalStatus(
-    @Req() req: any,
-    @Query('approvalStatus') approvalStatus: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    try {
-      const ob = orderByFunctionFromRequest(req);
-      return sortPaginatedResponseIfNeeded(
-        await this.grcRisksService.getRisksByApprovalStatus(req.user, approvalStatus, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-        ob,
-      );
-    } catch (error) {
-      console.error('Error in getRisksByApprovalStatus:', error);
       throw error;
     }
   }

@@ -239,23 +239,6 @@ export class GrcRisksService extends BaseDashboardService {
           WHERE r.isDeleted = 0 AND DATEDIFF(month, r.createdAt, GETDATE()) = 0 ${dateFilter} ${functionFilter}
           ORDER BY r.createdAt DESC
         `, []);
-      const riskApprovalStatusDistributionTask = () => queryOrFallback<any[]>('riskApprovalStatusDistribution', `
-          SELECT
-            CASE
-              WHEN rr.preparerResidualStatus = 'sent' AND rr.acceptanceResidualStatus = 'approved' THEN 'Approved'
-              ELSE 'Not Approved'
-            END AS approve,
-            COUNT(DISTINCT r.id) AS count
-          FROM dbo.[Risks] r
-          INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
-          WHERE r.isDeleted = 0 ${dateFilter} ${functionFilter}
-          GROUP BY
-            CASE
-              WHEN rr.preparerResidualStatus = 'sent' AND rr.acceptanceResidualStatus = 'approved' THEN 'Approved'
-              ELSE 'Not Approved'
-            END
-          ORDER BY approve ASC
-        `, []);
       const riskDistributionByFinancialImpactTask = () => queryOrFallback<any[]>('riskDistributionByFinancialImpact', `
           SELECT
             CASE
@@ -345,7 +328,6 @@ export class GrcRisksService extends BaseDashboardService {
       let levelsAgg: any[] = [];
       let riskReductionCountResult: any[] = [];
       let newRisks: any[] = [];
-      let riskApprovalStatusDistribution: any[] = [];
       let riskDistributionByFinancialImpact: any[] = [];
       let quarterlyRiskCreationTrends: any[] = [];
       let createdDeletedRisksPerQuarter: any[] = [];
@@ -369,14 +351,12 @@ export class GrcRisksService extends BaseDashboardService {
         [
           risksByEventType,
           risksByCategory,
-          riskApprovalStatusDistribution,
           riskDistributionByFinancialImpact,
           quarterlyRiskCreationTrends,
           createdDeletedRisksPerQuarter,
         ] = await this.runQueryBatches<any[]>([
           risksByEventTypeTask,
           risksByCategoryTask,
-          riskApprovalStatusDistributionTask,
           riskDistributionByFinancialImpactTask,
           quarterlyRiskCreationTrendsTask,
           createdDeletedRisksPerQuarterTask,
@@ -413,7 +393,6 @@ export class GrcRisksService extends BaseDashboardService {
           risksByEventType,
           createdDeletedRisksPerQuarter,
           quarterlyRiskCreationTrends,
-          riskApprovalStatusDistribution,
           riskDistributionByFinancialImpact,
         };
       }
@@ -547,7 +526,6 @@ export class GrcRisksService extends BaseDashboardService {
         createdDeletedRisksPerQuarter,
         quarterlyRiskCreationTrends,
         inherentResidualRiskComparison,
-        riskApprovalStatusDistribution,
         highResidualRiskOverview,
         riskDistributionByFinancialImpact,
         risksAndControlsCount,
@@ -2020,124 +1998,6 @@ export class GrcRisksService extends BaseDashboardService {
       console.error('Error in getRisksByQuarter:', error);
       console.error('Quarter:', quarter);
       console.error('QuarterNum:', quarterNum, 'Year:', year);
-      throw error;
-    }
-  }
-
-  async getRisksByApprovalStatus(user: any, approvalStatus: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildRiskFunctionFilter('r', access, selectedFunctionIds);
-
-    const dateFilter = this.buildDateFilter(startDate, endDate, 'r.createdAt');
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    
-    let dataQuery = '';
-    let countQuery = '';
-    
-    if (approvalStatus === 'Approved') {
-      // For approved: risks that have at least one approved ResidualRisk
-      dataQuery = `
-        SELECT DISTINCT
-          r.code,
-          r.name AS name,
-          ${this.riskFunctionNameSubquery()} AS function_name,
-          'Approved' AS approval_status,
-          r.inherent_value,
-          r.residual_value,
-          r.createdAt AS createdAt
-        FROM dbo.[Risks] r
-        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
-        WHERE r.isDeleted = 0 
-          AND rr.preparerResidualStatus = 'sent' 
-          AND rr.acceptanceResidualStatus = 'approved'
-          ${dateFilter}
-          ${functionFilter}
-        ORDER BY r.createdAt DESC
-        OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
-      `;
-      
-      countQuery = `
-        SELECT COUNT(DISTINCT r.id) as total
-        FROM dbo.[Risks] r
-        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
-        WHERE r.isDeleted = 0 
-          AND rr.preparerResidualStatus = 'sent' 
-          AND rr.acceptanceResidualStatus = 'approved'
-          ${dateFilter}
-          ${functionFilter}
-      `;
-    } else {
-      // For not approved: risks that don't have any approved ResidualRisk
-      // Use NOT EXISTS to ensure we only get risks with no approved ResidualRisks
-      dataQuery = `
-        SELECT 
-          r.code,
-          r.name AS name,
-          ${this.riskFunctionNameSubquery()} AS function_name,
-          'Not Approved' AS approval_status,
-          r.inherent_value,
-          r.residual_value,
-          r.createdAt AS createdAt
-        FROM dbo.[Risks] r
-        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
-        WHERE r.isDeleted = 0 
-          ${functionFilter}
-          AND NOT EXISTS (
-            SELECT 1 
-            FROM dbo.[ResidualRisks] rr2 
-            WHERE rr2.riskId = r.id 
-              AND rr2.isDeleted = 0
-              AND rr2.preparerResidualStatus = 'sent' 
-              AND rr2.acceptanceResidualStatus = 'approved'
-          )
-          ${dateFilter}
-        GROUP BY r.id, r.code, r.name, r.inherent_value, r.residual_value, r.createdAt
-        ORDER BY r.createdAt DESC
-        OFFSET @param0 ROWS FETCH NEXT @param1 ROWS ONLY
-      `;
-      
-      countQuery = `
-        SELECT COUNT(DISTINCT r.id) as total
-        FROM dbo.[Risks] r
-        INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId AND rr.isDeleted = 0
-        WHERE r.isDeleted = 0 
-          ${functionFilter}
-          AND NOT EXISTS (
-            SELECT 1 
-            FROM dbo.[ResidualRisks] rr2 
-            WHERE rr2.riskId = r.id 
-              AND rr2.isDeleted = 0
-              AND rr2.preparerResidualStatus = 'sent' 
-              AND rr2.acceptanceResidualStatus = 'approved'
-          )
-          ${dateFilter}
-      `;
-    }
-    
-    try {
-      const [data, count] = await Promise.all([
-        this.databaseService.query(dataQuery, [offset, limitInt]),
-        this.databaseService.query(countQuery)
-      ]);
-      
-      return {
-        data,
-        pagination: {
-          page: pageInt,
-          limit: limitInt,
-          total: count[0]?.total || 0,
-          totalPages: Math.ceil((count[0]?.total || 0) / limitInt),
-          hasNext: pageInt < Math.ceil((count[0]?.total || 0) / limitInt),
-          hasPrev: pageInt > 1
-        }
-      };
-    } catch (error) {
-      console.error('Error in getRisksByApprovalStatus:', error);
-      console.error('ApprovalStatus:', approvalStatus);
       throw error;
     }
   }

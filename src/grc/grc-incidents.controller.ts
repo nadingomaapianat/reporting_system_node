@@ -125,10 +125,6 @@ export class GrcIncidentsController {
     if (kind === 'metric') {
       const metricPayload: Record<string, any> = {
         totalIncidents: { total: Number((payload?.total ?? payload?.totalIncidents) || 0) },
-        pendingPreparer: { pendingPreparer: Number(payload?.pendingPreparer || 0) },
-        pendingChecker: { pendingChecker: Number(payload?.pendingChecker || 0) },
-        pendingReviewer: { pendingReviewer: Number(payload?.pendingReviewer || 0) },
-        pendingAcceptance: { pendingAcceptance: Number(payload?.pendingAcceptance || 0) },
         atmTheftCount: { atmTheftCount: Number(payload?.atmTheftCount || 0) },
         avgRecognitionTime: { avgRecognitionTime: Number(payload?.avgRecognitionTime || 0) },
         internalFraudCount: { internalFraudCount: Number(payload?.internalFraudCount || 0) },
@@ -145,7 +141,6 @@ export class GrcIncidentsController {
 
     const chartPayload: Record<string, any> = {
       byCategory: { incidentsByCategory: payload?.incidentsByCategory || [], categoryDistribution: payload?.categoryDistribution || [] },
-      byStatus: { incidentsByStatus: payload?.incidentsByStatus || [], incidentsByStatusDistribution: payload?.incidentsByStatusDistribution || [] },
       monthlyTrend: { monthlyTrend: payload?.monthlyTrend || [] },
       incidentsTimeSeries: { incidentsTimeSeries: payload?.incidentsTimeSeries || [] },
       topFinancialImpacts: { topFinancialImpacts: payload?.topFinancialImpacts || [] },
@@ -193,62 +188,6 @@ export class GrcIncidentsController {
   ) {
     const ob = orderByFunctionFromRequest(req);
     return this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
-  @Get('pending-preparer')
-  async getPendingPreparerIncidents(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcIncidentsService.getPendingPreparerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
-  @Get('pending-checker')
-  async getPendingCheckerIncidents(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcIncidentsService.getPendingCheckerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
-  @Get('pending-reviewer')
-  async getPendingReviewerIncidents(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcIncidentsService.getPendingReviewerIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
-  @Get('pending-acceptance')
-  async getPendingAcceptanceIncidents(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcIncidentsService.getPendingAcceptanceIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('by-category')
@@ -310,27 +249,6 @@ export class GrcIncidentsController {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
       await this.grcIncidentsService.getIncidentsByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob
-    );
-  }
-
-  @Get('by-status')
-  async getIncidentsByStatus(
-    @Req() req: any,
-    @Query('status') status: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    if (!status) {
-      throw new Error('status parameter is required');
-    }
-    const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByStatus(req.user, status, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }

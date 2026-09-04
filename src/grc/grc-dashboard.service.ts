@@ -120,9 +120,6 @@ export class GrcDashboardService extends BaseDashboardService {
     if (tableId === 'controlsNotMappedToPrinciples') {
       return this.getControlsNotMappedToPrinciplesTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, !!orderByFunctionAsc);
     }
-    if (tableId === 'controlSubmissionStatusByQuarterFunction') {
-      return this.getControlSubmissionStatusByQuarterFunctionTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, !!orderByFunctionAsc);
-    }
     return super.getDashboardTablePage(user, tableId, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
@@ -347,92 +344,6 @@ export class GrcDashboardService extends BaseDashboardService {
     };
   }
 
-  private async getControlSubmissionStatusByQuarterFunctionTablePage(
-    user: any,
-    page = 1,
-    limit = 10,
-    startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[],
-    orderByFunctionAsc = false,
-  ) {
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilterCdt = this.userFunctionAccess.buildDirectFunctionFilter('cdt', 'function_id', access, selectedFunctionIds);
-    const dateFilterCdt = this.buildDateFilter(startDate, endDate, 'cdt.createdAt');
-    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
-    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
-
-    const baseQuery = `
-      SELECT
-        c.name AS [Control Name],
-        f.name AS [Function Name],
-        CASE WHEN cdt.quarter = 'quarterOne' THEN 1
-             WHEN cdt.quarter = 'quarterTwo' THEN 2
-             WHEN cdt.quarter = 'quarterThree' THEN 3
-             WHEN cdt.quarter = 'quarterFour' THEN 4
-             ELSE NULL END AS [Quarter],
-        cdt.year AS [Year],
-        CASE WHEN (c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved')
-             THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Control Submitted?],
-        CASE WHEN (cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved')
-             THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Test Approved?],
-        cdt.createdAt AS created_at
-      FROM ${fq('ControlDesignTests')} cdt
-      INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id
-      INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id
-      WHERE c.isDeleted = 0
-        AND c.deletedAt IS NULL
-        AND cdt.deletedAt IS NULL
-        ${dateFilterCdt}
-        ${functionFilterCdt}
-    `;
-
-    const countQuery = `
-      SELECT COUNT(*) AS total
-      FROM ${fq('ControlDesignTests')} cdt
-      INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id
-      INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id
-      WHERE c.isDeleted = 0
-        AND c.deletedAt IS NULL
-        AND cdt.deletedAt IS NULL
-        ${dateFilterCdt}
-        ${functionFilterCdt}
-    `;
-
-    const rowOrder = orderByFunctionAsc
-      ? '[Function Name] ASC, [Control Name] ASC, [Year] DESC, [Quarter] DESC, created_at DESC'
-      : 'created_at DESC, [Control Name] ASC';
-
-    const dataQuery = `
-      WITH RankedRows AS (
-        SELECT *,
-          ROW_NUMBER() OVER (ORDER BY ${rowOrder}) AS rn
-        FROM (${baseQuery}) AS base_rows
-      )
-      SELECT *
-      FROM RankedRows
-      WHERE rn BETWEEN @param0 AND @param1
-      ORDER BY rn
-    `;
-
-    const [rows, countResult] = await Promise.all([
-      this.databaseService.query(dataQuery, [(pageInt - 1) * limitInt + 1, pageInt * limitInt]),
-      this.databaseService.query(countQuery),
-    ]);
-    const total = Number(countResult?.[0]?.total ?? 0);
-    return {
-      data: (rows || []).map((row: any) => ({
-        'Control Name': row['Control Name'],
-        'Function Name': row['Function Name'],
-        Quarter: row['Quarter'],
-        Year: row['Year'],
-        'Control Submitted?': row['Control Submitted?'],
-        'Test Approved?': row['Test Approved?'],
-      })),
-      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
-    };
-  }
-
   // Control-specific card data with function filtering
   async getFilteredCardData(user: any, cardType: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     // Get user function access
@@ -480,57 +391,6 @@ export class GrcDashboardService extends BaseDashboardService {
       } else if (cardType === 'unmapped') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
         countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL)`;
-      } else if (cardType.startsWith('pending') && !cardType.startsWith('testsPending')) {
-        // Handle Controls pending status cards - use standardized staged workflow pattern
-        // Require control to have at least one ControlFunctions link (match Python/UI; exclude unassigned controls)
-        const baseControlFunctionExists = `AND EXISTS (SELECT 1 FROM ${fq('ControlFunctions')} cf WHERE cf.control_id = c.id AND cf.deletedAt IS NULL)`;
-        let whereClause = '';
-        if (cardType === 'pendingPreparer') {
-          whereClause = "(ISNULL(c.preparerStatus, '') <> 'sent')";
-        } else if (cardType === 'pendingChecker') {
-          whereClause = "(ISNULL(c.preparerStatus, '') = 'sent' AND ISNULL(c.checkerStatus, '') <> 'approved' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
-        } else if (cardType === 'pendingReviewer') {
-          whereClause = "(ISNULL(c.checkerStatus, '') = 'approved' AND ISNULL(c.reviewerStatus, '') <> 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
-        } else if (cardType === 'pendingAcceptance') {
-          whereClause = "(ISNULL(c.reviewerStatus, '') = 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
-        } else {
-          // Fallback for other pending types
-          const statusField = cardType.replace('pending', '').toLowerCase() + 'Status';
-          whereClause = `c.${statusField} != 'approved'`;
-        }
-        
-        dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilters.dateFilterC} ${baseControlFunctionExists} ${functionFilter} ORDER BY c.createdAt DESC`;
-        countQuery = `SELECT COUNT(*) as total FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilters.dateFilterC} ${baseControlFunctionExists} ${functionFilter}`;
-      } else if (cardType.startsWith('testsPending')) {
-        // Map to control tests joins for details - use standardized staged workflow pattern
-        let whereClause = '';
-        if (cardType === 'testsPendingPreparer') {
-          whereClause = "(ISNULL(t.preparerStatus, '') <> 'sent')";
-        } else if (cardType === 'testsPendingChecker') {
-          whereClause = "(ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
-        } else if (cardType === 'testsPendingReviewer') {
-          whereClause = "(ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
-        } else if (cardType === 'testsPendingAcceptance') {
-          whereClause = "(ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
-        }
-        
-        const statusField =
-          cardType === 'testsPendingPreparer' ? 'preparerStatus' :
-          cardType === 'testsPendingChecker' ? 'checkerStatus' :
-          cardType === 'testsPendingReviewer' ? 'reviewerStatus' :
-          'acceptanceStatus';
-
-        dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus, f.name AS function_name
-          FROM ${fq('ControlDesignTests')} AS t
-          INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          LEFT JOIN ${fq('Functions')} AS f ON f.id = t.function_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
-          ORDER BY c.createdAt DESC`;
-
-        countQuery = `SELECT COUNT(DISTINCT t.id) as total
-          FROM ${fq('ControlDesignTests')} AS t
-          INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, ${functionNameSubquery} AS function_name, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,
@@ -625,39 +485,6 @@ export class GrcDashboardService extends BaseDashboardService {
 
   async getUnmappedControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
     return this.getFilteredCardData(user, 'unmapped', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-  }
-
-  async getPendingPreparerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    return this.getFilteredCardData(user, 'pendingPreparer', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-  }
-
-  async getPendingCheckerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    return this.getFilteredCardData(user, 'pendingChecker', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-  }
-
-  async getPendingReviewerControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    return this.getFilteredCardData(user, 'pendingReviewer', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-  }
-
-  async getPendingAcceptanceControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    return this.getFilteredCardData(user, 'pendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-  }
-
-  // Control Tests pending methods
-  async getTestsPendingPreparer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    return this.getFilteredCardData(user, 'testsPendingPreparer', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-  }
-
-  async getTestsPendingChecker(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    return this.getFilteredCardData(user, 'testsPendingChecker', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-  }
-
-  async getTestsPendingReviewer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    return this.getFilteredCardData(user, 'testsPendingReviewer', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-  }
-
-  async getTestsPendingAcceptance(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    return this.getFilteredCardData(user, 'testsPendingAcceptance', page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
   }
 
   async getUnmappedIcofrControls(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
@@ -2010,12 +1837,7 @@ export class GrcDashboardService extends BaseDashboardService {
       const quarterValue = quarterMap[quarter] || 'quarterOne';
       
       // Build the WHERE condition based on column type
-      let additionalCondition = '';
-      if (columnType === 'Controls Submitted') {
-        additionalCondition = ` AND c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved'`;
-      } else if (columnType === 'Tests Approved') {
-        additionalCondition = ` AND cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved'`;
-      }
+      const additionalCondition = '';
       // For "Total Controls", no additional condition needed
       
       const query = `

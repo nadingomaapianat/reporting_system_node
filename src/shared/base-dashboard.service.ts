@@ -854,48 +854,6 @@ export abstract class BaseDashboardService {
         dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 AND c.deletedAt IS NULL ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
       } else if (cardType === 'unmapped') {
         dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} AND NOT EXISTS (SELECT 1 FROM ${fq('ControlCosos')} ccx WHERE ccx.control_id = c.id AND ccx.deletedAt IS NULL) ORDER BY c.createdAt DESC`;
-      } else if (cardType.startsWith('pending') && !cardType.startsWith('testsPending')) {
-        // Handle Controls pending status cards - use standardized staged workflow pattern
-        let whereClause = '';
-        if (cardType === 'pendingPreparer') {
-          whereClause = "(ISNULL(c.preparerStatus, '') <> 'sent')";
-        } else if (cardType === 'pendingChecker') {
-          whereClause = "(ISNULL(c.preparerStatus, '') = 'sent' AND ISNULL(c.checkerStatus, '') <> 'approved' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
-        } else if (cardType === 'pendingReviewer') {
-          whereClause = "(ISNULL(c.checkerStatus, '') = 'approved' AND ISNULL(c.reviewerStatus, '') <> 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
-        } else if (cardType === 'pendingAcceptance') {
-          whereClause = "(ISNULL(c.reviewerStatus, '') = 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved')";
-        } else {
-          // Fallback for other pending types
-          const statusField = cardType.replace('pending', '').toLowerCase() + 'Status';
-          whereClause = `c.${statusField} != 'approved'`;
-        }
-        
-        dataQuery = `SELECT c.id, c.name, c.code FROM ${fq('Controls')} c WHERE ${whereClause} AND c.deletedAt IS NULL AND c.isDeleted = 0 ${dateFilters.dateFilterC} ${functionFilter} ORDER BY c.createdAt DESC`;
-      } else if (cardType.startsWith('testsPending')) {
-        // Map to control tests joins for details - use standardized staged workflow pattern
-        let whereClause = '';
-        if (cardType === 'testsPendingPreparer') {
-          whereClause = "(ISNULL(t.preparerStatus, '') <> 'sent')";
-        } else if (cardType === 'testsPendingChecker') {
-          whereClause = "(ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
-        } else if (cardType === 'testsPendingReviewer') {
-          whereClause = "(ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
-        } else if (cardType === 'testsPendingAcceptance') {
-          whereClause = "(ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved')";
-        }
-        
-        const statusField =
-          cardType === 'testsPendingPreparer' ? 'preparerStatus' :
-          cardType === 'testsPendingChecker' ? 'checkerStatus' :
-          cardType === 'testsPendingReviewer' ? 'reviewerStatus' :
-          'acceptanceStatus';
-
-        dataQuery = `SELECT DISTINCT t.id, c.id as control_id, c.name, c.code, c.createdAt, t.${statusField} AS preparerStatus
-          FROM ${fq('ControlDesignTests')} AS t
-          INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-          WHERE ${whereClause} AND c.isDeleted = 0 AND c.deletedAt IS NULL AND t.function_id IS NOT NULL ${dateFilters.dateFilterT} ${functionFilterControlDesignTest}
-          ORDER BY c.createdAt DESC`;
       } else if (cardType === 'unmappedIcofrControls') {
         dataQuery = `SELECT c.id, c.name, c.code, a.name as assertion_name, a.account_type as assertion_type,
           'Not Mapped' as coso_component,

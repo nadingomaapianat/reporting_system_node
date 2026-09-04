@@ -106,10 +106,6 @@ export class GrcKrisController {
     if (kind === 'metric') {
       const metricPayload: Record<string, any> = {
         totalKris: { totalKris: Number(payload?.totalKris || 0) },
-        pendingPreparer: { pendingPreparer: Number(payload?.pendingPreparer || 0) },
-        pendingChecker: { pendingChecker: Number(payload?.pendingChecker || 0) },
-        pendingReviewer: { pendingReviewer: Number(payload?.pendingReviewer || 0) },
-        pendingAcceptance: { pendingAcceptance: Number(payload?.pendingAcceptance || 0) },
       };
       return metricPayload[widgetId] ?? {};
     }
@@ -152,85 +148,6 @@ export class GrcKrisController {
     return this.grcKrisService.getTotalKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
-  @Get('pending-preparer')
-  async getPendingPreparerKris(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcKrisService.getPendingPreparerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
-  @Get('pending-checker')
-  async getPendingCheckerKris(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcKrisService.getPendingCheckerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
-  @Get('pending-reviewer')
-  async getPendingReviewerKris(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcKrisService.getPendingReviewerKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
-  @Get('pending-acceptance')
-  async getPendingAcceptanceKris(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcKrisService.getPendingAcceptanceKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
-  @Get('by-status')
-  async getKrisByStatus(
-    @Req() req: any,
-    @Query('status') status: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    try {
-      const ob = orderByFunctionFromRequest(req);
-      return sortPaginatedResponseIfNeeded(
-        await this.grcKrisService.getKrisByStatus(req.user, status, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-        ob,
-      );
-    } catch (error) {
-      console.error('Error fetching KRIs by status:', error);
-      return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-    }
-  }
-
   @Get('by-level')
   async getKrisByLevel(
     @Req() req: any,
@@ -262,7 +179,6 @@ export class GrcKrisController {
     @Query('limit') limit: number = 10,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('submissionStatus') submissionStatus?: string,
     @Query('functionId') functionId?: string,
     @Query('functionIds') functionIds?: string
   ) {
@@ -276,7 +192,6 @@ export class GrcKrisController {
           limit,
           startDate,
           endDate,
-          submissionStatus,
           parseGrcFunctionIdsFromQueries(functionId, functionIds),
         ),
         ob,

@@ -157,75 +157,6 @@ export class DashboardConfigService {
           color: 'blue',
           icon: 'chart-bar'
         },
-        // Control Tests pending metrics
-        {
-          id: 'testsPendingPreparer',
-          name: 'Control Tests pending Preparer',
-          query: `SELECT COUNT(DISTINCT t.id) AS total
-            FROM ${fq('ControlDesignTests')} AS t
-            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.preparerStatus, '') <> 'sent') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}`,
-          color: 'orange',
-          icon: 'clock'
-        },
-        {
-          id: 'testsPendingChecker',
-          name: 'Control Tests pending Checker',
-          query: `SELECT COUNT(DISTINCT t.id) AS total
-            FROM ${fq('ControlDesignTests')} AS t
-            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}`,
-          color: 'purple',
-          icon: 'check-circle'
-        },
-        {
-          id: 'testsPendingReviewer',
-          name: 'Control Tests pending Reviewer',
-          query: `SELECT COUNT(DISTINCT t.id) AS total
-            FROM ${fq('ControlDesignTests')} AS t
-            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}`,
-          color: 'indigo',
-          icon: 'document-check'
-        },
-        {
-          id: 'testsPendingAcceptance',
-          name: 'Control Tests pending Acceptance',
-          query: `SELECT COUNT(DISTINCT t.id) AS total
-            FROM ${fq('ControlDesignTests')} AS t
-            INNER JOIN ${fq('Controls')} AS c ON c.id = t.control_id
-            WHERE (ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved') AND t.function_id IS NOT NULL AND c.isDeleted = 0 AND c.deletedAt IS NULL {dateFilterT} {functionFilterControlDesignTest}`,
-          color: 'red',
-          icon: 'exclamation-triangle'
-        },
-        {
-          id: 'pendingPreparer',
-          name: 'Pending Preparer',
-          query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE (ISNULL(c.preparerStatus, '') <> 'sent') AND c.deletedAt IS NULL AND c.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
-          color: 'orange',
-          icon: 'clock'
-        },
-        {
-          id: 'pendingChecker',
-          name: 'Pending Checker',
-          query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE (ISNULL(c.preparerStatus, '') = 'sent' AND ISNULL(c.checkerStatus, '') <> 'approved' AND ISNULL(c.acceptanceStatus, '') <> 'approved') AND c.deletedAt IS NULL AND c.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
-          color: 'purple',
-          icon: 'check-circle'
-        },
-        {
-          id: 'pendingReviewer',
-          name: 'Pending Reviewer',
-          query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE (ISNULL(c.checkerStatus, '') = 'approved' AND ISNULL(c.reviewerStatus, '') <> 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved') AND c.deletedAt IS NULL AND c.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
-          color: 'indigo',
-          icon: 'document-check'
-        },
-        {
-          id: 'pendingAcceptance',
-          name: 'Pending Acceptance',
-          query: `SELECT COUNT(*) as total FROM dbo.[Controls] c WHERE (ISNULL(c.reviewerStatus, '') = 'sent' AND ISNULL(c.acceptanceStatus, '') <> 'approved') AND c.deletedAt IS NULL AND c.isDeleted = 0 AND 1=1 {dateFilter} {functionFilter}`,
-          color: 'red',
-          icon: 'exclamation-triangle'
-        },
         {
           id: 'unmapped',
           name: 'Unmapped Controls',
@@ -496,75 +427,6 @@ export class DashboardConfigService {
       ],
       tables: [
         {
-          id: 'statusOverview',
-          name: 'Control Creation Approval Cycle',
-          query: `SELECT 
-            c.id AS id,
-            c.name AS name,
-            c.createdAt,
-            c.code AS code,
-            ${this.orderedFunctionNamesSubquery('c.id')} AS business_unit,
-            c.preparerStatus,
-            c.checkerStatus,
-            c.reviewerStatus,
-            c.acceptanceStatus
-          FROM ${fq('Controls')} c
-          WHERE c.isDeleted = 0 {dateFilter} {functionFilter}
-          ORDER BY 
-            c.createdAt DESC,
-            c.name`,
-          columns: [
-            { key: 'id', label: 'ID', type: 'text' as const },
-            { key: 'name', label: 'Name', type: 'text' as const },
-            { key: 'code', label: 'Code', type: 'text' as const },
-            { key: 'business_unit', label: 'Business Unit', type: 'text' as const },
-            { key: 'preparerStatus', label: 'Preparer Status', type: 'status' as const },
-            { key: 'checkerStatus', label: 'Checker Status', type: 'status' as const },
-            { key: 'reviewerStatus', label: 'Reviewer Status', type: 'status' as const },
-            { key: 'acceptanceStatus', label: 'Acceptance Status', type: 'status' as const }
-          ],
-          pagination: true
-        },
-        {
-          id: 'controlsTestingApprovalCycle',
-          name: 'Controls Testing Approval Cycle',
-          query: `SELECT 
-            c.name AS [Control Name],
-            c.createdAt AS [Created At],
-            c.id AS [Control ID],
-            c.code AS [Code],
-            t.preparerStatus AS [Preparer Status],
-            t.checkerStatus AS [Checker Status],
-            t.reviewerStatus AS [Reviewer Status],
-            t.acceptanceStatus AS [Acceptance Status],
-            f.name AS [Business Unit],
-            CASE 
-              WHEN ISNULL(t.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-              WHEN ISNULL(t.preparerStatus, '') = 'sent' AND ISNULL(t.checkerStatus, '') <> 'approved' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-              WHEN ISNULL(t.checkerStatus, '') = 'approved' AND ISNULL(t.reviewerStatus, '') <> 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-              WHEN ISNULL(t.reviewerStatus, '') = 'sent' AND ISNULL(t.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-              WHEN ISNULL(t.acceptanceStatus, '') = 'approved' THEN 'Approved'
-              ELSE 'Other'
-            END AS [Current Status]
-          FROM ${fq('ControlDesignTests')} AS t
-          INNER JOIN ${fq('Controls')} AS c ON t.control_id = c.id
-          INNER JOIN ${fq('Functions')} AS f ON t.function_id = f.id
-          WHERE c.isDeleted = 0 AND (t.deletedAt IS NULL) AND t.function_id IS NOT NULL {dateFilterT} {functionFilterControlDesignTest}
-          ORDER BY t.createdAt DESC, c.name`,
-          columns: [
-            { key: 'index', label: 'Index', type: 'number' as const },
-            { key: 'Code', label: 'Code', type: 'text' as const },
-            { key: 'Control Name', label: 'Control Name', type: 'text' as const },
-            { key: 'Business Unit', label: 'Business Unit', type: 'text' as const },
-            { key: 'Current Status', label: 'Current Status', type: 'status' as const },
-            { key: 'Preparer Status', label: 'Preparer Status', type: 'status' as const },
-            { key: 'Checker Status', label: 'Checker Status', type: 'status' as const },
-            { key: 'Reviewer Status', label: 'Reviewer Status', type: 'status' as const },
-            { key: 'Acceptance Status', label: 'Acceptance Status', type: 'status' as const }
-          ],
-          pagination: true
-        },
-        {
           id: 'controlsByFunction',
           name: 'Controls by Function',
           query: `SELECT 
@@ -805,76 +667,6 @@ export class DashboardConfigService {
           pagination: true
         },
         {
-          id: 'controlSubmissionStatusByQuarterFunction',
-          name: 'Control Submission Status by Quarter and Function',
-          query: `SELECT 
-            c.name AS [Control Name], 
-            f.name AS [Function Name], 
-            CASE WHEN cdt.quarter = 'quarterOne' THEN 1 
-                 WHEN cdt.quarter = 'quarterTwo' THEN 2 
-                 WHEN cdt.quarter = 'quarterThree' THEN 3 
-                 WHEN cdt.quarter = 'quarterFour' THEN 4 
-                 ELSE NULL END AS [Quarter], 
-            cdt.year AS [Year], 
-            CASE WHEN ( c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved' ) 
-                 THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Control Submitted?], 
-            CASE WHEN ( cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved' ) 
-                 THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS [Test Approved?] 
-          FROM ${fq('ControlDesignTests')} cdt
-          INNER JOIN ${fq('Controls')} c ON cdt.control_id = c.id
-          INNER JOIN ${fq('Functions')} f ON cdt.function_id = f.id
-          WHERE c.isDeleted = 0 AND c.deletedAt IS NULL AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
-          ORDER BY cdt.createdAt DESC, c.name`,
-          columns: [
-            { key: 'Control Name', label: 'Control Name', type: 'text' as const },
-            { key: 'Function Name', label: 'Function Name', type: 'text' as const },
-            { key: 'Quarter', label: 'Quarter', type: 'number' as const },
-            { key: 'Year', label: 'Year', type: 'number' as const },
-            { key: 'Control Submitted?', label: 'Control Submitted?', type: 'boolean' as const },
-            { key: 'Test Approved?', label: 'Test Approved?', type: 'boolean' as const }
-          ],
-          pagination: true
-        },
-        {
-          id: 'functionsWithFullyTestedControlTests',
-          name: 'Functions with Fully Tested Control Tests',
-          query: `SELECT 
-            f.name AS [Function Name],
-            CASE WHEN cdt.quarter = 'quarterOne' THEN 1 
-                 WHEN cdt.quarter = 'quarterTwo' THEN 2 
-                 WHEN cdt.quarter = 'quarterThree' THEN 3 
-                 WHEN cdt.quarter = 'quarterFour' THEN 4 
-                 ELSE NULL END AS [Quarter],
-            cdt.year AS [Year],
-            COUNT(DISTINCT c.id) AS [Total Controls],
-            COUNT(DISTINCT CASE WHEN (c.preparerStatus = 'sent' AND c.acceptanceStatus = 'approved') THEN c.id END) AS [Controls Submitted],
-            COUNT(DISTINCT CASE WHEN (cdt.preparerStatus = 'sent' AND cdt.acceptanceStatus = 'approved') THEN c.id END) AS [Tests Approved]
-          FROM ${fq('ControlDesignTests')} AS cdt
-          INNER JOIN ${fq('Controls')} AS c ON c.id = cdt.control_id
-          INNER JOIN ${fq('Functions')} AS f ON f.id = cdt.function_id
-          WHERE c.isDeleted = 0
-            AND c.deletedAt IS NULL
-            AND cdt.deletedAt IS NULL {dateFilterCdt} {functionFilterCdt}
-          GROUP BY f.name, cdt.quarter, cdt.year
-          ORDER BY f.name, cdt.year,
-            CASE cdt.quarter
-              WHEN 'quarterOne' THEN 1
-              WHEN 'quarterTwo' THEN 2
-              WHEN 'quarterThree' THEN 3
-              WHEN 'quarterFour' THEN 4
-              ELSE 5
-            END`,
-          columns: [
-            { key: 'Function Name', label: 'Function Name', type: 'text' as const },
-            { key: 'Quarter', label: 'Quarter', type: 'number' as const },
-            { key: 'Year', label: 'Year', type: 'number' as const },
-            { key: 'Total Controls', label: 'Total Controls', type: 'number' as const },
-            { key: 'Controls Submitted', label: 'Controls Submitted', type: 'number' as const },
-            { key: 'Tests Approved', label: 'Tests Approved', type: 'number' as const }
-          ],
-          pagination: true
-        },
-        {
           id: 'controlsNotMappedToAssertions',
           name: 'Controls not mapped to any Account',
           query: `SELECT 
@@ -916,10 +708,6 @@ export class DashboardConfigService {
       dateField: 'createdAt',
       metrics: [
         this.METRIC_TEMPLATES.totalCount('dbo.[Incidents] i', 'Incidents', 'red'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents] i', 'preparerStatus', 'Preparer', 'orange'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents] i', 'checkerStatus', 'Checker', 'yellow'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents] i', 'reviewerStatus', 'Reviewer', 'purple'),
-        this.METRIC_TEMPLATES.pendingCount('dbo.[Incidents] i', 'acceptanceStatus', 'Acceptance', 'indigo'),
         this.METRIC_TEMPLATES.financialImpact('dbo.[Incidents] i', 'net_loss', 'Financial', 'green')
       ],
       charts: [
@@ -1100,30 +888,6 @@ export class DashboardConfigService {
           xField: 'creation_quarter',
           yField: 'SUM(risk_count)',
           labelField: 'creation_quarter'
-        },
-        // Risk Approval Status Distribution
-        {
-          id: 'riskApprovalStatusDistribution',
-          name: 'Risk Approval Status Distribution',
-          type: 'pie' as const,
-          query: `SELECT 
-            CASE 
-              WHEN rr.preparerResidualStatus = 'sent' AND rr.acceptanceResidualStatus = 'approved' THEN 'Approved'
-              ELSE 'Not Approved'
-            END AS approve,
-            COUNT(*) AS count
-          FROM dbo.[Risks] r
-          INNER JOIN dbo.[ResidualRisks] rr ON r.id = rr.riskId
-          WHERE r.isDeleted = 0 {dateFilter} {functionFilter}
-          GROUP BY 
-            CASE 
-              WHEN rr.preparerResidualStatus = 'sent' AND rr.acceptanceResidualStatus = 'approved' THEN 'Approved'
-              ELSE 'Not Approved'
-            END
-          ORDER BY approve ASC`,
-              xField: 'approve',
-              yField: 'count',
-              labelField: 'approve'
         },
         // Risk Distribution by Financial Impact Level
         {

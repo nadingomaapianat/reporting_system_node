@@ -370,33 +370,6 @@ export class GrcKrisService {
       `;
       const totalKrisTask = () => this.runDashboardQuery<any[]>('KRIs total', totalKrisQuery, []);
 
-      // KRIs status counts (same logic as incidents - staged status counts, using CTE for accuracy)
-      const krisStatusCountsQuery = `
-        WITH KrisStatus AS (
-          SELECT 
-            CASE 
-              WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
-              WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
-              WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
-              WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
-              WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'approved'
-              ELSE 'Other'
-            END AS status
-          FROM Kris k
-          WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
-            ${dateFilter}
-            ${functionFilter}
-        )
-        SELECT 
-          CAST(SUM(CASE WHEN status = 'pendingPreparer' THEN 1 ELSE 0 END) AS INT) AS pendingPreparer,
-          CAST(SUM(CASE WHEN status = 'pendingChecker' THEN 1 ELSE 0 END) AS INT) AS pendingChecker,
-          CAST(SUM(CASE WHEN status = 'pendingReviewer' THEN 1 ELSE 0 END) AS INT) AS pendingReviewer,
-          CAST(SUM(CASE WHEN status = 'pendingAcceptance' THEN 1 ELSE 0 END) AS INT) AS pendingAcceptance,
-          CAST(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS INT) AS approved
-        FROM KrisStatus
-      `;
-      const statusCountsTask = () => this.runDashboardQuery<any[]>('KRIs status counts', krisStatusCountsQuery, []);
-
       // KRIs by level (use kri_level if present else derive from latest kv vs thresholds)
       const krisByLevelQuery = `
         WITH LatestKV AS (
@@ -650,18 +623,7 @@ export class GrcKrisService {
       const allKrisSubmittedByFunctionQuery = `
         SELECT
           ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function Name],
-          COUNT(k.id) AS [Total KRIs],
-          COUNT(CASE
-            WHEN ISNULL(k.preparerStatus, '') = 'sent'
-             AND ISNULL(k.acceptanceStatus, '') = 'approved'
-            THEN 1 END) AS [Submitted KRIs],
-          CASE
-            WHEN COUNT(k.id) = COUNT(CASE
-              WHEN ISNULL(k.preparerStatus, '') = 'sent'
-               AND ISNULL(k.acceptanceStatus, '') = 'approved'
-              THEN 1 END)
-            THEN 'Yes' ELSE 'No'
-          END AS [All KRIs Submitted?]
+          COUNT(k.id) AS [Total KRIs]
         FROM Kris AS k
         LEFT JOIN KriFunctions AS kf
           ON k.id = kf.kri_id
@@ -800,50 +762,10 @@ export class GrcKrisService {
       `;
       const kriWithoutLinkedRisksTask = () => this.runDashboardQuery<any[]>('KRIs without linked risks', kriWithoutLinkedRisksQuery, []);
 
-      // Overall KRI Statuses (all KRIs with combined status)
-      const kriStatusQuery = `
-        SELECT
-          k.code             AS code,
-          k.kriName          AS kri_name,
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-          CASE 
-            WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-            WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
-            ELSE 'Unknown'
-          END AS status
-        FROM Kris k
-        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id
-          AND kf.deletedAt IS NULL
-        LEFT JOIN Functions fkf ON fkf.id = kf.function_id
-          AND fkf.isDeleted = 0
-          AND fkf.deletedAt IS NULL
-        LEFT JOIN Functions frel ON frel.id = k.related_function_id
-          AND frel.isDeleted = 0
-          AND frel.deletedAt IS NULL
-        WHERE
-          k.isDeleted = 0
-          AND k.deletedAt IS NULL
-          ${dateFilter}
-          ${functionFilter}
-        ORDER BY k.kriName
-      `;
-      const kriStatusTask = () => this.runDashboardQuery<any[]>('Overall KRI statuses', kriStatusQuery, []);
-
       // Active KRIs details
       const activeKrisDetailsQuery = `
         SELECT
           k.kriName          AS kriName,
-          CASE 
-            WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-            WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
-            ELSE 'Unknown'
-          END AS combined_status,
           u.name AS assignedPersonId,
           u2.name AS addedBy,
           k.status           AS status,
@@ -873,31 +795,18 @@ export class GrcKrisService {
       const activeKrisDetailsTask = () => this.runDashboardQuery<any[]>('Active KRIs details', activeKrisDetailsQuery, []);
 
       if (section === 'cards') {
-        const [totalKrisResult, statusCountsResults] = await this.runQueryBatches<any[]>([
+        const [totalKrisResult] = await this.runQueryBatches<any[]>([
           totalKrisTask,
-          statusCountsTask,
         ]);
         const totalKris = Number(totalKrisResult[0]?.total || 0);
-        const statusCountsRow = statusCountsResults[0] || {};
-        const pendingPreparer = Number(statusCountsRow?.pendingPreparer || 0);
-        const pendingChecker = Number(statusCountsRow?.pendingChecker || 0);
-        const pendingReviewer = Number(statusCountsRow?.pendingReviewer || 0);
-        const pendingAcceptance = Number(statusCountsRow?.pendingAcceptance || 0);
-        const approved = Number(statusCountsRow?.approved || 0);
 
         return {
           totalKris,
-          pendingPreparer,
-          pendingChecker,
-          pendingReviewer,
-          pendingAcceptance,
-          approved,
         };
       }
 
       if (section === 'charts') {
         const [
-          statusCountsResults,
           krisByLevel,
           breachedKRIsByDepartment,
           kriAssessmentCount,
@@ -908,7 +817,6 @@ export class GrcKrisService {
           kriCountsByFrequency,
           kriRisksByKriName,
         ] = await this.runQueryBatches<any[]>([
-          statusCountsTask,
           krisByLevelTask,
           breachedKRIsByDepartmentTask,
           kriAssessmentCountTask,
@@ -919,21 +827,8 @@ export class GrcKrisService {
           kriCountsByFrequencyTask,
           kriRisksByKriNameTask,
         ]);
-        const statusCountsRow = statusCountsResults[0] || {};
-        const pendingPreparer = Number(statusCountsRow?.pendingPreparer || 0);
-        const pendingChecker = Number(statusCountsRow?.pendingChecker || 0);
-        const pendingReviewer = Number(statusCountsRow?.pendingReviewer || 0);
-        const pendingAcceptance = Number(statusCountsRow?.pendingAcceptance || 0);
-        const approved = Number(statusCountsRow?.approved || 0);
 
         return {
-          krisByStatus: [
-            { status: 'Pending Preparer', count: pendingPreparer },
-            { status: 'Pending Checker', count: pendingChecker },
-            { status: 'Pending Reviewer', count: pendingReviewer },
-            { status: 'Pending Acceptance', count: pendingAcceptance },
-            { status: 'Approved', count: approved },
-          ],
           krisByLevel: krisByLevel.map((item) => ({
             level: item.level || item.kri_level || 'Unknown',
             count: item.count,
@@ -982,14 +877,12 @@ export class GrcKrisService {
           allKrisSubmittedByFunctionRows,
           kriRiskRelationships,
           kriWithoutLinkedRisks,
-          kriStatusRows,
           activeKrisDetailsRows,
         ] = await this.runQueryBatches<any[]>([
           overdueKrisByDepartmentTask,
           allKrisSubmittedByFunctionTask,
           kriRiskRelationshipsTask,
           kriWithoutLinkedRisksTask,
-          kriStatusTask,
           activeKrisDetailsTask,
         ]);
         const kriDetailsWithActionPlansGrouped = await this.getKriDetailsWithActionPlansGrouped(
@@ -1006,9 +899,7 @@ export class GrcKrisService {
           })),
           allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map((item) => ({
             function_name: item['Function Name'] || 'Unknown',
-            all_submitted: item['All KRIs Submitted?'] || 'No',
             total_kris: item['Total KRIs'] || 0,
-            submitted_kris: item['Submitted KRIs'] || 0,
           })),
           kriRiskRelationships: kriRiskRelationships.map((item) => ({
             kri_code: item.kri_code || null,
@@ -1022,16 +913,9 @@ export class GrcKrisService {
             kriCode: item.kriCode || null,
             function_name: item.function_name || 'Unknown',
           })),
-          kriStatus: kriStatusRows.map((item) => ({
-            code: item.code || null,
-            kri_name: item.kri_name || 'Unknown',
-            function_name: item.function_name || 'Unknown',
-            status: item.status || 'Unknown',
-          })),
           kriDetailsWithActionPlans: kriDetailsWithActionPlansGrouped,
           activeKrisDetails: activeKrisDetailsRows.map((item) => ({
             kriName: item.kriName || 'Unknown',
-            combined_status: item.combined_status || 'Unknown',
             assignedPersonId: item.assignedPersonId || null,
             addedBy: item.addedBy || null,
             status: item.status || 'Unknown',
@@ -1047,7 +931,6 @@ export class GrcKrisService {
 
       const [
         totalKrisResult,
-        statusCountsResults,
         krisByLevel,
         breachedKRIsByDepartment,
         kriHealth,
@@ -1063,11 +946,9 @@ export class GrcKrisService {
         kriRisksByKriName,
         kriRiskRelationships,
         kriWithoutLinkedRisks,
-        kriStatusRows,
         activeKrisDetailsRows,
       ] = await this.runQueryBatches<any[]>([
         totalKrisTask,
-        statusCountsTask,
         krisByLevelTask,
         breachedKRIsByDepartmentTask,
         kriHealthTask,
@@ -1083,38 +964,17 @@ export class GrcKrisService {
         kriRisksByKriNameTask,
         kriRiskRelationshipsTask,
         kriWithoutLinkedRisksTask,
-        kriStatusTask,
         activeKrisDetailsTask,
       ]);
       const totalKris = Number(totalKrisResult[0]?.total || 0);
-      const statusCountsRow = statusCountsResults[0] || {};
       const kriDetailsWithActionPlansGrouped = await this.getKriDetailsWithActionPlansGrouped(
         access,
         selectedFunctionIds,
         kriValueDateFilter,
       );
 
-      // Calculate status counts from statusCountsRow (convert to integers)
-      const pendingPreparer = Number(statusCountsRow?.pendingPreparer || 0);
-      const pendingChecker = Number(statusCountsRow?.pendingChecker || 0);
-      const pendingReviewer = Number(statusCountsRow?.pendingReviewer || 0);
-      const pendingAcceptance = Number(statusCountsRow?.pendingAcceptance || 0);
-      const approved = Number(statusCountsRow?.approved || 0);
-
       return {
         totalKris,
-        pendingPreparer,
-        pendingChecker,
-        pendingReviewer,
-        pendingAcceptance,
-        approved,
-        krisByStatus: [
-          { status: 'Pending Preparer', count: pendingPreparer },
-          { status: 'Pending Checker', count: pendingChecker },
-          { status: 'Pending Reviewer', count: pendingReviewer },
-          { status: 'Pending Acceptance', count: pendingAcceptance },
-          { status: 'Approved', count: approved }
-        ],
         krisByLevel: krisByLevel.map(item => ({
           level: item.level || item.kri_level || 'Unknown',
           count: item.count
@@ -1159,9 +1019,7 @@ export class GrcKrisService {
         })),
         allKrisSubmittedByFunction: allKrisSubmittedByFunctionRows.map(item => ({
           function_name: item['Function Name'] || 'Unknown',
-          all_submitted: item['All KRIs Submitted?'] || 'No',
-          total_kris: item['Total KRIs'] || 0,
-          submitted_kris: item['Submitted KRIs'] || 0
+          total_kris: item['Total KRIs'] || 0
         })),
         kriCountsByMonthYear: kriCountsByMonthYear.map(item => ({
           month_year: item.month_year || `${item.month_name || item.month || ''} ${item.year || item['year'] || ''}`.trim() || 'Unknown',
@@ -1189,16 +1047,9 @@ export class GrcKrisService {
           kriCode: item.kriCode || null,
           function_name: item.function_name || 'Unknown'
         })),
-        kriStatus: kriStatusRows.map(item => ({
-          code: item.code || null,
-          kri_name: item.kri_name || 'Unknown',
-          function_name: item.function_name || 'Unknown',
-          status: item.status || 'Unknown'
-        })),
         kriDetailsWithActionPlans: kriDetailsWithActionPlansGrouped,
         activeKrisDetails: activeKrisDetailsRows.map(item => ({
           kriName: item.kriName || 'Unknown',
-          combined_status: item.combined_status || 'Unknown',
           assignedPersonId: item.assignedPersonId || null,
           addedBy: item.addedBy || null,
           status: item.status || 'Unknown',
@@ -1215,12 +1066,6 @@ export class GrcKrisService {
       // Return an empty-but-valid payload instead of 500 so UI can load
       return {
         totalKris: 0,
-        pendingPreparer: 0,
-        pendingChecker: 0,
-        pendingReviewer: 0,
-        pendingAcceptance: 0,
-        approved: 0,
-        krisByStatus: [],
         krisByLevel: [],
         breachedKRIsByDepartment: [],
         kriHealth: [],
@@ -1240,9 +1085,6 @@ export class GrcKrisService {
     selectedFunctionIds?: string[],
     orderByFunctionAsc = false,
   ) {
-    if (tableId === 'overallKris') {
-      return this.getOverallKrisTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
-    }
     if (tableId === 'allKrisSubmittedByFunction') {
       return this.getAllKrisSubmittedByFunctionTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
     }
@@ -1272,7 +1114,6 @@ export class GrcKrisService {
     ) as Record<string, any[]>;
 
     const tableRows = {
-      overallKris: tablesPayload.kriStatus || [],
       allKrisSubmittedByFunction: tablesPayload.allKrisSubmittedByFunction || [],
       activeKrisDetails: tablesPayload.activeKrisDetails || [],
       overdueKrisByDepartment: tablesPayload.overdueKrisByDepartment || [],
@@ -1327,64 +1168,6 @@ export class GrcKrisService {
     return this.paginateRows(sortedRows, page, limit);
   }
 
-  private async getOverallKrisTablePage(
-    user: any,
-    page = 1,
-    limit = 10,
-    timeframe?: string,
-    startDate?: string,
-    endDate?: string,
-    selectedFunctionIds?: string[],
-    orderByFunctionAsc = false,
-  ) {
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
-    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
-    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
-    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
-    const offset = (pageInt - 1) * limitInt;
-    const countQuery = `SELECT COUNT(*) as total FROM Kris k WHERE k.isDeleted = 0 AND k.deletedAt IS NULL ${dateFilter} ${functionFilter}`;
-    const dataQuery = `
-      SELECT
-        k.code AS code,
-        k.kriName AS kri_name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-        k.createdAt AS createdAt,
-        CASE 
-          WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-          WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-          WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-          WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
-          ELSE 'Unknown'
-        END AS status
-      FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
-      WHERE k.isDeleted = 0
-        AND k.deletedAt IS NULL
-        ${dateFilter}
-        ${functionFilter}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `;
-    const [rows, countResult] = await Promise.all([
-      this.databaseService.query(dataQuery),
-      this.databaseService.query(countQuery),
-    ]);
-    const total = Number(countResult?.[0]?.total ?? 0);
-    return {
-      data: rows.map((item: any) => ({
-        code: item.code || null,
-        kri_name: item.kri_name || 'Unknown',
-        function_name: item.function_name || 'Unknown',
-        status: item.status || 'Unknown',
-      })),
-      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
-    };
-  }
-
   private async getAllKrisSubmittedByFunctionTablePage(
     user: any,
     page = 1,
@@ -1405,18 +1188,7 @@ export class GrcKrisService {
       SELECT
         ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function Name],
         MAX(k.createdAt) AS latest_created_at,
-        COUNT(k.id) AS [Total KRIs],
-        COUNT(CASE
-          WHEN ISNULL(k.preparerStatus, '') = 'sent'
-           AND ISNULL(k.acceptanceStatus, '') = 'approved'
-          THEN 1 END) AS [Submitted KRIs],
-        CASE
-          WHEN COUNT(k.id) = COUNT(CASE
-            WHEN ISNULL(k.preparerStatus, '') = 'sent'
-             AND ISNULL(k.acceptanceStatus, '') = 'approved'
-            THEN 1 END)
-          THEN 'Yes' ELSE 'No'
-        END AS [All KRIs Submitted?]
+        COUNT(k.id) AS [Total KRIs]
       FROM Kris AS k
       LEFT JOIN KriFunctions AS kf
         ON k.id = kf.kri_id
@@ -1450,9 +1222,7 @@ export class GrcKrisService {
     return {
       data: rows.map((item: any) => ({
         function_name: item['Function Name'] || 'Unknown',
-        all_submitted: item['All KRIs Submitted?'] || 'No',
         total_kris: item['Total KRIs'] || 0,
-        submitted_kris: item['Submitted KRIs'] || 0,
       })),
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
@@ -1478,14 +1248,6 @@ export class GrcKrisService {
     const dataQuery = `
       SELECT
         k.kriName AS kriName,
-        CASE 
-          WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-          WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-          WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
-          WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
-          ELSE 'Unknown'
-        END AS combined_status,
         u.name AS assignedPersonId,
         u2.name AS addedBy,
         k.status AS status,
@@ -1517,7 +1279,6 @@ export class GrcKrisService {
     return {
       data: rows.map((item: any) => ({
         kriName: item.kriName || 'Unknown',
-        combined_status: item.combined_status || 'Unknown',
         assignedPersonId: item.assignedPersonId || null,
         addedBy: item.addedBy || null,
         status: item.status || 'Unknown',
@@ -1746,7 +1507,7 @@ export class GrcKrisService {
     const totalRes = await this.databaseService.query(countQuery);
     const total = totalRes?.[0]?.total || 0;
 
-    // Catalog columns (same as ADIB /kris_catalog except Deleted): code, kri_name, function_name, frequency, threshold, added_by_name, assigned_person_name, type, type_percentage_or_figure, rcm_functions, risk_mapping, status, created_by_name, kri_status, first_approval, review, second_approval, createdAt
+    // Catalog columns (same as ADIB /kris_catalog except Deleted): code, kri_name, function_name, frequency, threshold, added_by_name, assigned_person_name, type, type_percentage_or_figure, rcm_functions, risk_mapping, status, created_by_name, createdAt
     const dataQuery = `
       SELECT 
         k.code,
@@ -1776,229 +1537,12 @@ export class GrcKrisService {
         ).value('.', 'NVARCHAR(MAX)'), 1, 2, '')) AS risk_mapping,
         ISNULL(k.status, '') AS status,
         ISNULL(created_by_u.name, '') AS created_by_name,
-        CASE 
-          WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Draft'
-          WHEN ISNULL(k.reviewerStatus, '') = 'sent' THEN 'Review Sent'
-          WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
-          ELSE 'In Progress'
-        END AS kri_status,
-        CASE WHEN ISNULL(k.checkerStatus, '') = 'approved' THEN 'Approved' WHEN ISNULL(k.checkerStatus, '') = 'refused' THEN 'Refused' ELSE 'Pending' END AS first_approval,
-        CASE WHEN ISNULL(k.reviewerStatus, '') = 'sent' THEN 'Sent' ELSE 'Pending' END AS review,
-        CASE WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved' WHEN ISNULL(k.acceptanceStatus, '') = 'refused' THEN 'Refused' ELSE 'Pending' END AS second_approval,
         k.createdAt AS createdAt
       FROM Kris k
       LEFT JOIN Functions f ON k.related_function_id = f.id AND f.isDeleted = 0 AND f.deletedAt IS NULL
       LEFT JOIN users added_by_u ON k.addedBy = added_by_u.id AND added_by_u.deletedAt IS NULL
       LEFT JOIN users assigned_u ON k.assignedPersonId = assigned_u.id AND assigned_u.deletedAt IS NULL
       LEFT JOIN users created_by_u ON k.created_by = created_by_u.id AND created_by_u.deletedAt IS NULL
-      ${whereSql}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `;
-    const data = await this.databaseService.query(dataQuery);
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
-    };
-  }
-  async getPendingPreparerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL", "ISNULL(k.preparerStatus, '') <> 'sent'"];
-    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
-    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
-
-    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
-    const totalRes = await this.databaseService.query(countQuery);
-    const total = totalRes?.[0]?.total || 0;
-
-    const dataQuery = `
-      SELECT 
-        k.code,
-        k.kriName as title,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-        'Pending Preparer' as status,
-        k.createdAt
-      FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
-      ${whereSql}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `;
-    const data = await this.databaseService.query(dataQuery);
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
-    };
-  }
-
-  async getPendingCheckerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = [
-      "k.isDeleted = 0",
-      "k.deletedAt IS NULL",
-      "ISNULL(k.preparerStatus, '') = 'sent'",
-      "ISNULL(k.checkerStatus, '') <> 'approved'",
-      "ISNULL(k.acceptanceStatus, '') <> 'approved'"
-    ];
-    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
-    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
-
-    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
-    const totalRes = await this.databaseService.query(countQuery);
-    const total = totalRes?.[0]?.total || 0;
-
-    const dataQuery = `
-      SELECT 
-        k.code,
-        k.kriName as title,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-        'Pending Checker' as status,
-        k.createdAt
-      FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
-      ${whereSql}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `;
-    const data = await this.databaseService.query(dataQuery);
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
-    };
-  }
-
-  async getPendingReviewerKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = [
-      "k.isDeleted = 0",
-      "k.deletedAt IS NULL",
-      "ISNULL(k.checkerStatus, '') = 'approved'",
-      "ISNULL(k.reviewerStatus, '') <> 'sent'",
-      "ISNULL(k.acceptanceStatus, '') <> 'approved'"
-    ];
-    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
-    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
-
-    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
-    const totalRes = await this.databaseService.query(countQuery);
-    const total = totalRes?.[0]?.total || 0;
-
-    const dataQuery = `
-      SELECT 
-        k.code,
-        k.kriName as title,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-        'Pending Reviewer' as status,
-        k.createdAt
-      FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
-      ${whereSql}
-      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `;
-    const data = await this.databaseService.query(dataQuery);
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
-    };
-  }
-
-  async getPendingAcceptanceKris(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = [
-      "k.isDeleted = 0",
-      "k.deletedAt IS NULL",
-      "ISNULL(k.reviewerStatus, '') = 'sent'",
-      "ISNULL(k.acceptanceStatus, '') <> 'approved'"
-    ];
-    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
-    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
-
-    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
-    const totalRes = await this.databaseService.query(countQuery);
-    const total = totalRes?.[0]?.total || 0;
-
-    const dataQuery = `
-      SELECT 
-        k.code,
-        k.kriName as title,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-        'Pending Acceptance' as status,
-        k.createdAt
-      FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
       ${whereSql}
       ORDER BY ${orderByFunctionAsc ? 'function_name ASC, createdAt DESC' : 'k.createdAt DESC'}
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
@@ -2025,82 +1569,6 @@ export class GrcKrisService {
       message: `Exporting KRIs data in ${format} format`,
       timeframe: timeframe || 'all',
       status: 'success'
-    };
-  }
-
-  // Detail endpoints for info icons
-  async getKrisByStatus(user: any, status: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
-    // Get user function access
-    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
-    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
-
-    // Ensure page and limit are integers
-    const pageInt = Math.floor(Number(page)) || 1;
-    const limitInt = Math.floor(Number(limit)) || 10;
-    const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
-    
-    // Map status to SQL conditions
-    switch (status) {
-      case 'Pending Preparer':
-        where.push("ISNULL(k.preparerStatus, '') <> 'sent'");
-        break;
-      case 'Pending Checker':
-        where.push("ISNULL(k.preparerStatus, '') = 'sent'");
-        where.push("ISNULL(k.checkerStatus, '') <> 'approved'");
-        where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
-        break;
-      case 'Pending Reviewer':
-        where.push("ISNULL(k.checkerStatus, '') = 'approved'");
-        where.push("ISNULL(k.reviewerStatus, '') <> 'sent'");
-        where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
-        break;
-      case 'Pending Acceptance':
-        where.push("ISNULL(k.reviewerStatus, '') = 'sent'");
-        where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
-        break;
-      case 'Approved':
-        where.push("ISNULL(k.acceptanceStatus, '') = 'approved'");
-        break;
-      default:
-        // Unknown status - return empty
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-    }
-    
-    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
-    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
-
-    const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql}`;
-    const totalRes = await this.databaseService.query(countQuery);
-    const total = totalRes?.[0]?.total || 0;
-
-    const dataQuery = `
-      SELECT 
-        k.code,
-        k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
-        k.createdAt as createdAt
-      FROM Kris k
-      LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-      LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-      LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
-      ${whereSql}
-      ORDER BY k.createdAt DESC
-      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
-    `;
-    const data = await this.databaseService.query(dataQuery);
-
-    return {
-      data,
-      pagination: {
-        page: pageInt,
-        limit: limitInt,
-        total,
-        totalPages: Math.ceil(total / limitInt),
-        hasNext: offset + limitInt < total,
-        hasPrev: pageInt > 1
-      }
     };
   }
 
@@ -2244,7 +1712,7 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string, selectedFunctionIds?: string[]) {
+  async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
@@ -2260,12 +1728,6 @@ export class GrcKrisService {
       where.push("(COALESCE(fkf.name, frel.name) IS NULL OR COALESCE(fkf.name, frel.name) = '')");
     } else {
       where.push(`(fkf.name = '${functionName.replace(/'/g, "''")}' OR frel.name = '${functionName.replace(/'/g, "''")}')`);
-    }
-    
-    // Handle submission status filter (for "Submitted KRIs" column)
-    if (submissionStatus === 'submitted') {
-      // Match the logic from allKrisSubmittedByFunctionQuery: preparerStatus = 'sent' (submitted means sent by preparer, not necessarily approved)
-      where.push("ISNULL(k.preparerStatus, '') = 'sent'");
     }
     
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
