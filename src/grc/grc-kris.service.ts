@@ -168,29 +168,11 @@ export class GrcKrisService {
         : access.functionIds;
     const quotedIds = allowed.map((id) => `'${String(id).replace(/'/g, "''")}'`).join(', ');
     const detailsFunctionFilter = selected.length
-      ? ` AND (
-            k.related_function_id IN (${quotedIds})
-            OR EXISTS (
-              SELECT 1
-              FROM KriFunctions kf_filter
-              WHERE kf_filter.kri_id = k.id
-                AND kf_filter.function_id IN (${quotedIds})
-                AND kf_filter.deletedAt IS NULL
-            )
-          )`
+      ? ` AND k.related_function_id IN (${quotedIds})`
       : access.isSuperAdmin
         ? ''
         : access.functionIds.length
-          ? ` AND (
-                k.related_function_id IN (${quotedIds})
-                OR EXISTS (
-                  SELECT 1
-                  FROM KriFunctions kf_filter
-                  WHERE kf_filter.kri_id = k.id
-                    AND kf_filter.function_id IN (${quotedIds})
-                    AND kf_filter.deletedAt IS NULL
-                )
-              )`
+          ? ` AND k.related_function_id IN (${quotedIds})`
           : (process.env.REPORTS_EMPTY_FUNCTIONS_SEE_ALL === 'true' ? '' : ' AND 1 = 0');
     const kriDetailsWithActionPlansQuery = `
         WITH TopKris AS (
@@ -204,7 +186,7 @@ export class GrcKrisService {
           k.code AS kri_code,
           k.kriName AS kri_name,
           k.createdAt AS kri_created_at,
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
           u_assigned.name AS assigned_person_name,
           k.type AS kri_type,
           u_added.name AS added_by_name,
@@ -494,7 +476,7 @@ export class GrcKrisService {
         ),
         K AS (
           SELECT k.id,
-                 ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+                 ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
                  k.kri_level,
                  CAST(k.isAscending AS int) AS isAscending,
                  TRY_CONVERT(float, k.medium_from) AS med_thr,
@@ -559,7 +541,7 @@ export class GrcKrisService {
       // KRI assessment count by function (count assessments from KriValues table)
       const kriAssessmentCountQuery = `
         SELECT
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
           COUNT(kv.id) AS assessment_count
         FROM KriValues kv
         INNER JOIN Kris k ON kv.kriId = k.id
@@ -577,7 +559,7 @@ export class GrcKrisService {
           ${dateFilter}
           ${functionFilter}
           ${kriValueSubmissionFilter}
-        GROUP BY ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
+        GROUP BY ISNULL(COALESCE(frel.name, fkf.name), 'Unknown')
         ORDER BY assessment_count DESC
       `;
       const kriAssessmentCountTask = () => this.runDashboardQuery<any[]>('KRI assessment count', kriAssessmentCountQuery, []);
@@ -671,7 +653,9 @@ export class GrcKrisService {
         WHERE
           (k.isDeleted = 1 OR k.deletedAt IS NOT NULL)
           AND COALESCE(k.deletedAt, k.createdAt) IS NOT NULL
-        GROUP BY 
+          ${dateFilter}
+          ${functionFilter}
+        GROUP BY
           YEAR(COALESCE(k.deletedAt, k.createdAt)),
           MONTH(COALESCE(k.deletedAt, k.createdAt))
         ORDER BY 
@@ -710,6 +694,7 @@ export class GrcKrisService {
           INNER JOIN Kris k
             ON k.isDeleted = 0 AND k.deletedAt IS NULL
             AND k.createdAt < DATEADD(MONTH, 1, DATEFROMPARTS(m.yr, m.mo, 1))
+            ${dateFilter}
             ${functionFilter}
         ),
         Sub AS (
@@ -737,7 +722,7 @@ export class GrcKrisService {
         SELECT
           k.code      AS [KRI Code],
           k.kriName   AS [KRI Name],
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function],
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS [Function],
           ISNULL(k.threshold, '') AS [Threshold],
           k.low_from AS [Low From],
           k.medium_from AS [Medium From],
@@ -897,7 +882,7 @@ export class GrcKrisService {
         SELECT
           k.code AS kri_code,
           k.kriName AS kri_name,
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
           r.code AS risk_code,
           r.name AS risk_name
         FROM Kris k
@@ -926,7 +911,7 @@ export class GrcKrisService {
         SELECT 
           k.kriName AS kriName, 
           k.code    AS kriCode,
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name
         FROM Kris AS k
         LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
         LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
@@ -952,7 +937,7 @@ export class GrcKrisService {
         SELECT
           k.code             AS code,
           k.kriName          AS kri_name,
-          ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
           CASE 
             WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
             WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
@@ -1527,7 +1512,7 @@ export class GrcKrisService {
       SELECT
         k.code AS code,
         k.kriName AS kri_name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         k.createdAt AS createdAt,
         CASE 
           WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
@@ -1742,7 +1727,7 @@ export class GrcKrisService {
         k.code AS [KRI Code],
         k.kriName AS [KRI Name],
         k.createdAt AS createdAt,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS [Function],
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS [Function],
         ISNULL(k.threshold, '') AS [Threshold],
         k.low_from AS [Low From],
         k.medium_from AS [Medium From],
@@ -1854,7 +1839,7 @@ export class GrcKrisService {
         k.kriName AS kriName, 
         k.code AS kriCode,
         k.createdAt AS createdAt,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name
       FROM Kris AS k
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
       LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
@@ -1908,7 +1893,7 @@ export class GrcKrisService {
         k.code AS kri_code,
         k.kriName AS kri_name,
         k.createdAt AS createdAt,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         r.code AS risk_code,
         r.name AS risk_name
       FROM Kris k
@@ -1966,6 +1951,7 @@ export class GrcKrisService {
   ) {
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
     const kriValueSubmissionFilter = this.buildKriValueSubmissionFilter(submissionStartDate, submissionEndDate);
     const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
     const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
@@ -1995,11 +1981,12 @@ export class GrcKrisService {
       ),
       Expected AS (
         SELECT m.yr, m.mo, k.id AS kri_id, k.code AS kri_code, k.kriName AS kri_name,
-               ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
+               ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name
         FROM Months m
         INNER JOIN Kris k
           ON k.isDeleted = 0 AND k.deletedAt IS NULL
           AND k.createdAt < DATEADD(MONTH, 1, DATEFROMPARTS(m.yr, m.mo, 1))
+          ${dateFilter}
           ${functionFilter}
         LEFT JOIN KriFunctions kf ON kf.kri_id = k.id AND kf.deletedAt IS NULL
         LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
@@ -2381,7 +2368,7 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
@@ -2422,29 +2409,22 @@ export class GrcKrisService {
     if (endDate) dateFilter += `AND k.createdAt <= '${endDate}'`;
     const kriValueSubmissionFilter = this.buildKriValueSubmissionFilter(submissionStartDate, submissionEndDate);
 
-    // Use the same logic as the dashboard chart: bucket each KRI by the assessment
-    // recorded on its latest KRI value. This keeps the detail view consistent with
-    // the "KRIs by Risk Level" chart.
+    // Use the EXACT same logic as assessmentHistoryByLevelQuery (the "KRIs by Risk Level"
+    // chart): count every non-deleted KRI *value record* (all periods, not just the latest
+    // per KRI), classified by that record's own assessment text. Both queries INNER JOIN
+    // KriValues (so a KRI with zero value rows contributes nothing to either), and both
+    // bucket unrecognized/blank assessment text as 'Unknown' — so the drill-down's row
+    // count always matches the chart's number for that level.
+    //
+    // Function name is resolved via OUTER APPLY ... TOP 1 (same pattern as getKrisByFunction's
+    // fkfApply below) instead of a plain LEFT JOIN KriFunctions, because a KRI can be linked to
+    // several KriFunctions rows; a plain join would fan out and repeat the same KRI/value once
+    // per function link.
     const levelFilter = `level_bucket = '${level === 'Unknown' ? 'Unknown' : level.replace(/'/g, "''")}'`;
     const query = `
-      WITH LatestKV AS (
-        SELECT kv.kriId,
-               UPPER(LTRIM(RTRIM(kv.assessment))) AS assessment,
-               ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
-        FROM KriValues kv
-        WHERE kv.deletedAt IS NULL
-          ${kriValueSubmissionFilter}
-      ),
-      K AS (
-        SELECT k.id,
-               k.code,
-               k.kriName,
-               k.createdAt,
-               ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
+      WITH K AS (
+        SELECT k.id, k.code, k.kriName, k.createdAt, k.related_function_id
         FROM Kris k
-        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
-        LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
-        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
           ${dateFilter}
           ${functionFilter}
@@ -2454,15 +2434,26 @@ export class GrcKrisService {
           K.code,
           K.kriName AS name,
           K.createdAt,
-          K.function_name,
-          CASE lk.assessment
+          kv.id AS kriValueId,
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
+          CASE UPPER(LTRIM(RTRIM(kv.assessment)))
             WHEN 'HIGH'   THEN 'High'
             WHEN 'MEDIUM' THEN 'Medium'
             WHEN 'LOW'    THEN 'Low'
             ELSE 'Unknown'
           END AS level_bucket
         FROM K
-        LEFT JOIN LatestKV lk ON lk.kriId = K.id AND lk.rn = 1
+        INNER JOIN KriValues kv ON kv.kriId = K.id AND kv.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = K.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+        OUTER APPLY (
+          SELECT TOP 1 f2.name
+          FROM KriFunctions kf2
+          INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+          WHERE kf2.kri_id = K.id AND kf2.deletedAt IS NULL
+          ORDER BY kf2.function_id
+        ) fkf(name)
+        WHERE 1 = 1
+          ${kriValueSubmissionFilter}
       )
       SELECT
         code,
@@ -2471,20 +2462,12 @@ export class GrcKrisService {
         createdAt
       FROM Derived
       WHERE ${levelFilter}
-      ORDER BY createdAt DESC
+      ORDER BY createdAt DESC, kriValueId DESC
       OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
     `;
 
     const countQuery = `
-      WITH LatestKV AS (
-        SELECT kv.kriId,
-               UPPER(LTRIM(RTRIM(kv.assessment))) AS assessment,
-               ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
-        FROM KriValues kv
-        WHERE kv.deletedAt IS NULL
-          ${kriValueSubmissionFilter}
-      ),
-      K AS (
+      WITH K AS (
         SELECT k.id
         FROM Kris k
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
@@ -2493,14 +2476,16 @@ export class GrcKrisService {
       ),
       Derived AS (
         SELECT
-          CASE lk.assessment
+          CASE UPPER(LTRIM(RTRIM(kv.assessment)))
             WHEN 'HIGH'   THEN 'High'
             WHEN 'MEDIUM' THEN 'Medium'
             WHEN 'LOW'    THEN 'Low'
             ELSE 'Unknown'
           END AS level_bucket
         FROM K
-        LEFT JOIN LatestKV lk ON lk.kriId = K.id AND lk.rn = 1
+        INNER JOIN KriValues kv ON kv.kriId = K.id AND kv.deletedAt IS NULL
+        WHERE 1 = 1
+          ${kriValueSubmissionFilter}
       )
       SELECT COUNT(*) as total
       FROM Derived
@@ -2524,7 +2509,7 @@ export class GrcKrisService {
     };
   }
 
-  async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string) {
+  async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string, metric?: string) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
     const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
@@ -2547,6 +2532,18 @@ export class GrcKrisService {
       // gated behind its own param (only sent when clicking that table's "Total KRIs" column) so
       // the shared default path below — used by Breached KRIs by Function — stays untouched.
       return this.getTotalKriMonthsByFunction(functionName, pageInt, limitInt, offset, functionFilter);
+    }
+    if (metric === 'breached') {
+      // "Breached KRIs by Function" chart counts, per function, KRIs whose LATEST assessment sits
+      // in the High-risk band (mirrors breachedKRIsByDepartmentQuery). The default path below
+      // returns every KRI in the function regardless of breach status, so without this branch the
+      // drill-down row count never matched the chart's number — gated behind its own param (only
+      // sent when clicking that chart) so the shared default path stays untouched for its other
+      // consumers (e.g. the KRIs Submission Status by Function table).
+      let dateFilter = '';
+      if (startDate) dateFilter += ` AND k.createdAt >= '${startDate}'`;
+      if (endDate) dateFilter += ` AND k.createdAt <= '${endDate}'`;
+      return this.getBreachedKrisByFunction(functionName, pageInt, limitInt, offset, functionFilter, dateFilter, kriValueSubmissionFilter);
     }
 
     const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL"];
@@ -2787,6 +2784,109 @@ export class GrcKrisService {
     };
   }
 
+  // KRIs in a single function whose LATEST assessment sits in the High-risk band — the row-level
+  // list behind "Breached KRIs by Function" (breachedKRIsByDepartmentQuery). Uses the exact same
+  // classification as that summary query (kri_level override, else threshold comparison against
+  // the latest KriValue per KRI), so the drill-down's row count always matches the chart's number
+  // for that function. Function name is resolved via OUTER APPLY ... TOP 1 (same pattern as the
+  // default path above and getKrisByLevel) instead of a plain LEFT JOIN KriFunctions, so a KRI
+  // linked to several functions is never fanned out into duplicate rows here.
+  private async getBreachedKrisByFunction(
+    functionName: string,
+    pageInt: number,
+    limitInt: number,
+    offset: number,
+    functionFilter: string,
+    dateFilter: string,
+    kriValueSubmissionFilter: string = '',
+  ) {
+    const functionMatch =
+      functionName === 'Unknown'
+        ? "(COALESCE(frel.name, fkf.name) IS NULL OR COALESCE(frel.name, fkf.name) = '')"
+        : `ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') = '${functionName.replace(/'/g, "''")}'`;
+
+    const ctes = `
+      WITH LatestKV AS (
+        SELECT kv.kriId, kv.value,
+               ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
+        FROM KriValues kv
+        WHERE kv.deletedAt IS NULL
+          ${kriValueSubmissionFilter}
+      ),
+      K AS (
+        SELECT k.id, k.code, k.kriName, k.createdAt,
+               ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
+               k.kri_level,
+               CAST(k.isAscending AS int) AS isAscending,
+               TRY_CONVERT(float, k.medium_from) AS med_thr,
+               TRY_CONVERT(float, k.high_from)   AS high_thr
+        FROM Kris k
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+        OUTER APPLY (
+          SELECT TOP 1 f2.name
+          FROM KriFunctions kf2
+          INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+          WHERE kf2.kri_id = k.id AND kf2.deletedAt IS NULL
+          ORDER BY kf2.function_id
+        ) fkf(name)
+        WHERE k.isDeleted = 0
+          AND k.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
+          AND ${functionMatch}
+      ),
+      KL AS (
+        SELECT K.id, K.code, K.kriName, K.createdAt, K.function_name, K.kri_level, K.isAscending, K.med_thr, K.high_thr,
+               TRY_CONVERT(float, kv.value) AS val
+        FROM K
+        LEFT JOIN LatestKV kv ON kv.kriId = K.id AND kv.rn = 1
+      ),
+      Derived AS (
+        SELECT id, code, kriName, createdAt, function_name,
+               CASE
+                 WHEN kri_level IS NOT NULL AND LTRIM(RTRIM(kri_level)) <> '' THEN kri_level
+                 WHEN val IS NULL OR med_thr IS NULL OR high_thr IS NULL THEN 'Unknown'
+                 WHEN isAscending = 1 AND val >= high_thr THEN 'High'
+                 WHEN isAscending = 1 AND val >= med_thr THEN 'Medium'
+                 WHEN isAscending = 1 THEN 'Low'
+                 WHEN isAscending = 0 AND val <= high_thr THEN 'High'
+                 WHEN isAscending = 0 AND val <= med_thr THEN 'Medium'
+                 ELSE 'Low'
+               END AS level_bucket
+        FROM KL
+      )
+    `;
+
+    const countQuery = `${ctes}
+      SELECT COUNT(*) AS total
+      FROM Derived
+      WHERE UPPER(LTRIM(RTRIM(level_bucket))) = 'HIGH'
+    `;
+    const dataQuery = `${ctes}
+      SELECT code, kriName AS name, function_name, createdAt
+      FROM Derived
+      WHERE UPPER(LTRIM(RTRIM(level_bucket))) = 'HIGH'
+      ORDER BY createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+    const data = await this.databaseService.query(dataQuery);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1,
+      },
+    };
+  }
+
   async getKrisWithAssessmentsByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string) {
     // Get user function access
     const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
@@ -2799,25 +2899,27 @@ export class GrcKrisService {
 
     // Build date filter for assessments - MUST match kriAssessmentCountQuery
     let dateFilter = '';
-    // Note: The dashboard query uses ${dateFilter} which is currently empty,
-    // but if date filtering is enabled, it should filter on kv.createdAt
-    // For now, we'll match the dashboard behavior
-    if (startDate) dateFilter += `AND kv.createdAt >= '${startDate}'`;
-    if (endDate) dateFilter += `AND kv.createdAt <= '${endDate}'`;
+    // kriAssessmentCountQuery's ${dateFilter} comes from the shared buildDateFilter(), which
+    // filters on k.createdAt (the KRI's creation date), not kv.createdAt (the assessment record's
+    // creation date) — filtering on kv.createdAt here would apply the dashboard's date-range
+    // picker to a different column than the summary chart uses, so counts could diverge whenever
+    // that filter is active.
+    if (startDate) dateFilter += `AND k.createdAt >= '${startDate}'`;
+    if (endDate) dateFilter += `AND k.createdAt <= '${endDate}'`;
     const kriValueSubmissionFilter = this.buildKriValueSubmissionFilter(submissionStartDate, submissionEndDate);
 
     // Handle function filter - MUST EXACTLY match kriAssessmentCountQuery logic
-    // Dashboard groups by: ISNULL(COALESCE(fkf.name, frel.name), 'Unknown')
+    // Dashboard groups by: ISNULL(COALESCE(frel.name, fkf.name), 'Unknown')
     // So we need to filter using the same expression
     let functionFilter = '';
     if (functionName === 'Unknown') {
       // For 'Unknown': COALESCE must be NULL or empty, so ISNULL will make it 'Unknown'
-      functionFilter = "AND (COALESCE(fkf.name, frel.name) IS NULL OR COALESCE(fkf.name, frel.name) = '')";
+      functionFilter = "AND (COALESCE(frel.name, fkf.name) IS NULL OR COALESCE(frel.name, fkf.name) = '')";
     } else {
       const escapedFunctionName = functionName.replace(/'/g, "''");
       // For specific function: ISNULL(COALESCE(...), 'Unknown') = functionName
       // This means COALESCE(...) must equal functionName (not NULL, or ISNULL would make it 'Unknown')
-      functionFilter = `AND ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') = '${escapedFunctionName}'`;
+      functionFilter = `AND ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') = '${escapedFunctionName}'`;
     }
     
     // IMPORTANT: The dashboard counts assessments (COUNT(kv.id)), not distinct KRIs
@@ -2827,7 +2929,7 @@ export class GrcKrisService {
       SELECT
         k.code,
         k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         kv.createdAt as createdAt
       FROM KriValues kv
       INNER JOIN Kris k ON kv.kriId = k.id
@@ -2919,7 +3021,7 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
@@ -3024,7 +3126,7 @@ export class GrcKrisService {
       SELECT 
         r.code,
         r.name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         r.createdAt as createdAt
       FROM Risks r
       INNER JOIN KriRisks kr
@@ -3150,17 +3252,21 @@ export class GrcKrisService {
     
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    // Include the same function filter the summary chart (kriCountsByMonthYearQuery) applies,
+    // so this drill-down never shows KRIs outside the currently selected function(s) — previously
+    // this filter was computed but never appended here, so after applying a Function Filter the
+    // "KRIs Count by Month/Year" chart total and its detail modal's row count would diverge.
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql} ${monthFilter}`;
     const totalRes = await this.databaseService.query(countQuery);
     const total = totalRes?.[0]?.total || 0;
 
     const dataQuery = `
-      SELECT 
+      SELECT
         k.code,
         k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
@@ -3230,8 +3336,13 @@ export class GrcKrisService {
       }
     }
 
-    if (startDate) where.push(`COALESCE(k.deletedAt, k.createdAt) >= '${startDate}'`);
-    if (endDate) where.push(`COALESCE(k.deletedAt, k.createdAt) <= '${endDate}'`);
+    // The dashboard's date-range filter (deletedKrisPerMonthQuery's ${dateFilter}, from the shared
+    // buildDateFilter()) always scopes on k.createdAt — the same as every other chart on this
+    // dashboard — not on the deletion date. Filtering here by COALESCE(deletedAt, createdAt)
+    // instead would scope a different set of KRIs than the summary whenever a date range is
+    // applied, so this must stay on k.createdAt for the two counts to match.
+    if (startDate) where.push(`k.createdAt >= '${startDate}'`);
+    if (endDate) where.push(`k.createdAt <= '${endDate}'`);
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const countQuery = `SELECT COUNT(*) as total FROM Kris k ${whereSql} ${monthFilter} ${functionFilter}`;
@@ -3242,7 +3353,7 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         COALESCE(k.deletedAt, k.createdAt) as deletedAt
       FROM Kris k
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
@@ -3280,9 +3391,13 @@ export class GrcKrisService {
     const offset = Math.floor((pageInt - 1) * limitInt);
 
     // Build date filter for assessments - matching the chart query format
+    // kriMonthlyAssessmentQuery's ${dateFilter} comes from the shared buildDateFilter(), which
+    // filters on k.createdAt (the KRI's creation date), not kv.createdAt — using kv.createdAt here
+    // would apply the dashboard's date-range picker to a different column than the summary chart
+    // uses, so counts could diverge whenever that filter is active.
     let dateFilter = '';
-    if (startDate) dateFilter += `AND kv.createdAt >= '${startDate}'`;
-    if (endDate) dateFilter += `AND kv.createdAt <= '${endDate}'`;
+    if (startDate) dateFilter += `AND k.createdAt >= '${startDate}'`;
+    if (endDate) dateFilter += `AND k.createdAt <= '${endDate}'`;
     const kriValueSubmissionFilter = this.buildKriValueSubmissionFilter(submissionStartDate, submissionEndDate);
 
     // Parse month/year string - handle both formats:
@@ -3358,7 +3473,7 @@ export class GrcKrisService {
       SELECT
         k.code,
         k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         kv.createdAt as createdAt
       FROM Kris AS k
       INNER JOIN KriValues AS kv
@@ -3463,7 +3578,7 @@ export class GrcKrisService {
       SELECT 
         k.code,
         k.kriName as name,
-        ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name,
+        ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         k.createdAt as createdAt
       FROM Kris k
       LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
