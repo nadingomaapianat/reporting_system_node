@@ -284,6 +284,7 @@ export class GrcKrisController {
     @Query('functionIds') functionIds?: string,
     @Query('submissionStartDate') submissionStartDate?: string,
     @Query('submissionEndDate') submissionEndDate?: string,
+    @Query('metric') metric?: string,
   ) {
     try {
       const ob = orderByFunctionFromRequest(req);
@@ -299,6 +300,7 @@ export class GrcKrisController {
           parseGrcFunctionIdsFromQueries(functionId, functionIds),
           submissionStartDate,
           submissionEndDate,
+          metric,
         ),
         ob,
       );
