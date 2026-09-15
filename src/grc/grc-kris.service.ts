@@ -157,7 +157,7 @@ export class GrcKrisService {
     return results;
   }
 
-  private async getKriDetailsWithActionPlansGrouped(access: UserFunctionAccess, selectedFunctionIds: string[] | undefined, kriValueDateFilter: string, kriValueSubmissionFilter: string = '') {
+  private async getKriDetailsWithActionPlansGrouped(access: UserFunctionAccess, selectedFunctionIds: string[] | undefined, kriValueDateFilter: string, kriValueSubmissionFilter: string = '', dateFilter: string = '') {
     const selected = selectedFunctionIds?.length
       ? [...new Set(selectedFunctionIds.map((id) => String(id).trim()).filter(Boolean))]
       : [];
@@ -179,6 +179,7 @@ export class GrcKrisService {
           SELECT k.id
           FROM Kris k
           WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+            ${dateFilter}
             ${detailsFunctionFilter}
         )
         SELECT
@@ -223,6 +224,7 @@ export class GrcKrisService {
           AND f_owner.isDeleted = 0
           AND f_owner.deletedAt IS NULL
         WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          ${dateFilter}
           ${detailsFunctionFilter}
         ORDER BY k.createdAt DESC, k.id DESC, kv.[year] DESC, kv.[month] DESC, a.createdAt DESC
       `;
@@ -427,6 +429,47 @@ export class GrcKrisService {
         FROM KrisStatus
       `;
       const statusCountsTask = () => this.runDashboardQuery<any[]>('KRIs status counts', krisStatusCountsQuery, []);
+
+      // KRI Values status counts: the EXACT SAME 5-state waterfall CASE as krisStatusCountsQuery
+      // above, but bucketing individual KriValues rows via their OWN approval-cycle fields
+      // (kv.preparerStatus/checkerStatus/reviewerStatus/acceptanceStatus) instead of the parent
+      // KRI's k.* fields. Backs the "KRI Values Pending Preparer/Checker/Reviewer/Acceptance" and
+      // "KRI Values Approved" cards. Both the main Date Range Filter (k.createdAt, via dateFilter
+      // + functionFilter on the K CTE) and the Submission Date filter (kriValueSubmissionFilter,
+      // on the KriValues join) apply — Submission Date is the differentiator specific to these
+      // cards vs. the KRI-level pending cards above.
+      const kriValueStatusCountsQuery = `
+        WITH K AS (
+          SELECT k.id
+          FROM Kris k
+          WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+            ${dateFilter}
+            ${functionFilter}
+        ),
+        KriValuesStatus AS (
+          SELECT
+            CASE
+              WHEN ISNULL(kv.preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
+              WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') <> 'approved' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
+              WHEN ISNULL(kv.checkerStatus, '') = 'approved' AND ISNULL(kv.reviewerStatus, '') <> 'sent' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
+              WHEN ISNULL(kv.reviewerStatus, '') = 'sent' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
+              WHEN ISNULL(kv.acceptanceStatus, '') = 'approved' THEN 'approved'
+              ELSE 'Other'
+            END AS status
+          FROM K
+          INNER JOIN KriValues kv ON kv.kriId = K.id AND kv.deletedAt IS NULL
+          WHERE 1 = 1
+            ${kriValueSubmissionFilter}
+        )
+        SELECT
+          CAST(SUM(CASE WHEN status = 'pendingPreparer' THEN 1 ELSE 0 END) AS INT) AS pendingPreparer,
+          CAST(SUM(CASE WHEN status = 'pendingChecker' THEN 1 ELSE 0 END) AS INT) AS pendingChecker,
+          CAST(SUM(CASE WHEN status = 'pendingReviewer' THEN 1 ELSE 0 END) AS INT) AS pendingReviewer,
+          CAST(SUM(CASE WHEN status = 'pendingAcceptance' THEN 1 ELSE 0 END) AS INT) AS pendingAcceptance,
+          CAST(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS INT) AS approved
+        FROM KriValuesStatus
+      `;
+      const kriValueStatusCountsTask = () => this.runDashboardQuery<any[]>('KRI Values status counts', kriValueStatusCountsQuery, []);
 
       // KRIs by level (mirror the GRC app: bucket each KRI by the assessment
       // recorded on its latest KRI value, rather than re-deriving from thresholds).
@@ -1006,9 +1049,15 @@ export class GrcKrisService {
       const activeKrisDetailsTask = () => this.runDashboardQuery<any[]>('Active KRIs details', activeKrisDetailsQuery, []);
 
       if (section === 'cards') {
-        const [totalKrisResult, statusCountsResults] = await this.runQueryBatches<any[]>([
+        // assessmentHistoryByLevelTask also runs here (in addition to the 'charts' section below)
+        // so the Low/Medium/High KRI Values cards can derive their counts from the exact same
+        // per-assessment-record classification as the "KRIs by Risk Level" chart, without
+        // duplicating that query's logic.
+        const [totalKrisResult, statusCountsResults, assessmentHistoryByLevelRows, kriValueStatusCountsResults] = await this.runQueryBatches<any[]>([
           totalKrisTask,
           statusCountsTask,
+          assessmentHistoryByLevelTask,
+          kriValueStatusCountsTask,
         ]);
         const totalKris = Number(totalKrisResult[0]?.total || 0);
         const statusCountsRow = statusCountsResults[0] || {};
@@ -1017,6 +1066,21 @@ export class GrcKrisService {
         const pendingReviewer = Number(statusCountsRow?.pendingReviewer || 0);
         const pendingAcceptance = Number(statusCountsRow?.pendingAcceptance || 0);
         const approved = Number(statusCountsRow?.approved || 0);
+        const assessmentHistoryByLevel = assessmentHistoryByLevelRows.map((item) => ({
+          level: item.level || 'Unknown',
+          count: Number(item.count || 0),
+        }));
+        // Backs the 5 "KRI Values Pending .../Approved" cards: the frontend derives each card's
+        // value from this array via .find(), the same "one summary array, no per-card summary
+        // field" approach used for the Low/Medium/High KRI Values cards + assessmentHistoryByLevel.
+        const kriValueStatusCountsRow = kriValueStatusCountsResults[0] || {};
+        const kriValueApprovalCycle = [
+          { bucket: 'pendingPreparer', count: Number(kriValueStatusCountsRow?.pendingPreparer || 0) },
+          { bucket: 'pendingChecker', count: Number(kriValueStatusCountsRow?.pendingChecker || 0) },
+          { bucket: 'pendingReviewer', count: Number(kriValueStatusCountsRow?.pendingReviewer || 0) },
+          { bucket: 'pendingAcceptance', count: Number(kriValueStatusCountsRow?.pendingAcceptance || 0) },
+          { bucket: 'approved', count: Number(kriValueStatusCountsRow?.approved || 0) },
+        ];
 
         return {
           totalKris,
@@ -1025,6 +1089,8 @@ export class GrcKrisService {
           pendingReviewer,
           pendingAcceptance,
           approved,
+          assessmentHistoryByLevel,
+          kriValueApprovalCycle,
         };
       }
 
@@ -1139,6 +1205,7 @@ export class GrcKrisService {
           selectedFunctionIds,
           kriValueDateFilter,
           kriValueSubmissionFilter,
+          dateFilter,
         );
         // Large per-KRI-per-month table: send only page 1 + total; the rest is fetched
         // server-side via getMonthlyKriSubmissionByFunctionTablePage on page change.
@@ -1226,6 +1293,7 @@ export class GrcKrisService {
         kriWithoutLinkedRisks,
         kriStatusRows,
         activeKrisDetailsRows,
+        kriValueStatusCountsResults,
       ] = await this.runQueryBatches<any[]>([
         totalKrisTask,
         statusCountsTask,
@@ -1247,6 +1315,7 @@ export class GrcKrisService {
         kriWithoutLinkedRisksTask,
         kriStatusTask,
         activeKrisDetailsTask,
+        kriValueStatusCountsTask,
       ]);
       const totalKris = Number(totalKrisResult[0]?.total || 0);
       const statusCountsRow = statusCountsResults[0] || {};
@@ -1255,6 +1324,7 @@ export class GrcKrisService {
         selectedFunctionIds,
         kriValueDateFilter,
         kriValueSubmissionFilter,
+        dateFilter,
       );
 
       // Calculate status counts from statusCountsRow (convert to integers)
@@ -1263,6 +1333,14 @@ export class GrcKrisService {
       const pendingReviewer = Number(statusCountsRow?.pendingReviewer || 0);
       const pendingAcceptance = Number(statusCountsRow?.pendingAcceptance || 0);
       const approved = Number(statusCountsRow?.approved || 0);
+      const kriValueStatusCountsRow = kriValueStatusCountsResults[0] || {};
+      const kriValueApprovalCycle = [
+        { bucket: 'pendingPreparer', count: Number(kriValueStatusCountsRow?.pendingPreparer || 0) },
+        { bucket: 'pendingChecker', count: Number(kriValueStatusCountsRow?.pendingChecker || 0) },
+        { bucket: 'pendingReviewer', count: Number(kriValueStatusCountsRow?.pendingReviewer || 0) },
+        { bucket: 'pendingAcceptance', count: Number(kriValueStatusCountsRow?.pendingAcceptance || 0) },
+        { bucket: 'approved', count: Number(kriValueStatusCountsRow?.approved || 0) },
+      ];
 
       return {
         totalKris,
@@ -1271,6 +1349,7 @@ export class GrcKrisService {
         pendingReviewer,
         pendingAcceptance,
         approved,
+        kriValueApprovalCycle,
         krisByStatus: [
           { status: 'Pending Preparer', count: pendingPreparer },
           { status: 'Pending Checker', count: pendingChecker },
@@ -1406,7 +1485,8 @@ export class GrcKrisService {
         breachedKRIsByDepartment: [],
         kriHealth: [],
         kriAssessmentCount: [],
-        assessmentHistoryByLevel: []
+        assessmentHistoryByLevel: [],
+        kriValueApprovalCycle: []
       };
     }
   }
@@ -1708,7 +1788,7 @@ export class GrcKrisService {
     const total = Number(countResult?.[0]?.total ?? 0);
     return {
       data: rows.map((item: any) => ({
-        code: item.code || null,
+        kri_code: item.code || null,
         kriName: item.kriName || 'Unknown',
         combined_status: item.combined_status || 'Unknown',
         assignedPersonId: item.assignedPersonId || null,
@@ -2467,6 +2547,7 @@ export class GrcKrisService {
           K.kriName AS name,
           K.createdAt,
           kv.id AS kriValueId,
+          kv.value AS value,
           ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
           CASE UPPER(LTRIM(RTRIM(kv.assessment)))
             WHEN 'HIGH'   THEN 'High'
@@ -2491,6 +2572,7 @@ export class GrcKrisService {
         code,
         name,
         function_name,
+        value,
         createdAt
       FROM Derived
       WHERE ${levelFilter}
@@ -2539,6 +2621,163 @@ export class GrcKrisService {
         hasPrev: pageInt > 1
       }
     };
+  }
+
+  // Shared query builder for the 5 "KRI Values Pending .../Approved" drill-downs. Mirrors
+  // getKrisByLevel's structure exactly (K CTE with dateFilter+functionFilter, Derived CTE
+  // INNER JOINing KriValues with kriValueSubmissionFilter applied inside it, function name
+  // resolved via LEFT JOIN Functions frel + OUTER APPLY ... KriFunctions kf2 to avoid
+  // many-to-many fan-out, final SELECT filtered to one bucket, plus a countQuery sibling) but
+  // classifies each KriValues row via the EXACT SAME 5-state waterfall CASE as
+  // krisStatusCountsQuery, applied to kv.preparerStatus/checkerStatus/reviewerStatus/
+  // acceptanceStatus instead of the KRI's own k.* status columns.
+  private async getKriValuesByStatusBucket(
+    bucket: 'pendingPreparer' | 'pendingChecker' | 'pendingReviewer' | 'pendingAcceptance' | 'approved',
+    user: any,
+    page: number = 1,
+    limit: number = 10,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    submissionStartDate?: string,
+    submissionEndDate?: string,
+  ) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
+
+    // Main Date Range Filter (k.createdAt) — applied for consistency with every other card on
+    // this dashboard, in addition to the Submission Date filter below.
+    let dateFilter = '';
+    if (startDate) dateFilter += `AND k.createdAt >= '${startDate}'`;
+    if (endDate) dateFilter += `AND k.createdAt <= '${endDate}'`;
+    // Submission Date filter (KriValues), the specific differentiator for these cards vs. the
+    // KRI-level pending cards, which only filter by the KRI's own createdAt.
+    const kriValueSubmissionFilter = this.buildKriValueSubmissionFilter(submissionStartDate, submissionEndDate);
+
+    const bucketCase = `
+      CASE
+        WHEN ISNULL(kv.preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
+        WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') <> 'approved' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
+        WHEN ISNULL(kv.checkerStatus, '') = 'approved' AND ISNULL(kv.reviewerStatus, '') <> 'sent' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
+        WHEN ISNULL(kv.reviewerStatus, '') = 'sent' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
+        WHEN ISNULL(kv.acceptanceStatus, '') = 'approved' THEN 'approved'
+        ELSE 'Other'
+      END
+    `;
+
+    const query = `
+      WITH K AS (
+        SELECT k.id, k.code, k.kriName, k.createdAt, k.related_function_id
+        FROM Kris k
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
+      ),
+      Derived AS (
+        SELECT
+          K.code,
+          K.kriName AS name,
+          K.createdAt,
+          kv.id AS kriValueId,
+          kv.value AS value,
+          kv.createdAt AS submittedAt,
+          kv.preparerStatus AS preparerStatus,
+          kv.checkerStatus AS checkerStatus,
+          kv.reviewerStatus AS reviewerStatus,
+          kv.acceptanceStatus AS acceptanceStatus,
+          ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
+          ${bucketCase} AS status_bucket
+        FROM K
+        INNER JOIN KriValues kv ON kv.kriId = K.id AND kv.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = K.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+        OUTER APPLY (
+          SELECT TOP 1 f2.name
+          FROM KriFunctions kf2
+          INNER JOIN Functions f2 ON f2.id = kf2.function_id AND f2.isDeleted = 0 AND f2.deletedAt IS NULL
+          WHERE kf2.kri_id = K.id AND kf2.deletedAt IS NULL
+          ORDER BY kf2.function_id
+        ) fkf(name)
+        WHERE 1 = 1
+          ${kriValueSubmissionFilter}
+      )
+      SELECT
+        code,
+        name,
+        function_name,
+        value,
+        preparerStatus,
+        checkerStatus,
+        reviewerStatus,
+        acceptanceStatus,
+        submittedAt,
+        createdAt
+      FROM Derived
+      WHERE status_bucket = '${bucket}'
+      ORDER BY submittedAt DESC, kriValueId DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      WITH K AS (
+        SELECT k.id
+        FROM Kris k
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
+      ),
+      Derived AS (
+        SELECT ${bucketCase} AS status_bucket
+        FROM K
+        INNER JOIN KriValues kv ON kv.kriId = K.id AND kv.deletedAt IS NULL
+        WHERE 1 = 1
+          ${kriValueSubmissionFilter}
+      )
+      SELECT COUNT(*) as total
+      FROM Derived
+      WHERE status_bucket = '${bucket}'
+    `;
+
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+    const data = await this.databaseService.query(query);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  async getKriValuesPendingPreparer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string) {
+    return this.getKriValuesByStatusBucket('pendingPreparer', user, page, limit, startDate, endDate, selectedFunctionIds, submissionStartDate, submissionEndDate);
+  }
+
+  async getKriValuesPendingChecker(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string) {
+    return this.getKriValuesByStatusBucket('pendingChecker', user, page, limit, startDate, endDate, selectedFunctionIds, submissionStartDate, submissionEndDate);
+  }
+
+  async getKriValuesPendingReviewer(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string) {
+    return this.getKriValuesByStatusBucket('pendingReviewer', user, page, limit, startDate, endDate, selectedFunctionIds, submissionStartDate, submissionEndDate);
+  }
+
+  async getKriValuesPendingAcceptance(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string) {
+    return this.getKriValuesByStatusBucket('pendingAcceptance', user, page, limit, startDate, endDate, selectedFunctionIds, submissionStartDate, submissionEndDate);
+  }
+
+  async getKriValuesApproved(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string) {
+    return this.getKriValuesByStatusBucket('approved', user, page, limit, startDate, endDate, selectedFunctionIds, submissionStartDate, submissionEndDate);
   }
 
   async getKrisByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, submissionStatus?: string, selectedFunctionIds?: string[], submissionStartDate?: string, submissionEndDate?: string, metric?: string) {

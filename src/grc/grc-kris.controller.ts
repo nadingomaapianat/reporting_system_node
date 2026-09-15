@@ -124,6 +124,18 @@ export class GrcKrisController {
         pendingChecker: { pendingChecker: Number(payload?.pendingChecker || 0) },
         pendingReviewer: { pendingReviewer: Number(payload?.pendingReviewer || 0) },
         pendingAcceptance: { pendingAcceptance: Number(payload?.pendingAcceptance || 0) },
+        // These 3 cards derive their value on the frontend from assessmentHistoryByLevel
+        // (same array the "KRIs by Risk Level" chart uses), so just pass it through.
+        lowKriValues: { assessmentHistoryByLevel: payload?.assessmentHistoryByLevel || [] },
+        mediumKriValues: { assessmentHistoryByLevel: payload?.assessmentHistoryByLevel || [] },
+        highKriValues: { assessmentHistoryByLevel: payload?.assessmentHistoryByLevel || [] },
+        // These 5 cards likewise derive their value on the frontend from one summary array —
+        // kriValueApprovalCycle — rather than each getting its own dashboard payload field.
+        kriValuesPendingPreparer: { kriValueApprovalCycle: payload?.kriValueApprovalCycle || [] },
+        kriValuesPendingChecker: { kriValueApprovalCycle: payload?.kriValueApprovalCycle || [] },
+        kriValuesPendingReviewer: { kriValueApprovalCycle: payload?.kriValueApprovalCycle || [] },
+        kriValuesPendingAcceptance: { kriValueApprovalCycle: payload?.kriValueApprovalCycle || [] },
+        kriValuesApproved: { kriValueApprovalCycle: payload?.kriValueApprovalCycle || [] },
       };
       return metricPayload[widgetId] ?? {};
     }
@@ -269,6 +281,81 @@ export class GrcKrisController {
       console.error('Error fetching KRIs by level:', error);
       return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
     }
+  }
+
+  @Get('values/pending-preparer')
+  async getKriValuesPendingPreparer(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
+  ) {
+    return this.grcKrisService.getKriValuesPendingPreparer(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate);
+  }
+
+  @Get('values/pending-checker')
+  async getKriValuesPendingChecker(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
+  ) {
+    return this.grcKrisService.getKriValuesPendingChecker(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate);
+  }
+
+  @Get('values/pending-reviewer')
+  async getKriValuesPendingReviewer(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
+  ) {
+    return this.grcKrisService.getKriValuesPendingReviewer(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate);
+  }
+
+  @Get('values/pending-acceptance')
+  async getKriValuesPendingAcceptance(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
+  ) {
+    return this.grcKrisService.getKriValuesPendingAcceptance(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate);
+  }
+
+  @Get('values/approved')
+  async getKriValuesApproved(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
+  ) {
+    return this.grcKrisService.getKriValuesApproved(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate);
   }
 
   @Get('by-function')
