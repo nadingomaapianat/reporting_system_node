@@ -1221,6 +1221,21 @@ export class GrcIncidentsService {
     if (tableId === 'overdueIncidents') {
       return this.getIncidentActionPlanTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, true, orderByFunctionAsc);
     }
+    if (tableId === 'nonFinancialImpactEvents') {
+      return this.getNonFinancialImpactEventsTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'cbeOperationalLossMatrix') {
+      return this.getCbeOperationalLossMatrixTablePage(user, timeframe, startDate, endDate, selectedFunctionIds);
+    }
+    if (tableId === 'incidentLossByQuarter') {
+      return this.getIncidentLossByQuarterTablePage(user, timeframe, startDate, endDate, selectedFunctionIds);
+    }
+    if (tableId === 'significantIncidents') {
+      return this.getSignificantIncidentsTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
+    if (tableId === 'incidentLossRegister') {
+      return this.getIncidentLossRegisterTablePage(user, page, limit, timeframe, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
+    }
 
     const tablesPayload = await this.getIncidentsDashboard(
       user,
@@ -1240,6 +1255,7 @@ export class GrcIncidentsService {
       netLossAndRecovery: tablesPayload.netLossAndRecovery || [],
       incidentActionPlan: tablesPayload.incidentActionPlan || [],
       overdueIncidents: tablesPayload.overdueIncidents || [],
+      nonFinancialImpactEvents: tablesPayload.nonFinancialImpactEvents || [],
     }[tableId];
 
     if (!tableRows) {
@@ -1423,6 +1439,369 @@ export class GrcIncidentsService {
         time_frame: item.time_frame || '',
         function_name: item.function_name || 'Unknown',
       })),
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  // Report 6 — Non-Financial Impact Events. FinancialImpacts already has real "No Financial
+  // Impact" and "Near Miss" rows (confirmed against ub_db) — no schema change or net_loss=0
+  // fallback needed, just this filter.
+  // All event types as they actually exist in dbo.[IncidentEvents] (confirmed against
+  // ub_db). The first 8 are the CBE template's official Basel Level 1 columns; 'test'/
+  // 'test2' are real (junk) seed rows still present in the table, included here so the
+  // matrix reflects every event type actually in use rather than silently dropping them.
+  // If a genuinely new event type gets added later, it needs a new entry here too — this
+  // report's column set is a fixed pivot, not auto-discovered (unlike Report 5a).
+  private static readonly BASEL_EVENT_TYPES: { key: string; label: string; name: string }[] = [
+    { key: 'internalFraud', label: 'IF', name: 'Internal Fraud' },
+    { key: 'externalFraud', label: 'EF', name: 'External Fraud' },
+    { key: 'creditCardFraud', label: 'CCF', name: 'Cards Fraud' },
+    { key: 'employmentPractices', label: 'EPWS', name: 'Employment Practices and Workplace Safety' },
+    { key: 'clientsProducts', label: 'CPBP', name: 'Clients & Products and Business Practices' },
+    { key: 'physicalAssets', label: 'DPA', name: 'Damage to Physical Assets' },
+    { key: 'businessDisruption', label: 'BDSF', name: 'Business Disruption and System Failures' },
+    { key: 'executionDelivery', label: 'EDPM', name: 'Execution & Delivery & and Process Management' },
+    { key: 'test', label: 'TEST', name: 'test' },
+    { key: 'test2', label: 'TEST2', name: 'test2' },
+  ];
+
+  // Report 2 — CBE Operational Loss Matrix. Recovery split (insurance vs other) is out of
+  // scope: Incidents.recovery_amount is a single column, there is no recovery_type — those
+  // two rows from the blueprint template are not buildable without a schema change.
+  // Report 5a — Loss summary by event type and quarter. Location/branch dimension from the
+  // blueprint is out of scope: no branch/sector/region field exists anywhere on Incidents
+  // (only a flat function_id used for access control, confirmed against the schema).
+  // Report 5c — Significant incidents. Blueprint flagged Incidents.importance as "exists but
+  // never filtered/grouped on" — confirmed against ub_db (distinct values: High, Very High,
+  // Medium, Med, Low; the Med/Medium inconsistency is pre-existing data, not touched here).
+  // Significance rule: importance IN ('High', 'Very High').
+  // Report 5b — Loss event register. Location comes from the dbo.[BranchIncidents]
+  // junction table (confirmed to exist with the right shape: branch_id/incident_id) joined
+  // to dbo.[Branches] — but BranchIncidents currently has 0 rows in ub_db, so every row's
+  // Location will show 'Unknown' until someone actually starts linking incidents to
+  // branches. This is the correct schema-level wiring, not a placeholder — it starts
+  // working the moment that table gets populated, no code change needed.
+  private async getIncidentLossRegisterTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM dbo.[Incidents] i
+      WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
+    `;
+    const dataQuery = `
+      WITH LatestAction AS (
+        SELECT a.incident_id, a.control_procedure, a.business_unit AS status,
+               ROW_NUMBER() OVER (PARTITION BY a.incident_id ORDER BY a.createdAt DESC) rn
+        FROM dbo.[Actionplans] a
+        WHERE a.deletedAt IS NULL AND a.[from] = 'incident'
+      ),
+      IncidentBranches AS (
+        SELECT bi.incident_id, STRING_AGG(b.name, N', ') WITHIN GROUP (ORDER BY b.name) AS branch_names
+        FROM dbo.[BranchIncidents] bi
+        INNER JOIN dbo.[Branches] b ON b.id = bi.branch_id AND b.deletedAt IS NULL
+        WHERE bi.deletedAt IS NULL
+        GROUP BY bi.incident_id
+      )
+      SELECT
+        COALESCE(i.occurrence_date, i.createdAt) AS occurrence_date,
+        i.code AS reference,
+        ISNULL(ib.branch_names, N'Unknown') AS location,
+        ISNULL(ie.name, N'Unknown') AS event_type,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS description,
+        (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS gross,
+        ISNULL(i.recovery_amount, 0) AS recovery,
+        ISNULL(i.net_loss, 0) AS net,
+        ISNULL(cu.name, '') AS currency,
+        CAST(ISNULL(la.control_procedure, '') AS NVARCHAR(MAX)) AS action_taken,
+        ISNULL(la.status, ISNULL(i.status, '')) AS status
+      FROM dbo.[Incidents] i
+      LEFT JOIN dbo.[IncidentEvents] ie ON i.event_type_id = ie.id
+      LEFT JOIN dbo.[Currencies] cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN IncidentBranches ib ON ib.incident_id = i.id
+      LEFT JOIN LatestAction la ON la.incident_id = i.id AND la.rn = 1
+      WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
+      ORDER BY ${orderByFunctionAsc ? 'event_type ASC, occurrence_date DESC' : 'occurrence_date DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows,
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  private async getSignificantIncidentsTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const significanceFilter = `AND i.importance IN (N'High', N'Very High')`;
+
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM dbo.[Incidents] i
+      WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter} ${significanceFilter}
+    `;
+    const dataQuery = `
+      WITH LatestAction AS (
+        SELECT a.incident_id, a.control_procedure, a.business_unit AS status,
+               ROW_NUMBER() OVER (PARTITION BY a.incident_id ORDER BY a.createdAt DESC) rn
+        FROM dbo.[Actionplans] a
+        WHERE a.deletedAt IS NULL AND a.[from] = 'incident'
+      )
+      SELECT
+        COALESCE(i.occurrence_date, i.createdAt) AS occurrence_date,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS description,
+        ISNULL(rc.name, 'Unknown') AS root_cause,
+        CAST(ISNULL(la.control_procedure, '') AS NVARCHAR(MAX)) AS action_taken,
+        ISNULL(la.status, ISNULL(i.status, '')) AS status,
+        i.importance AS importance
+      FROM dbo.[Incidents] i
+      LEFT JOIN dbo.[RootCauses] rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN LatestAction la ON la.incident_id = i.id AND la.rn = 1
+      WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter} ${significanceFilter}
+      ORDER BY occurrence_date DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows,
+      pagination: this.buildPaginationMeta(pageInt, limitInt, total),
+    };
+  }
+
+  // Report 5a — Loss summary by event type and quarter. Every year present in the data is
+  // shown (no year restriction), one row per (event type, year), using a full grid so a
+  // type/year with zero incidents still shows a 0 row rather than being omitted. Gross is
+  // currency-converted to EGP via exchange_rate, matching the requested query shape exactly.
+  private async getIncidentLossByQuarterTablePage(
+    user: any,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+
+    const query = `
+      WITH LossRows AS (
+        SELECT YEAR(i.occurrence_date)              AS yr,
+               DATEPART(QUARTER, i.occurrence_date) AS qtr,
+               ISNULL(ie.name, N'(no event type)')   AS event_name,
+               i.id,
+               i.total_loss      * COALESCE(NULLIF(i.exchange_rate, 0), 1) AS gross_egp,
+               i.recovery_amount * COALESCE(NULLIF(i.exchange_rate, 0), 1) AS recovery_egp
+        FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[IncidentEvents] ie ON ie.id = i.event_type_id
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL
+          AND i.occurrence_date IS NOT NULL
+          ${dateFilter}
+          ${functionFilter}
+      ),
+      Types AS (
+        -- distinct event type NAMES (not ids) — two IncidentEvents rows sharing the same
+        -- name (a data-entry duplicate) collapse into one row here instead of splitting
+        -- the same-named type across two lines.
+        SELECT DISTINCT name, CASE WHEN name = N'(no event type)' THEN 1 ELSE 0 END AS grp
+        FROM (
+          SELECT ie.name
+          FROM dbo.[IncidentEvents] ie
+          WHERE (ie.isDeleted = 0 AND ie.deletedAt IS NULL)
+             OR EXISTS (SELECT 1 FROM dbo.[Incidents] i
+                        WHERE i.event_type_id = ie.id AND i.isDeleted = 0 AND i.deletedAt IS NULL)
+          UNION ALL
+          SELECT N'(no event type)'
+        ) x
+      ),
+      Years AS (SELECT DISTINCT yr FROM LossRows),
+      Grid  AS (SELECT t.name, t.grp, y.yr FROM Types t CROSS JOIN Years y)
+      SELECT
+        g.name AS [EventType],
+        g.yr   AS [Year],
+        COUNT(CASE WHEN l.qtr = 1 THEN 1 END)                   AS [Q1 n],
+        ISNULL(SUM(CASE WHEN l.qtr = 1 THEN l.gross_egp END), 0) AS [Q1 gross],
+        COUNT(CASE WHEN l.qtr = 2 THEN 1 END)                   AS [Q2 n],
+        ISNULL(SUM(CASE WHEN l.qtr = 2 THEN l.gross_egp END), 0) AS [Q2 gross],
+        COUNT(CASE WHEN l.qtr = 3 THEN 1 END)                   AS [Q3 n],
+        ISNULL(SUM(CASE WHEN l.qtr = 3 THEN l.gross_egp END), 0) AS [Q3 gross],
+        COUNT(CASE WHEN l.qtr = 4 THEN 1 END)                   AS [Q4 n],
+        ISNULL(SUM(CASE WHEN l.qtr = 4 THEN l.gross_egp END), 0) AS [Q4 gross],
+        COUNT(l.id)                                             AS [FY n],
+        ISNULL(SUM(l.gross_egp), 0)                             AS [FY gross]
+      FROM Grid g
+      LEFT JOIN LossRows l
+        ON l.yr = g.yr
+       AND l.event_name = g.name
+      GROUP BY g.grp, g.name, g.yr
+      ORDER BY g.grp, g.name, g.yr
+    `;
+
+    const data = await this.databaseService.query(query);
+    return {
+      data,
+      pagination: { page: 1, limit: data.length, total: data.length, totalPages: 1, hasNext: false, hasPrev: false },
+    };
+  }
+
+  private async getCbeOperationalLossMatrixTablePage(
+    user: any,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const types = GrcIncidentsService.BASEL_EVENT_TYPES;
+    // 'No Event Type' bucket for incidents with a NULL event_type_id, so every incident is
+    // captured somewhere — the Total column is a true grand total, not just a sum of the
+    // named columns.
+    const noTypeCase = (expr: string) => `CASE WHEN event_name IS NULL THEN ${expr} ELSE 0 END`;
+    const noTypeCaseMax = (expr: string) => `CASE WHEN event_name IS NULL THEN ${expr} END`;
+
+    const colSum = (expr: string) => [
+      ...types.map(t => `SUM(CASE WHEN event_name = N'${t.name}' THEN ${expr} ELSE 0 END) AS [${t.key}]`),
+      `SUM(${noTypeCase(expr)}) AS [noEventType]`,
+    ].join(',\n          ');
+    const colMax = (expr: string) => [
+      ...types.map(t => `MAX(CASE WHEN event_name = N'${t.name}' THEN ${expr} END) AS [${t.key}]`),
+      `MAX(${noTypeCaseMax(expr)}) AS [noEventType]`,
+    ].join(',\n          ');
+
+    const query = `
+      WITH Base AS (
+        SELECT
+          ie.name AS event_name,
+          (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS gross_amount,
+          ISNULL(i.recovery_amount, 0) AS recovery_amount,
+          ISNULL(i.net_loss, 0) AS net_loss
+        FROM dbo.[Incidents] i
+        LEFT JOIN dbo.[IncidentEvents] ie ON i.event_type_id = ie.id
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
+      )
+      SELECT N'Event count' AS metric,
+          ${colSum('1')},
+          COUNT(*) AS total
+      FROM Base
+      UNION ALL
+      SELECT N'Highest single loss' AS metric,
+          ${colMax('gross_amount')},
+          MAX(gross_amount) AS total
+      FROM Base
+      UNION ALL
+      SELECT N'Gross loss' AS metric,
+          ${colSum('gross_amount')},
+          SUM(gross_amount) AS total
+      FROM Base
+      UNION ALL
+      SELECT N'Total recoveries' AS metric,
+          ${colSum('recovery_amount')},
+          SUM(recovery_amount) AS total
+      FROM Base
+      UNION ALL
+      SELECT N'Net loss' AS metric,
+          ${colSum('net_loss')},
+          SUM(net_loss) AS total
+      FROM Base
+    `;
+
+    const data = await this.databaseService.query(query);
+    return {
+      data,
+      pagination: { page: 1, limit: data.length, total: data.length, totalPages: 1, hasNext: false, hasPrev: false },
+    };
+  }
+
+  private async getNonFinancialImpactEventsTablePage(
+    user: any,
+    page = 1,
+    limit = 10,
+    timeframe?: string,
+    startDate?: string,
+    endDate?: string,
+    selectedFunctionIds?: string[],
+    orderByFunctionAsc = false,
+  ) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const dateFilter = this.buildDateFilter(timeframe, startDate, endDate);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access, selectedFunctionIds);
+    const pageInt = Math.max(1, Math.floor(Number(page)) || 1);
+    const limitInt = Math.max(1, Math.floor(Number(limit)) || 10);
+    const offset = (pageInt - 1) * limitInt;
+    const nonFinancialFilter = `AND (LOWER(fi.name) LIKE N'%no financial impact%' OR LOWER(fi.name) LIKE N'%near miss%')`;
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM dbo.[Incidents] i
+      LEFT JOIN dbo.[FinancialImpacts] fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter} ${nonFinancialFilter}
+    `;
+    const dataQuery = `
+      WITH LatestAction AS (
+        SELECT a.incident_id, a.control_procedure,
+               ROW_NUMBER() OVER (PARTITION BY a.incident_id ORDER BY a.createdAt DESC) rn
+        FROM dbo.[Actionplans] a
+        WHERE a.deletedAt IS NULL AND a.[from] = 'incident'
+      )
+      SELECT
+        COALESCE(i.occurrence_date, i.createdAt) AS occurrence_date,
+        ISNULL(ie.name, 'Unknown') AS event_category,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) AS description,
+        CAST(ISNULL(la.control_procedure, '') AS NVARCHAR(MAX)) AS action_taken,
+        ISNULL(f.name, 'Unknown') AS function_name,
+        fi.name AS impact_type
+      FROM dbo.[Incidents] i
+      LEFT JOIN dbo.[IncidentEvents] ie ON i.event_type_id = ie.id
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id AND f.isDeleted = 0 AND f.deletedAt IS NULL
+      LEFT JOIN dbo.[FinancialImpacts] fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN LatestAction la ON la.incident_id = i.id AND la.rn = 1
+      WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter} ${nonFinancialFilter}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, occurrence_date DESC' : 'occurrence_date DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+    const [rows, countResult] = await Promise.all([
+      this.databaseService.query(dataQuery),
+      this.databaseService.query(countQuery),
+    ]);
+    const total = Number(countResult?.[0]?.total ?? 0);
+    return {
+      data: rows,
       pagination: this.buildPaginationMeta(pageInt, limitInt, total),
     };
   }

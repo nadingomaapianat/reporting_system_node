@@ -86,21 +86,38 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       config.password = password;
     }
 
-    try {
-      this.pool = await sql.connect(config);
-      this.logger.log(
-        `[Reporting][DB] connected server=${dbHost}:${dbPort} database=${dbName} auth=${authType} ` +
-          (authType === 'ntlm' ? `ntlm_user=${domain}\\${username}` : `sql_user=${username}`),
-      );
-    } catch (err) {
-      this.logger.error(
-        `[Reporting][DB] connection failed server=${dbHost}:${dbPort} database=${dbName} auth=${authType}`,
-        err instanceof Error ? err.stack : String(err),
-      );
-      this.logger.error(
-        `[Reporting][DB] connection_context domain=${domain} user=${username} code=${(err as any)?.code ?? 'N/A'}`,
-      );
-      throw err;
+    // The DB host has genuine intermittent network blips (seen repeatedly in local
+    // dev) — a single failed attempt here used to throw out of onModuleInit and,
+    // since bootstrap() had no .catch(), take the whole process down on an
+    // otherwise-transient timeout. Retry with backoff instead: the app comes up
+    // and serves non-DB routes even while still trying, rather than requiring a
+    // manual restart for what clears up on its own a few seconds later.
+    const maxAttempts = 5;
+    const retryDelayMs = 5000;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        this.pool = await sql.connect(config);
+        this.logger.log(
+          `[Reporting][DB] connected server=${dbHost}:${dbPort} database=${dbName} auth=${authType} ` +
+            (authType === 'ntlm' ? `ntlm_user=${domain}\\${username}` : `sql_user=${username}`),
+        );
+        return;
+      } catch (err) {
+        this.logger.error(
+          `[Reporting][DB] connection failed (attempt ${attempt}/${maxAttempts}) server=${dbHost}:${dbPort} database=${dbName} auth=${authType}`,
+          err instanceof Error ? err.stack : String(err),
+        );
+        this.logger.error(
+          `[Reporting][DB] connection_context domain=${domain} user=${username} code=${(err as any)?.code ?? 'N/A'}`,
+        );
+        if (attempt === maxAttempts) {
+          this.logger.error(
+            `[Reporting][DB] giving up after ${maxAttempts} attempts — the app will keep running, but any DB-backed route will fail until this is resolved.`,
+          );
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
     }
   }
 

@@ -1103,6 +1103,9 @@ export class GrcKrisService {
     if (tableId === 'kriDetailsWithActionPlans') {
       return this.getKriDetailsWithActionPlansTablePage(user, page, limit, startDate, endDate, selectedFunctionIds, orderByFunctionAsc);
     }
+    if (tableId === 'kriBreachReport') {
+      return this.getKriBreachReport(user, page, limit, startDate, endDate, selectedFunctionIds);
+    }
 
     const tablesPayload = await this.getKrisDashboard(
       user,
@@ -1695,6 +1698,107 @@ export class GrcKrisService {
       WHERE level_bucket = '${level === 'Unknown' ? 'Unknown' : level.replace(/'/g, "''")}'
     `;
     
+    const totalRes = await this.databaseService.query(countQuery);
+    const total = totalRes?.[0]?.total || 0;
+    const data = await this.databaseService.query(query);
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
+      }
+    };
+  }
+
+  // Report 4 — KRI Breach Report (Medium & High). Unlike getKrisByLevel (one level at a
+  // time, used by the "click a bar" drill-down), this always returns Medium+High together
+  // with closed band ranges and a business-response substitute (latest linked action plan),
+  // matching the CBE-style quarterly breach report.
+  async getKriBreachReport(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[]) {
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildKriFunctionFilter('k', access, selectedFunctionIds);
+
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
+
+    let dateFilter = '';
+    if (startDate) dateFilter += `AND k.createdAt >= '${startDate}'`;
+    if (endDate) dateFilter += `AND k.createdAt <= '${endDate}'`;
+
+    const cte = `
+      WITH LatestKV AS (
+        SELECT kv.kriId, kv.value, kv.[month] AS value_month, kv.[year] AS value_year,
+               ROW_NUMBER() OVER (PARTITION BY kv.kriId ORDER BY COALESCE(CONVERT(datetime, CONCAT(kv.[year], '-', kv.[month], '-01')), kv.createdAt) DESC) rn
+        FROM KriValues kv
+        WHERE kv.deletedAt IS NULL
+      ),
+      LatestAction AS (
+        SELECT a.kri_id, a.control_procedure,
+               ROW_NUMBER() OVER (PARTITION BY a.kri_id ORDER BY a.createdAt DESC) rn
+        FROM Actionplans a
+        WHERE a.deletedAt IS NULL AND LTRIM(RTRIM(ISNULL(a.[from], ''))) IN (N'kri', N'KRI', N'Kri')
+      ),
+      K AS (
+        SELECT k.id, k.code, k.kriName, k.createdAt,
+               k.kri_level, CAST(k.isAscending AS int) AS isAscending,
+               k.low_from, k.medium_from, k.high_from,
+               TRY_CONVERT(float, k.medium_from) AS med_thr,
+               TRY_CONVERT(float, k.high_from)   AS high_thr,
+               ISNULL(COALESCE(fkf.name, frel.name), 'Unknown') AS function_name
+        FROM Kris k
+        LEFT JOIN KriFunctions kf ON k.id = kf.kri_id AND kf.deletedAt IS NULL
+        LEFT JOIN Functions fkf ON fkf.id = kf.function_id AND fkf.isDeleted = 0 AND fkf.deletedAt IS NULL
+        LEFT JOIN Functions frel ON frel.id = k.related_function_id AND frel.isDeleted = 0 AND frel.deletedAt IS NULL
+        WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
+          ${dateFilter}
+          ${functionFilter}
+      ),
+      KL AS (
+        SELECT K.*, kv.value AS raw_value, kv.value_month, kv.value_year, TRY_CONVERT(float, kv.value) AS val
+        FROM K
+        LEFT JOIN LatestKV kv ON kv.kriId = K.id AND kv.rn = 1
+      ),
+      Derived AS (
+        SELECT *,
+          CASE
+            WHEN kri_level IS NOT NULL AND LTRIM(RTRIM(kri_level)) <> '' THEN kri_level
+            WHEN val IS NULL OR med_thr IS NULL OR high_thr IS NULL THEN 'Unknown'
+            WHEN isAscending = 1 AND val >= high_thr THEN 'High'
+            WHEN isAscending = 1 AND val >= med_thr THEN 'Medium'
+            WHEN isAscending = 1 THEN 'Low'
+            WHEN isAscending = 0 AND val <= high_thr THEN 'High'
+            WHEN isAscending = 0 AND val <= med_thr THEN 'Medium'
+            ELSE 'Low'
+          END AS level_bucket
+        FROM KL
+      )
+    `;
+
+    const query = `
+      ${cte}
+      SELECT
+        d.code, d.kriName AS name, d.function_name,
+        d.value_year, d.value_month, d.raw_value AS value,
+        d.low_from, d.medium_from, d.high_from, d.level_bucket AS breachLevel,
+        d.createdAt, la.control_procedure AS businessResponse
+      FROM Derived d
+      LEFT JOIN LatestAction la ON la.kri_id = d.id AND la.rn = 1
+      WHERE d.level_bucket IN ('Medium', 'High')
+      ORDER BY CASE d.level_bucket WHEN 'High' THEN 0 WHEN 'Medium' THEN 1 ELSE 2 END, d.createdAt DESC
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `;
+
+    const countQuery = `
+      ${cte}
+      SELECT COUNT(*) as total FROM Derived d WHERE d.level_bucket IN ('Medium', 'High')
+    `;
+
     const totalRes = await this.databaseService.query(countQuery);
     const total = totalRes?.[0]?.total || 0;
     const data = await this.databaseService.query(query);
