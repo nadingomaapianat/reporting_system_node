@@ -471,7 +471,9 @@ export class GrcRisksService extends BaseDashboardService {
           WITH ${this.riskFunctionNamesCte()}
           SELECT r.name AS [RiskName], r.description AS [RiskDesc], et.name AS [RiskEventName], r.approve AS [RiskApprove],
             r.inherent_value AS [InherentValue], r.residual_value AS [ResidualValue], r.inherent_frequency AS [InherentFrequency],
-            r.inherent_financial_value AS [InherentFinancialValue], rr.residual_value AS [RiskResidualValue], rr.quarter AS [ResidualQuarter], rr.year AS [ResidualYear],
+            r.inherent_financial_value AS [InherentFinancialValue], rr.residual_value AS [RiskResidualValue],
+            rr.residual_frequency AS [ResidualFrequency], rr.residual_financial_value AS [ResidualFinancialValue],
+            rr.quarter AS [ResidualQuarter], rr.year AS [ResidualYear],
             ISNULL(rfn.function_name, 'Unknown') AS [function_name]
           FROM dbo.[Risks] r
           INNER JOIN dbo.[ResidualRisks] rr ON rr.riskId = r.id AND rr.isDeleted = 0
@@ -509,6 +511,7 @@ export class GrcRisksService extends BaseDashboardService {
           risksAndControlsCount,
           controlsAndRiskCount,
           allRisks,
+          risksDetails,
         };
       }
 
@@ -582,6 +585,8 @@ export class GrcRisksService extends BaseDashboardService {
       risksAndControlsCount: tablesPayload.risksAndControlsCount || [],
       controlsAndRiskCount: tablesPayload.controlsAndRiskCount || [],
       allRisks: tablesPayload.allRisks || [],
+      inherentResidualRiskComparison: tablesPayload.inherentResidualRiskComparison || [],
+      risksDetails: tablesPayload.risksDetails || [],
     }[tableId];
 
     if (!tableRows) {
