@@ -120,10 +120,18 @@ export class GrcKrisController {
     if (kind === 'metric') {
       const metricPayload: Record<string, any> = {
         totalKris: { totalKris: Number(payload?.totalKris || 0) },
+        totalKriAssessments: { totalKriAssessments: Number(payload?.totalKriAssessments || 0) },
         pendingPreparer: { pendingPreparer: Number(payload?.pendingPreparer || 0) },
         pendingChecker: { pendingChecker: Number(payload?.pendingChecker || 0) },
         pendingReviewer: { pendingReviewer: Number(payload?.pendingReviewer || 0) },
         pendingAcceptance: { pendingAcceptance: Number(payload?.pendingAcceptance || 0) },
+        // KRI-level approval-cycle card: a KRI is approved when its own acceptanceStatus is
+        // 'approved' (distinct from the per-assessment "KRI Assessment Approved" card).
+        approved: { approved: Number(payload?.approved || 0) },
+        checkerRefused: { checkerRefused: Number(payload?.checkerRefused || 0) },
+        acceptanceRefused: { acceptanceRefused: Number(payload?.acceptanceRefused || 0) },
+        kriValuesCheckerRefused: { kriValuesCheckerRefused: Number(payload?.kriValuesCheckerRefused || 0) },
+        kriValuesAcceptanceRefused: { kriValuesAcceptanceRefused: Number(payload?.kriValuesAcceptanceRefused || 0) },
         // These 3 cards derive their value on the frontend from assessmentHistoryByLevel
         // (same array the "KRIs by Risk Level" chart uses), so just pass it through.
         lowKriValues: { assessmentHistoryByLevel: payload?.assessmentHistoryByLevel || [] },
@@ -177,6 +185,22 @@ export class GrcKrisController {
   ) {
     const ob = orderByFunctionFromRequest(req);
     return this.grcKrisService.getTotalKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
+  @Get('total-assessments')
+  async getTotalKriAssessments(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcKrisService.getTotalKriAssessments(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob, submissionStartDate, submissionEndDate);
   }
 
   @Get('pending-preparer')
@@ -233,6 +257,48 @@ export class GrcKrisController {
   ) {
     const ob = orderByFunctionFromRequest(req);
     return this.grcKrisService.getPendingAcceptanceKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
+  @Get('approved')
+  async getApprovedKris(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcKrisService.getApprovedKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
+  @Get('checker-refused')
+  async getCheckerRefusedKris(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcKrisService.getCheckerRefusedKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
+  @Get('acceptance-refused')
+  async getAcceptanceRefusedKris(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcKrisService.getAcceptanceRefusedKris(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
   @Get('by-status')
@@ -356,6 +422,36 @@ export class GrcKrisController {
     @Query('submissionEndDate') submissionEndDate?: string,
   ) {
     return this.grcKrisService.getKriValuesApproved(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate);
+  }
+
+  @Get('values/checker-refused')
+  async getKriValuesCheckerRefused(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
+  ) {
+    return this.grcKrisService.getKriValuesCheckerRefused(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate);
+  }
+
+  @Get('values/acceptance-refused')
+  async getKriValuesAcceptanceRefused(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string,
+    @Query('submissionStartDate') submissionStartDate?: string,
+    @Query('submissionEndDate') submissionEndDate?: string,
+  ) {
+    return this.grcKrisService.getKriValuesAcceptanceRefused(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), submissionStartDate, submissionEndDate);
   }
 
   @Get('by-function')
