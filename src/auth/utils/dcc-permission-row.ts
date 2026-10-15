@@ -36,6 +36,13 @@ export function dccRowSatisfiesActions(
   requireAll: boolean,
 ): boolean {
   if (!row || actions.length === 0) return false;
-  const ok = (action: string) => (row as Record<string, unknown>)[action] === true;
+  const flags = row as Record<string, unknown>;
+  const ok = (action: string) =>
+    flags[action] === true ||
+    // The main backend folded 'First Approval'/'Second Approval' into one 'approve' column
+    // (group/page-catalog.ts); rows saved before or after that change both count.
+    (APPROVAL_ACTIONS.includes(action) && APPROVAL_ACTIONS.some((a) => flags[a] === true));
   return requireAll ? actions.every(ok) : actions.some(ok);
 }
+
+const APPROVAL_ACTIONS = ['approve', 'First Approval', 'Second Approval'];

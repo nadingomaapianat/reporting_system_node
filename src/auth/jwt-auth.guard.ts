@@ -13,6 +13,7 @@ import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { getCandidateTokens, TokenSource } from './utils/extract-token';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
 import { TokenBlocklistService } from './token-blocklist.service';
+import { LivePermissionsService } from './live-permissions.service';
 
 interface JwtPayload {
   id?: string;
@@ -32,6 +33,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly blocklist: TokenBlocklistService,
+    private readonly livePermissions: LivePermissionsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -116,8 +118,16 @@ export class JwtAuthGuard implements CanActivate {
     // 3) Among the usable tokens, prefer the first one that carries permissions; otherwise the first valid.
     const chosen =
       usable.find((u) => hasPermissions(u.payload)) ?? usable[0];
-    const payload = chosen.payload;
+    let payload = chosen.payload;
     const source = chosen.source;
+
+    // 4) Use the group's current rows from the DB (what the main app's permission matrix edits),
+    //    not the copy frozen into the token. A failed lookup keeps the token's rows.
+    const liveUserId = payload.id ?? payload.sub;
+    if (liveUserId) {
+      const live = await this.livePermissions.forUser(String(liveUserId));
+      if (live) payload = { ...payload, permissions: live };
+    }
 
     const logJwtAccept =
       verbose || process.env.NODE_ENV !== 'production' || process.env.REPORTING_DEBUG_JWT === '1';

@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PERMISSIONS_KEY, PermissionsMeta } from '../decorators/permissions.decorator';
+import { MODULE_PAGE_KEY, PERMISSIONS_KEY, PermissionsMeta } from '../decorators/permissions.decorator';
 import { Request } from 'express';
 import { findDccPermissionRow, dccRowSatisfiesActions } from '../utils/dcc-permission-row';
 
@@ -51,6 +51,19 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException(
         `Missing required permission${requireAll ? 's' : ''} (${actions.join(', ')}) on ${page}`,
       );
+    }
+
+    const modulePage = this.reflector.getAllAndOverride<PermissionsMeta>(MODULE_PAGE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (modulePage) {
+      const moduleRow = findDccPermissionRow(rows, modulePage.page);
+      if (!dccRowSatisfiesActions(moduleRow, modulePage.actions, false)) {
+        throw new ForbiddenException(
+          `Missing required permission (${modulePage.actions.join(', ')}) on ${modulePage.page}`,
+        );
+      }
     }
 
     return true;

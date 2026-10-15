@@ -219,6 +219,7 @@ export class IcrController {
 
   @Post(':id/regenerate')
   @HttpCode(HttpStatus.ACCEPTED)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async regenerate(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: IcrReportUser,
@@ -252,6 +253,7 @@ export class IcrController {
 
   @Patch(':id/sections/:sectionType/review')
   @HttpCode(HttpStatus.OK)
+  @Permissions('Tasks', ['Reviewe', 'First Approval', 'Second Approval'], false)
   async markSectionReviewed(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -276,6 +278,7 @@ export class IcrController {
 
   @Patch(':id/sections/:sectionType/content')
   @HttpCode(HttpStatus.OK)
+  @Permissions('ICR Reports', ['create', 'edit'], true)
   async updateSectionContent(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
@@ -404,6 +407,7 @@ export class IcrController {
 
   @Post(':id/sections/:sectionType/recall')
   @HttpCode(HttpStatus.OK)
+  @Permissions('ICR Reports', ['create'], true)
   async recallSection(
     @Param('id', ParseIntPipe) id: number,
     @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,

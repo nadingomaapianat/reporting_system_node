@@ -2,7 +2,7 @@ import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { GrcIncidentsService } from './grc-incidents.service';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+import { ModulePage, Permissions } from '../auth/decorators/permissions.decorator';
 import {
   applyOrderByFunctionDeep,
   orderByFunctionFromRequest,
@@ -13,6 +13,7 @@ import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 @Controller('api/grc/incidents')
 @UseGuards(PermissionsGuard)
 @Permissions('Dashboard', ['show'])
+@ModulePage('Incidents Catalog')
 export class GrcIncidentsController {
   constructor(private readonly grcIncidentsService: GrcIncidentsService) {}
 

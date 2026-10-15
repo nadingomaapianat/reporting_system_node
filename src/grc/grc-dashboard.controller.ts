@@ -1,13 +1,14 @@
 import { Controller, Get, Query, Req, UseGuards, All } from '@nestjs/common';
 import { GrcDashboardService } from './grc-dashboard.service';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+import { ModulePage, Permissions } from '../auth/decorators/permissions.decorator';
 import { orderByFunctionFromRequest, sortPaginatedResponseIfNeeded } from '../shared/order-by-function';
 import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 
 @Controller('api/grc/controls')
 @UseGuards(PermissionsGuard)
 @Permissions('Dashboard', ['show'])
+@ModulePage('Control Catalog')
 export class GrcDashboardController {
   constructor(private readonly grcDashboardService: GrcDashboardService) {}
 

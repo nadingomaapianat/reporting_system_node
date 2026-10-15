@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Req, Param, UseGuards } from '@nestjs/common';
 import { GrcComplyService, GrcComplyReportKey } from './grc-comply.service';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+import { ModulePage, Permissions } from '../auth/decorators/permissions.decorator';
 import {
   applyOrderByFunctionDeep,
   orderByFunctionFromRequest,
@@ -11,6 +11,7 @@ import {
 @Controller('api/grc/comply')
 @UseGuards(PermissionsGuard)
 @Permissions('Dashboard', ['show'])
+@ModulePage('cs Dashboard')
 export class GrcComplyController {
   constructor(private readonly grcComplyService: GrcComplyService) {}
 

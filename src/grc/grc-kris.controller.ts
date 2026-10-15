@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { GrcKrisService } from './grc-kris.service';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+import { ModulePage, Permissions } from '../auth/decorators/permissions.decorator';
 import {
   applyOrderByFunctionDeep,
   orderByFunctionFromRequest,
@@ -12,6 +12,7 @@ import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 @Controller('api/grc/kris')
 @UseGuards(PermissionsGuard)
 @Permissions('Dashboard', ['show'])
+@ModulePage('KRI Catalog')
 export class GrcKrisController {
   constructor(private readonly grcKrisService: GrcKrisService) {}
 

@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { TokenBlocklistService } from './token-blocklist.service';
+import { LivePermissionsService } from './live-permissions.service';
 import { getJwtSecret } from './jwt-secret';
 
 @Module({
@@ -30,8 +31,9 @@ import { getJwtSecret } from './jwt-secret';
     JwtAuthGuard,
     PermissionsGuard,
     TokenBlocklistService,
+    LivePermissionsService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
-  exports: [JwtModule, AuthService, JwtAuthGuard, PermissionsGuard, TokenBlocklistService],
+  exports: [JwtModule, AuthService, JwtAuthGuard, PermissionsGuard, TokenBlocklistService, LivePermissionsService],
 })
 export class AuthModule {}

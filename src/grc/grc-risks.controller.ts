@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Query, Body, Headers, Param, Req, UseGuards } from '@nestjs/common';
 import { GrcRisksService } from './grc-risks.service';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { Permissions } from '../auth/decorators/permissions.decorator';
+import { ModulePage, Permissions } from '../auth/decorators/permissions.decorator';
 import {
   applyOrderByFunctionDeep,
   orderByFunctionFromRequest,
@@ -12,6 +12,7 @@ import { parseGrcFunctionIdsFromQueries } from '../shared/grc-function-ids';
 @Controller('api/grc/risks')
 @UseGuards(PermissionsGuard)
 @Permissions('Dashboard', ['show'])
+@ModulePage('Risk Catalog')
 export class GrcRisksController {
   constructor(private readonly grcRisksService: GrcRisksService) {}
 
