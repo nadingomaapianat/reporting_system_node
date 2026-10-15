@@ -235,8 +235,7 @@ export class AuthController {
     }
 
     try {
-      const secretKey = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || 'GRC_ADIB_2025';
-      const decoded: any = jwt.verify(token, secretKey);
+      const decoded: any = jwt.verify(token, getJwtSecret());
 
       // Extract user info from token - matching v2_backend format exactly
       const { group, title, name, id } = decoded;

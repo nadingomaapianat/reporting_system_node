@@ -2217,8 +2217,12 @@ ORDER BY month;
     const limitInt = Math.min(Math.max(Number(limit) || 10, 1), 100);
     const offset = (pageInt - 1) * limitInt;
 
-    // Parse month (format: YYYY-MM) and build date range
-    const [year, monthNum] = month.split('-');
+    // Parse month (format: YYYY-MM) and build date range; the parts go into the SQL text,
+    // so anything other than digits is refused.
+    if (!/^\d{4}-\d{1,2}$/.test(String(month ?? '').trim())) {
+      throw new BadRequestException('Invalid month (expected YYYY-MM)');
+    }
+    const [year, monthNum] = String(month).trim().split('-');
     const monthStart = `${year}-${monthNum}-01`;
     const nextMonth = parseInt(monthNum) === 12 ? `${parseInt(year) + 1}-01-01` : `${year}-${String(parseInt(monthNum) + 1).padStart(2, '0')}-01`;
     

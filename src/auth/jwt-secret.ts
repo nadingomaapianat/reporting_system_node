@@ -1,13 +1,13 @@
 /**
- * Central JWT signing / verification secret.
- * - Production: `JWT_SECRET` or `JWT_SECRET_KEY` is mandatory.
- * - Non-production: falls back to a fixed dev secret only if unset (local setups).
+ * Central JWT signing / verification secret: `JWT_SECRET` or `JWT_SECRET_KEY`, always
+ * required. There is no built-in fallback — a default written in the source is public, and
+ * anyone holding it could sign admin tokens. AuthModule calls this at startup, so a missing
+ * secret stops the service from booting instead of running with a known key.
  */
 export function getJwtSecret(): string {
   const fromEnv = (process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || '').trim();
-  if (fromEnv) return fromEnv;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET or JWT_SECRET_KEY must be set when NODE_ENV=production');
+  if (!fromEnv) {
+    throw new Error('JWT_SECRET (or JWT_SECRET_KEY) must be set');
   }
-  return 'GRC_ADIB_2025';
+  return fromEnv;
 }

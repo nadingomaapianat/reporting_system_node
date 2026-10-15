@@ -17,6 +17,7 @@ import { IcrModule } from './icr/icr.module';
 import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { FrameAncestorsMiddleware } from './middleware/frame-ancestors.middleware';
 import { RateLimitMiddleware } from './middleware/limitter.middleware';
+import { DateParamsMiddleware } from './middleware/date-params.middleware';
 import * as cookieParser from 'cookie-parser';
 import 'dotenv/config';
 
@@ -60,6 +61,11 @@ export class AppModule implements NestModule {
 
     consumer
       .apply(CsrfMiddleware)
+      .forRoutes({ path: '*', method: RequestMethod.ALL });
+
+    // startDate / endDate reach SQL text in many GRC queries: refuse anything but a date.
+    consumer
+      .apply(DateParamsMiddleware)
       .forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

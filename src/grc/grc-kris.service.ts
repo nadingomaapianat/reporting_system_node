@@ -1992,7 +1992,7 @@ export class GrcKrisService {
     if (frequency === 'Unknown') {
       where.push("(k.frequency IS NULL OR k.frequency = '')");
     } else {
-      where.push(`k.frequency = '${frequency}'`);
+      where.push(`k.frequency = '${String(frequency ?? '').replace(/'/g, "''")}'`);
     }
     
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
