@@ -30,18 +30,6 @@ export class IcrTemplateAdminController {
   // Template CRUD
   // ═══════════════════════════════════════════════════════════════════
 
-  @Get('templates')
-  @HttpCode(HttpStatus.OK)
-  getTemplates() {
-    return this.adminService.getTemplates();
-  }
-
-  @Get('templates/default')
-  @HttpCode(HttpStatus.OK)
-  getDefaultTemplate() {
-    return this.adminService.getDefaultTemplate();
-  }
-
   @Get('templates/:id')
   @HttpCode(HttpStatus.OK)
   getTemplate(@Param('id') id: string) {
@@ -161,26 +149,6 @@ export class IcrTemplateAdminController {
   @HttpCode(HttpStatus.OK)
   getConfigs(@Query('templateId') templateId?: string) {
     return this.adminService.getConfigs(templateId ? Number(templateId) : undefined);
-  }
-
-  @Patch('section-configs/:sectionType')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Templates', ['create', 'edit'], true)
-  updateConfig(
-    @Param('sectionType') sectionType: string,
-    @Body() patch: any,
-  ) {
-    return this.adminService.updateConfig(sectionType, patch, patch.templateId);
-  }
-
-  @Delete('section-configs/:sectionType')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @Permissions('ICR Templates', ['create', 'edit'], true)
-  deleteConfig(
-    @Param('sectionType') sectionType: string,
-    @Query('templateId') templateId?: string,
-  ) {
-    return this.adminService.deleteConfig(sectionType, templateId ? Number(templateId) : undefined);
   }
 
   @Post('seed-defaults')

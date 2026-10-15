@@ -154,29 +154,6 @@ export class GrcIncidentsController {
     return chartPayload[widgetId] ?? {};
   }
 
-  @Get('export')
-  async exportIncidents(
-    @Req() req: any,
-    @Query('format') format: string,
-    @Query('timeframe') timeframe?: string
-  ) {
-    return this.grcIncidentsService.exportIncidents(req.user, format, timeframe);
-  }
-
-  @Get('list')
-  async getIncidentsList(
-    @Req() req: any,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10000,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return this.grcIncidentsService.getTotalIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
-  }
-
   @Get('total')
   async getTotalIncidents(
     @Req() req: any,
@@ -289,27 +266,6 @@ export class GrcIncidentsController {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
       await this.grcIncidentsService.getIncidentsByMonthYear(req.user, monthYear, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-      ob
-    );
-  }
-
-  @Get('by-sub-category')
-  async getIncidentsBySubCategory(
-    @Req() req: any,
-    @Query('subCategory') subCategory: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    if (!subCategory) {
-      throw new Error('subCategory parameter is required');
-    }
-    const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, subCategory, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
       ob
     );
   }

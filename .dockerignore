@@ -1,0 +1,15 @@
+# Never send secrets, history or local build output into the image build context
+.env
+.env.*
+.git
+.gitignore
+node_modules
+dist
+*.tsbuildinfo
+.vscode
+.idea
+.lsp
+.clj-kondo
+coverage
+grc.sql
+*.log

@@ -1,29 +1,29 @@
-# Use Node.js for build
+# Build stage: install everything, compile, then drop dev dependencies
 FROM node:20 AS build
 
 WORKDIR /app
 
-# Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install dotenv --force && npm ci --force
-RUN npm install -g @nestjs/cli
+RUN npm ci --force
 
-# Copy the rest of the app
 COPY . .
+RUN npm run build && npm prune --omit=dev --force
 
-# Build the application
-RUN npm run build
-
-# Final production image
+# Runtime stage: compiled output and production dependencies only, run as the
+# unprivileged "node" user in production mode (secure cookies, TLS verification on).
+# Configuration comes from the environment (docker-compose env_file); .env is not baked in.
 FROM node:20
+
+ENV NODE_ENV=production
 
 WORKDIR /app
 
-# Copy everything from the build stage
-COPY --from=build /app /app
+COPY --from=build --chown=node:node /app/package*.json ./
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
 
-RUN npm install -g pm2
+USER node
 
 EXPOSE 3002
 
-CMD ["npm", "run", "start:dev"]
+CMD ["node", "dist/main"]

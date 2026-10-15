@@ -523,32 +523,4 @@ export class GrcDashboardController {
     }
   }
 
-  @Get('by-function-quarter-year')
-  async getControlsByFunctionQuarterYear(
-    @Req() req: any,
-    @Query('functionName') functionName: string,
-    @Query('quarter') quarter: number,
-    @Query('year') year: number,
-    @Query('columnType') columnType?: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
-  ) {
-    try {
-      if (!functionName || quarter === undefined || year === undefined) {
-        throw new Error('functionName, quarter, and year parameters are required');
-      }
-      const ob = orderByFunctionFromRequest(req);
-      return sortPaginatedResponseIfNeeded(
-        await this.grcDashboardService.getControlsByFunctionQuarterYear(req.user, functionName, Number(quarter), Number(year), columnType, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
-        ob,
-      );
-    } catch (error: any) {
-      console.error('Error in getControlsByFunctionQuarterYear:', error);
-      throw error;
-    }
-  }
 }

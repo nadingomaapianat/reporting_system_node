@@ -5,9 +5,6 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuthModule } from './auth/auth.module';
 import { GrcModule } from './grc/grc.module';
-import { SimpleChartController } from './shared/simple-chart.controller';
-import { AutoDashboardService } from './shared/auto-dashboard.service';
-import { ChartRegistryService } from './shared/chart-registry.service';
 import { DatabaseModule } from './database/database.module';
 import { UserFunctionAccessService } from './shared/user-function-access.service';
 import { UserFunctionsController } from './shared/user-functions.controller';
@@ -37,10 +34,8 @@ import 'dotenv/config';
     GroupPermissionsModule,
     IcrModule,
   ],
-  controllers: [SimpleChartController, UserFunctionsController],
+  controllers: [UserFunctionsController],
   providers: [
-    AutoDashboardService,
-    ChartRegistryService,
     FrameAncestorsMiddleware,
     UserFunctionAccessService,
   ],

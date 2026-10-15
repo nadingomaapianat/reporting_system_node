@@ -84,53 +84,9 @@ export class IcrController {
     return this.icrService.findAll(query);
   }
 
-  @Get('defaults/:sectionType')
-  @HttpCode(HttpStatus.OK)
-  async getSectionDefault(
-    @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
-    @CurrentUser() user: IcrReportUser,
-  ) {
-    this.logger.log(`[GET /api/icr/defaults/${sectionType}] user=${user.id}`);
-    return this.icrService.getSectionDefault(sectionType);
-  }
-
-  @Patch('defaults/:sectionType')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Templates', ['create', 'edit'], true)
-  async updateSectionDefault(
-    @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
-    @Body() dto: UpdateSectionDefaultDto,
-    @CurrentUser() user: IcrReportUser,
-  ) {
-    this.logger.log(`[PATCH /api/icr/defaults/${sectionType}] user=${user.id}`);
-    return this.icrService.updateSectionDefault(sectionType, dto.content, user);
-  }
-
   // ═══════════════════════════════════════════════════════════════════
   // Notifications (static paths must come before :id)
   // ═══════════════════════════════════════════════════════════════════
-
-  @Get('notifications')
-  @HttpCode(HttpStatus.OK)
-  async getNotifications(
-    @Query('function') recipientFunction: string,
-    @Query('unreadOnly') unreadOnly: string | undefined,
-    @CurrentUser() user: IcrReportUser,
-  ) {
-    return this.notificationService.getNotificationsForFunction(
-      recipientFunction,
-      user.id,
-      50,
-      unreadOnly === 'true',
-    );
-  }
-
-  @Post('notifications/mark-read')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Reports', ['create', 'edit'], true)
-  markNotificationsRead(@Body() body: { ids: string[] }, @CurrentUser() user: IcrReportUser) {
-    return this.notificationService.markRead(body.ids ?? [], user.id);
-  }
 
   // ═══════════════════════════════════════════════════════════════════
   // Templates (static paths must come before :id)
@@ -141,13 +97,6 @@ export class IcrController {
   @Permissions('ICR Templates', ['show'])
   getTemplates() {
     return this.templateAdminService.getTemplates();
-  }
-
-  @Get('templates/default')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Templates', ['show'])
-  getDefaultTemplate() {
-    return this.templateAdminService.getDefaultTemplate();
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -178,17 +127,6 @@ export class IcrController {
       throw new BadRequestException('templateId must be a positive integer.');
     }
     return this.icrService.getMyTaskReports(req.user, tid);
-  }
-
-  /** Dynamic section rows from `icr_section_configs` for Tasks UI (function-scoped; full ICR access sees all). */
-  @Get('tasks/section-configs')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('Tasks', ['show'])
-  async getTaskTemplateSectionConfigs(
-    @Req() req: any,
-    @Query('templateId', ParseIntPipe) templateId: number,
-  ) {
-    return this.icrService.getTaskTemplateSectionConfigs(req.user, templateId);
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -249,18 +187,6 @@ export class IcrController {
   ) {
     this.logger.log(`[POST /api/icr/${id}/sections/${sectionType}/regenerate] user=${user.id}`);
     return this.icrService.regenerateSection(id, { sectionType }, user);
-  }
-
-  @Patch(':id/sections/:sectionType/review')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('Tasks', ['Reviewe', 'First Approval', 'Second Approval'], false)
-  async markSectionReviewed(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
-    @CurrentUser() user: IcrReportUser,
-  ) {
-    this.logger.log(`[PATCH /api/icr/${id}/sections/${sectionType}/review] user=${user.id}`);
-    return this.icrService.markSectionReviewed(id, sectionType, user);
   }
 
   @Patch(':id/sections/:sectionType/notes')
@@ -353,30 +279,6 @@ export class IcrController {
     return this.icrService.updateSectionOwner(id, sectionType, dto.sectionOwner, dto.sectionOwnerInitials, user, dto.makerFunction, dto.checkerFunction);
   }
 
-  @Patch(':id/sections/:sectionType/visibility')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Reports', ['create', 'edit'], true)
-  async toggleSectionVisibility(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('sectionType', ParseSectionTypePipe) sectionType: IcrSectionType,
-    @Body('isVisible') isVisible: boolean,
-    @CurrentUser() user: IcrReportUser,
-  ) {
-    this.logger.log(`[PATCH /api/icr/${id}/sections/${sectionType}/visibility] user=${user.id}`);
-    return this.icrService.toggleSectionVisibility(id, sectionType, isVisible, user);
-  }
-
-  @Post(':id/archive')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Reports', ['delete'])
-  async archive(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: IcrReportUser,
-  ) {
-    this.logger.log(`[POST /api/icr/${id}/archive] user=${user.id}`);
-    return this.icrService.archive(id, user);
-  }
-
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @Permissions('ICR Reports', ['delete'])
@@ -460,39 +362,9 @@ export class IcrController {
     return this.workflowService.rejectSection(id, sectionType, user, dto.reason ?? '');
   }
 
-  @Get(':id/workflow-summary')
-  @HttpCode(HttpStatus.OK)
-  async getWorkflowSummary(@Param('id', ParseIntPipe) id: number) {
-    return this.workflowService.getWorkflowSummary(id);
-  }
-
   // ══════════════════════════════════════════════════════════════════════════
   // EXPORT
   // ══════════════════════════════════════════════════════════════════════════
-
-  @Get(':id/export/template/:format')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Reports', ['create'], true)
-  async exportFromTemplate(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('format') format: string,
-    @CurrentUser() user: IcrReportUser,
-    @Res() res: Response,
-  ) {
-    this.logger.log(`[GET /api/icr/${id}/export/template/${format}] user=${user.id}`);
-    const fmt = format.toUpperCase() as 'WORD' | 'PDF';
-    const buffer = await this.exportService.exportFromTemplate(id, fmt);
-    const ext = fmt === 'PDF' ? 'pdf' : 'docx';
-    const mime = fmt === 'PDF'
-      ? 'application/pdf'
-      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    res.set({
-      'Content-Type': mime,
-      'Content-Disposition': `attachment; filename="UnitedBank_ICR_${id}.${ext}"`,
-      'Content-Length': buffer.length.toString(),
-    });
-    res.end(buffer);
-  }
 
   @Get(':id/export/tagged/:format')
   @HttpCode(HttpStatus.OK)
@@ -549,9 +421,4 @@ export class IcrController {
     res.end(buffer);
   }
 
-  @Get(':id/notifications')
-  @HttpCode(HttpStatus.OK)
-  getReportNotifications(@Param('id', ParseIntPipe) id: number) {
-    return this.notificationService.getNotificationsForReport(id);
-  }
 }

@@ -333,40 +333,6 @@ export class GrcComplyController {
     );
   }
 
-  @Get('avg-score-by-survey')
-  async getAvgScoreBySurvey(
-    @Req() req: any,
-    @Query('surveyName') surveyName: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcComplyService.getAvgScoreBySurvey(req.user, surveyName, page, limit, startDate, endDate, functionId),
-      ob,
-    );
-  }
-
-  @Get('compliance-by-category')
-  async getComplianceByCategory(
-    @Req() req: any,
-    @Query('category') category: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('functionId') functionId?: string
-  ) {
-    const ob = orderByFunctionFromRequest(req);
-    return sortPaginatedResponseIfNeeded(
-      await this.grcComplyService.getComplianceByCategory(req.user, category, page, limit, startDate, endDate, functionId),
-      ob,
-    );
-  }
-
   @Get('top-failed-controls')
   async getTopFailedControls(
     @Req() req: any,
