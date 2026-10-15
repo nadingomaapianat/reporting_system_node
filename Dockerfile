@@ -17,6 +17,8 @@ FROM node:20
 ENV NODE_ENV=production
 
 WORKDIR /app
+# The app writes .env.enc / .passcode here and deletes the copied-in .env on first start
+RUN chown node:node /app
 
 COPY --from=build --chown=node:node /app/package*.json ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules

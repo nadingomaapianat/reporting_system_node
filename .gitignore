@@ -5,3 +5,7 @@ node_modules/
 dist
 dist/
 config.bat
+
+# Written at start-up by the env vault (src/env-vault.ts)
+.passcode
+.env.enc
