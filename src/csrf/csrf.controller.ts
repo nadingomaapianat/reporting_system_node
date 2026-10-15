@@ -41,7 +41,6 @@ export class CsrfController {
     
     // console.log(`[CSRF] Token request received - Origin: ${origin}, Referer: ${referer}`);
     // console.log(`[CSRF] User-Agent: ${userAgent}`);
-    // console.log(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
     
     // Extract origin from referer if origin header is not present
     let originUrl: string | null = null;
@@ -68,7 +67,6 @@ export class CsrfController {
     if (!originUrl && !isServerSideRequest) {
       console.warn(`[CSRF] Blocked CSRF token request: Missing Origin/Referer header (not server-side)`);
       console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent}`);
-      console.warn(`[CSRF] All headers:`, Object.keys(req.headers));
       throw new UnauthorizedException('Origin header required for browser requests');
     }
     
@@ -106,7 +104,6 @@ export class CsrfController {
 
       if (!isAllowed) {
         console.warn(`[CSRF] Blocked CSRF token request from unauthorized origin: ${originUrl}`);
-        console.warn(`[CSRF] Allowed origins: ${this.allowedOrigins.join(', ')}`);
         console.warn(`[CSRF] Request details: IP=${req.ip}, User-Agent=${userAgent || 'MISSING'}`);
         throw new UnauthorizedException('Origin not allowed');
       }

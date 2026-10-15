@@ -187,9 +187,9 @@ export class IcrExportService {
       const detail = error?.response?.data
         ? Buffer.from(error.response.data).toString('utf-8').slice(0, 500)
         : error.message;
-      throw new InternalServerErrorException(
-        `Tagged template export failed: ${detail}`,
-      );
+      // The export service's reply stays in the log; the client gets a plain message.
+      this.logger.error(`Tagged template export failed: ${detail}`);
+      throw new InternalServerErrorException('Tagged template export failed');
     }
   }
 

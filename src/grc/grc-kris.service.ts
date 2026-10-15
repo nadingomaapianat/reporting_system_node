@@ -123,7 +123,10 @@ export class GrcKrisService {
         ? []
         : access.functionIds;
     const quotedIds = allowed.map((id) => `'${String(id).replace(/'/g, "''")}'`).join(', ');
-    const detailsFunctionFilter = selected.length
+    // Same rule as every other function filter: a selected function the user may not see gives no rows.
+    const detailsFunctionFilter = selected.length && !this.userFunctionAccess.canUseSelectedIds(access, selected)
+      ? ' AND 1 = 0'
+      : selected.length
       ? ` AND (
             k.related_function_id IN (${quotedIds})
             OR EXISTS (

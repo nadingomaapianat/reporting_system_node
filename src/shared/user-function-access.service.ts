@@ -41,7 +41,7 @@ export class UserFunctionAccessService {
   }
 
   /** Non-super users must have access to every selected function id. */
-  private canUseSelectedIds(access: UserFunctionAccess, selected: string[]): boolean {
+  canUseSelectedIds(access: UserFunctionAccess, selected: string[]): boolean {
     if (!selected.length) return true;
     if (access.isSuperAdmin) return true;
     const allowed = new Set(access.functionIds.map((id) => this.normalizeFunctionId(id)));

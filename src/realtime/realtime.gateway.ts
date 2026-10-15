@@ -12,6 +12,7 @@ import * as jwt from 'jsonwebtoken';
 import { getJwtSecret } from '../auth/jwt-secret';
 import { getReportingJwtFromCookieHeader } from '../auth/utils/extract-token';
 import { RealtimeService } from './realtime.service';
+import { TokenBlocklistService } from '../auth/token-blocklist.service';
 
 // CORS origins from .env: CORS_ORIGINS (comma-separated) or fallback dev list
 const wsCorsOrigins = (() => {
@@ -39,9 +40,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly realtimeService: RealtimeService) {}
+  constructor(
+    private readonly realtimeService: RealtimeService,
+    private readonly blocklist: TokenBlocklistService,
+  ) {}
 
-  handleConnection(client: Socket) {
+  async handleConnection(client: Socket) {
     const authToken =
       typeof client.handshake.auth?.token === 'string' ? client.handshake.auth.token.trim() : '';
     const authHeader = client.handshake.headers?.authorization;
@@ -58,9 +62,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       return;
     }
     try {
-      const decoded = jwt.verify(token, getJwtSecret());
+      const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
       (client.data as { user?: unknown }).user = decoded;
     } catch {
+      client.disconnect(true);
+      return;
+    }
+    // Same revocation check as HTTP requests (JwtAuthGuard): a logged-out token may not connect.
+    if (await this.blocklist.isTokenBlocked(token).catch(() => false)) {
       client.disconnect(true);
       return;
     }

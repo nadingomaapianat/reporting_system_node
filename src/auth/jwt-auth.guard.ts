@@ -77,7 +77,8 @@ export class JwtAuthGuard implements CanActivate {
     const verified: Verified[] = [];
     for (const { token, source } of candidates) {
       try {
-        const decoded = jwt.verify(token, secret) as JwtPayload;
+        // HS256 only: the reporting and main-app tokens are both HMAC-signed with this secret.
+        const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] }) as JwtPayload;
         verified.push({ token, payload: decoded, source });
       } catch (e) {
         if (verbose) {

@@ -15,7 +15,14 @@ const FRAME_ANCESTORS_ORIGIN =
 export class FrameAncestorsMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const origin = FRAME_ANCESTORS_ORIGIN.trim().replace(/\/+$/, '');
-    res.setHeader('Content-Security-Policy', `frame-ancestors ${origin};`);
+    // Helmet (main.ts) has already set a full policy: replace only its frame-ancestors
+    // directive instead of discarding the rest of it.
+    const existing = String(res.getHeader('Content-Security-Policy') ?? '');
+    const others = existing
+      .split(';')
+      .map((d) => d.trim())
+      .filter((d) => d && !/^frame-ancestors\b/i.test(d));
+    res.setHeader('Content-Security-Policy', [...others, `frame-ancestors ${origin}`].join('; ') + ';');
     next();
   }
 }

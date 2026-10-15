@@ -1,9 +1,7 @@
 import { Controller, Post, Body, Get, Request, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
-import * as jwt from 'jsonwebtoken';
 import { Public } from './decorators/public.decorator';
-import { getJwtSecret } from './jwt-secret';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
 
 
@@ -225,30 +223,6 @@ export class AuthController {
     };
   }
 
-  @Public()
-  @Post('validate-token')
-  async validateToken(@Body() body: { token: string }): Promise<any> {
-    const { token } = body;
-
-    if (!token) {
-      return { success: false, message: 'Token is required' };
-    }
-
-    try {
-      const decoded: any = jwt.verify(token, getJwtSecret());
-
-      // Extract user info from token - matching v2_backend format exactly
-      const { group, title, name, id } = decoded;
-
-      return {
-        success: true,
-        data: { group, title, name, id },
-      };
-    } catch (error) {
-      console.error('Error validating token:', error);
-      return { success: false, message: 'Invalid or expired token' };
-    }
-  }
 
   /**
    * Logout: clear iframe_d_c_c_t_p (and iframe token cookies) so that when the user

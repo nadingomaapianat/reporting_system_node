@@ -106,7 +106,6 @@ async function bootstrap() {
       } else {
         // Log for debugging
         console.warn('[CORS] Blocked origin:', origin);
-        console.warn('[CORS] Allowed origins:', corsOrigins);
         // Block unauthorized origins for security
         callback(new Error(`Origin ${origin} is not allowed by CORS policy`), false);
       }

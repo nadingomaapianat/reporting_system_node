@@ -163,7 +163,7 @@ export class AuthService {
 
       if (!success) {
         this.logger.warn(
-          `[Reporting][IET] validate failed http_status=${res.status} reason=${reason ?? '(none)'} body=${JSON.stringify(res.data)}`,
+          `[Reporting][IET] validate failed http_status=${res.status} reason=${reason ?? '(none)'}`,
         );
         if (res.status === 403 && reason) {
           const fixNoRow =
