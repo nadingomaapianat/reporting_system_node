@@ -15,6 +15,7 @@ import { CsrfMiddleware } from './middleware/csrf.middleware';
 import { FrameAncestorsMiddleware } from './middleware/frame-ancestors.middleware';
 import { RateLimitMiddleware } from './middleware/limitter.middleware';
 import { DateParamsMiddleware } from './middleware/date-params.middleware';
+import { UploadQuotaModule } from './shared/upload-quota';
 import * as cookieParser from 'cookie-parser';
 import 'dotenv/config';
 
@@ -33,6 +34,7 @@ import 'dotenv/config';
     CsrfModule,
     GroupPermissionsModule,
     IcrModule,
+    UploadQuotaModule, // per-user upload quota (R-WAPT02)
   ],
   controllers: [UserFunctionsController],
   providers: [

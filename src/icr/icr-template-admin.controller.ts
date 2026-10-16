@@ -8,6 +8,7 @@ import { IcrTemplateAdminService } from './services/icr-template-admin.service';
 import { IcrRequestHydrateInterceptor } from './icr-user-context';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
+import { UploadQuotaGuard } from '../shared/upload-quota';
 import { CurrentUser, IcrReportUser } from './decorators/current-user.decorator';
 
 /** In-memory file from `FileInterceptor` (multer); avoids relying on `Express.Multer` typings. */
@@ -55,6 +56,7 @@ export class IcrTemplateAdminController {
   // ═══════════════════════════════════════════════════════════════════
 
   @Post('parse-template')
+  @UseGuards(UploadQuotaGuard)
   @UseInterceptors(FileInterceptor('file', {
     limits: { fileSize: 50 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
