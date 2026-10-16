@@ -137,7 +137,7 @@ export class DashboardService {
     }
   }
 
-  async getDashboardActivities(userId: string = 'default_user') {
+  async getDashboardActivities(userId: string) {
     const query = `
       SELECT 
           dashboard_id,
@@ -152,7 +152,7 @@ export class DashboardService {
     return await this.databaseService.query(query, [userId]);
   }
 
-  async updateDashboardActivity(dashboardId: string, userId: string = 'default_user', cardCount: number = 0) {
+  async updateDashboardActivity(dashboardId: string, userId: string, cardCount: number = 0) {
     try {
       // First check if record exists
       const checkQuery = `
@@ -195,31 +195,6 @@ export class DashboardService {
     } catch (error) {
       console.error('Error updating dashboard activity:', error);
       return {};
-    }
-  }
-
-  async initializeDefaultActivities() {
-    const defaultDashboards = [
-      { dashboard_id: 'controls', card_count: 6 },
-      { dashboard_id: 'incidents', card_count: 7 },
-      { dashboard_id: 'kris', card_count: 5 },
-      { dashboard_id: 'risks', card_count: 8 }
-    ];
-    
-    for (const dashboard of defaultDashboards) {
-      const existing = await this.databaseService.query(
-        'SELECT id FROM dashboard_activity WHERE dashboard_id = @param0 AND user_id = @param1',
-        [dashboard.dashboard_id, 'default_user']
-      );
-      
-      if (!existing || existing.length === 0) {
-        await this.updateDashboardActivity(
-          dashboard.dashboard_id,
-          'default_user',
-          dashboard.card_count
-        );
-        // console.log(`Initialized activity for ${dashboard.dashboard_id}`);
-      }
     }
   }
 }

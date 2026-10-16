@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -9,32 +9,37 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
-  // Dashboard Activity endpoints
+  // Dashboard activity ("last seen" per dashboard) belongs to the signed-in user: the user comes
+  // from the verified token, never from the request, so nobody can read or write another user's.
+  private static userIdOf(req: { user?: { id?: unknown; sub?: unknown } }): string {
+    const id = String(req.user?.id ?? req.user?.sub ?? '').trim().toLowerCase();
+    if (!id) throw new BadRequestException('User not identified');
+    return id;
+  }
+
   @Get('activity')
-  async getDashboardActivities(@Query('user_id') userId: string = 'default_user') {
+  async getDashboardActivities(@Req() req: { user?: { id?: unknown; sub?: unknown } }) {
     // Initialize table if it doesn't exist
     await this.dashboardService.createActivityTable();
 
-    // Initialize default activities if none exist
-    await this.dashboardService.initializeDefaultActivities();
-
-    // Get activities from database
-    return await this.dashboardService.getDashboardActivities(userId);
+    return await this.dashboardService.getDashboardActivities(DashboardController.userIdOf(req));
   }
 
   @Post('activity')
   @Permissions('Dashboard', ['show'], true)
-  async updateDashboardActivity(@Body() body: { dashboard_id: string; user_id?: string; card_count?: number }) {
-    const { dashboard_id, user_id = 'default_user', card_count = 0 } = body;
-
-    if (!dashboard_id) {
-      throw new Error('dashboard_id is required');
+  async updateDashboardActivity(
+    @Req() req: { user?: { id?: unknown; sub?: unknown } },
+    @Body() body: { dashboard_id: string; card_count?: number },
+  ) {
+    const dashboardId = String(body?.dashboard_id ?? '').trim();
+    if (!/^[A-Za-z0-9_-]{1,50}$/.test(dashboardId)) {
+      throw new BadRequestException('dashboard_id is required');
     }
+    const cardCount = Number.isInteger(body?.card_count) && (body.card_count as number) >= 0 ? (body.card_count as number) : 0;
 
     // Initialize table if it doesn't exist
     await this.dashboardService.createActivityTable();
 
-    // Update activity
-    return await this.dashboardService.updateDashboardActivity(dashboard_id, user_id, card_count);
+    return await this.dashboardService.updateDashboardActivity(dashboardId, DashboardController.userIdOf(req), cardCount);
   }
 }
