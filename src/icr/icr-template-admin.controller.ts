@@ -1,7 +1,7 @@
 import {
   Controller, Post, Get, Patch, Delete, Query,
   Param, Body, UseInterceptors, UseGuards,
-  UploadedFile, Logger, HttpCode, HttpStatus,
+  UploadedFile, Logger, HttpCode, HttpStatus, Req,
 } from '@nestjs/common';
 import { IcrTemplateAdminService } from './services/icr-template-admin.service';
 import { IcrRequestHydrateInterceptor } from './icr-user-context';
@@ -67,10 +67,10 @@ export class IcrTemplateAdminController {
   })))
   @HttpCode(HttpStatus.OK)
   @Permissions('ICR Templates', ['create', 'edit'], true)
-  async parseTemplate(@UploadedFile() file: MemoryUploadedFile) {
+  async parseTemplate(@UploadedFile() file: MemoryUploadedFile, @Req() req: { reportingToken?: string }) {
     this.logger.log(`Parsing template: ${file.originalname} (${file.size} bytes)`);
 
-    const parsed = await this.adminService.parseTemplate(file.buffer, file.originalname);
+    const parsed = await this.adminService.parseTemplate(file.buffer, file.originalname, req.reportingToken);
     const preview = this.adminService.previewSections(parsed);
 
     return {
