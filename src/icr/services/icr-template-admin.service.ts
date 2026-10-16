@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as jwt from 'jsonwebtoken';
 import * as FormData from 'form-data';
 import * as sql from 'mssql';
 import { DatabaseService } from '../../database/database.service';
+import { getJwtSecret } from '../../auth/jwt-secret';
 import {
   IcrSectionType,
   IcrContentType,
@@ -265,6 +267,7 @@ export class IcrTemplateAdminService {
   async parseTemplate(
     fileBuffer: Buffer,
     filename: string,
+    userToken?: string,
   ): Promise<ParsedTemplate> {
     const form = new FormData();
     form.append('file', fileBuffer, {
@@ -276,7 +279,7 @@ export class IcrTemplateAdminService {
       const { data } = await axios.post<any>(
         `${this.pythonUrl}/parse-template`,
         form,
-        { headers: form.getHeaders(), timeout: 30_000 },
+        { headers: { ...form.getHeaders(), ...(await this.pythonAuthHeaders(userToken)) }, timeout: 30_000 },
       );
       return this.normalizeParsedTemplate(data);
     } catch (err) {
@@ -285,6 +288,31 @@ export class IcrTemplateAdminService {
         'Failed to parse template. Is the Python service running?',
       );
     }
+  }
+
+  /**
+   * Python checks the same JWT, and a CSRF token on POST: send the user's own token plus a CSRF
+   * token/cookie pair fetched from Python for this call. X-Internal-Token tells Python the call
+   * came through here (after this app's ICR Templates permission check); Python refuses
+   * /parse-template without it.
+   */
+  private async pythonAuthHeaders(userToken?: string): Promise<Record<string, string>> {
+    if (!userToken) return {};
+    const claims = jwt.decode(userToken) as { id?: string; sub?: string } | null;
+    const internal = jwt.sign({ sub: String(claims?.id ?? claims?.sub ?? '') }, getJwtSecret(), {
+      algorithm: 'HS256',
+      audience: 'reporting-python:parse-template',
+      expiresIn: 60,
+    });
+    const auth = { Authorization: `Bearer ${userToken}` };
+    const res = await axios.get<{ csrfToken?: string }>(`${this.pythonUrl}/csrf/token`, { headers: auth, timeout: 10_000 });
+    const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]);
+    return {
+      ...auth,
+      'X-Internal-Token': internal,
+      ...(cookies.length ? { Cookie: cookies.join('; ') } : {}),
+      ...(res.data?.csrfToken ? { 'X-CSRF-Token': res.data.csrfToken } : {}),
+    };
   }
 
   private normalizeParsedTemplate(raw: any): ParsedTemplate {

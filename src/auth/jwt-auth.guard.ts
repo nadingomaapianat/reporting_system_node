@@ -144,6 +144,8 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     request.user = payload;
+    // the verified token, for calls this request makes to the Python service on the user's behalf
+    (request as Request & { reportingToken?: string }).reportingToken = chosen.token;
     return true;
   }
 }
