@@ -3,12 +3,11 @@ import {
   Param, Body, UseInterceptors, UseGuards,
   UploadedFile, Logger, HttpCode, HttpStatus,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { IcrTemplateAdminService } from './services/icr-template-admin.service';
 import { IcrRequestHydrateInterceptor } from './icr-user-context';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
-import { UploadQuotaGuard } from '../shared/upload-quota';
+import { PerRequestFileInterceptor, UploadQuotaGuard, uploadMaxFileBytes } from '../shared/upload-quota';
 import { CurrentUser, IcrReportUser } from './decorators/current-user.decorator';
 
 /** In-memory file from `FileInterceptor` (multer); avoids relying on `Express.Multer` typings. */
@@ -57,15 +56,15 @@ export class IcrTemplateAdminController {
 
   @Post('parse-template')
   @UseGuards(UploadQuotaGuard)
-  @UseInterceptors(FileInterceptor('file', {
-    limits: { fileSize: 50 * 1024 * 1024 },
+  @UseInterceptors(PerRequestFileInterceptor('file', () => ({
+    limits: { fileSize: uploadMaxFileBytes() }, // UPLOAD_MAX_FILE_MB
     fileFilter: (_req, file, cb) => {
       if (!file.originalname.endsWith('.docx')) {
         return cb(new Error('Only .docx files are accepted.'), false);
       }
       cb(null, true);
     },
-  }))
+  })))
   @HttpCode(HttpStatus.OK)
   @Permissions('ICR Templates', ['create', 'edit'], true)
   async parseTemplate(@UploadedFile() file: MemoryUploadedFile) {
