@@ -181,6 +181,9 @@ function shouldExcludeTagColumn(columnName: string): boolean {
 
   if (COLUMN_DENYLIST.has(l)) return true;
   if (l === 'id') return true;
+  // ids never shown in reports: risk_id, "Risk ID", functionId / groupID / userIds, uuid / guid
+  if (l.endsWith('_id') || l.endsWith(' id') || /[a-z0-9]I[dD]s?$/.test(t)) return true;
+  if (/(^|[^a-z])(uuid|guid|rowguid)([^a-z]|$)/.test(l) || l === 'uniqueidentifier') return true;
   return false;
 }
 
