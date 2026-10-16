@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as jwt from 'jsonwebtoken';
 import * as FormData from 'form-data';
 import * as sql from 'mssql';
 import { DatabaseService } from '../../database/database.service';
+import { getJwtSecret } from '../../auth/jwt-secret';
 import {
   IcrSectionType,
   IcrContentType,
@@ -291,14 +293,23 @@ export class IcrTemplateAdminService {
   /**
    * Python checks the same JWT and page permissions as this app, and a CSRF token on POST:
    * send the user's own token, plus a CSRF token/cookie pair fetched from Python for this call.
+   * X-Internal-Token tells Python the call came through here, after the upload quota: Python
+   * refuses /parse-template without it, so the quota cannot be skipped by calling Python directly.
    */
   private async pythonAuthHeaders(userToken?: string): Promise<Record<string, string>> {
     if (!userToken) return {};
+    const claims = jwt.decode(userToken) as { id?: string; sub?: string } | null;
+    const internal = jwt.sign({ sub: String(claims?.id ?? claims?.sub ?? '') }, getJwtSecret(), {
+      algorithm: 'HS256',
+      audience: 'reporting-python:parse-template',
+      expiresIn: 60,
+    });
     const auth = { Authorization: `Bearer ${userToken}` };
     const res = await axios.get<{ csrfToken?: string }>(`${this.pythonUrl}/csrf/token`, { headers: auth, timeout: 10_000 });
     const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []).map((c) => c.split(';')[0]);
     return {
       ...auth,
+      'X-Internal-Token': internal,
       ...(cookies.length ? { Cookie: cookies.join('; ') } : {}),
       ...(res.data?.csrfToken ? { 'X-CSRF-Token': res.data.csrfToken } : {}),
     };
