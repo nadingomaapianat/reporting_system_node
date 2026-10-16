@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
+import { UserFunctionAccess, UserFunctionAccessService } from '../../shared/user-function-access.service';
 
 import type {
   AggregationScope,
@@ -20,9 +21,16 @@ const RATING_MEDIUM_THRESHOLD = 8;
 export class IcrDataAggregatorService {
   private readonly logger = new Logger(IcrDataAggregatorService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly userFunctionAccess: UserFunctionAccessService,
+  ) {}
 
-  async aggregate(scope: AggregationScope): Promise<IcrAggregatedData> {
+  /**
+   * `access`: the functions of the user generating the report. Every dataset is limited to them
+   * with the same rules as the other reporting modules (super admin: all functions).
+   */
+  async aggregate(scope: AggregationScope, access: UserFunctionAccess): Promise<IcrAggregatedData> {
     this.logger.log(
       `Aggregating ICR data: ${scope.periodFrom.toISOString()} → ${scope.periodTo.toISOString()}`,
     );
@@ -39,11 +47,11 @@ export class IcrDataAggregatorService {
     };
 
     const [risks, controls, findings, actionPlans, kris] = await Promise.all([
-      safeFetch('risks', () => this.fetchRisks(scope)),
-      safeFetch('controls', () => this.fetchControls(scope)),
-      safeFetch('findings', () => this.fetchFindings(scope)),
-      safeFetch('actionPlans', () => this.fetchActionPlans(scope)),
-      safeFetch('kris', () => this.fetchKris(scope)),
+      safeFetch('risks', () => this.fetchRisks(scope, access)),
+      safeFetch('controls', () => this.fetchControls(scope, access)),
+      safeFetch('findings', () => this.fetchFindings(scope, access)),
+      safeFetch('actionPlans', () => this.fetchActionPlans(scope, access)),
+      safeFetch('kris', () => this.fetchKris(scope, access)),
     ]);
 
     const riskControlMatrix = this.buildRiskControlMatrix(risks, controls, findings, actionPlans);
@@ -70,7 +78,7 @@ export class IcrDataAggregatorService {
   // GRC module (dbo.[Risks], dbo.[Controls], etc.). Column names may need
   // adjustment to match your exact database schema.
 
-  private async fetchRisks(scope: AggregationScope): Promise<IcrRiskSummary[]> {
+  private async fetchRisks(scope: AggregationScope, access: UserFunctionAccess): Promise<IcrRiskSummary[]> {
     const conditions: string[] = ['r.isDeleted = 0 AND r.deletedAt IS NULL'];
     const params: any[] = [scope.periodFrom.toISOString(), scope.periodTo.toISOString()];
     let paramIdx = 2;
@@ -105,7 +113,7 @@ export class IcrDataAggregatorService {
       }
     }
 
-    const whereClause = conditions.join(' AND ');
+    const whereClause = conditions.join(' AND ') + this.userFunctionAccess.buildRiskFunctionFilter('r', access);
 
     const sql = `
       SELECT
@@ -145,7 +153,7 @@ export class IcrDataAggregatorService {
     return (rows || []).map((r: any) => this.shapeRisk(r));
   }
 
-  private async fetchControls(scope: AggregationScope): Promise<IcrControlSummary[]> {
+  private async fetchControls(scope: AggregationScope, access: UserFunctionAccess): Promise<IcrControlSummary[]> {
     const conditions: string[] = ['c.isDeleted = 0 AND c.deletedAt IS NULL'];
     const params: any[] = [scope.periodFrom.toISOString(), scope.periodTo.toISOString()];
     let paramIdx = 2;
@@ -159,7 +167,7 @@ export class IcrDataAggregatorService {
       paramIdx += scope.controlOwnerIds.length;
     }
 
-    const whereClause = conditions.join(' AND ');
+    const whereClause = conditions.join(' AND ') + this.userFunctionAccess.buildControlFunctionFilter('c', access);
 
     const sql = `
       SELECT
@@ -199,6 +207,7 @@ export class IcrDataAggregatorService {
         SELECT rc.control_id, r.id AS risk_id, r.name AS risk_name
         FROM dbo.[RiskControls] rc
         INNER JOIN dbo.[Risks] r ON rc.risk_id = r.id AND r.isDeleted = 0 AND r.deletedAt IS NULL
+          ${this.userFunctionAccess.buildRiskFunctionFilter('r', access)}
         WHERE rc.deletedAt IS NULL AND rc.control_id IN (${controlIds.map((_: any, i: number) => `@param${i}`).join(',')})
       `;
       riskLinks = await this.db.query(linkSql, controlIds) || [];
@@ -210,7 +219,7 @@ export class IcrDataAggregatorService {
     });
   }
 
-  private async fetchFindings(scope: AggregationScope): Promise<IcrFindingSummary[]> {
+  private async fetchFindings(scope: AggregationScope, access: UserFunctionAccess): Promise<IcrFindingSummary[]> {
     const conditions: string[] = [
       'i.isDeleted = 0 AND i.deletedAt IS NULL',
     ];
@@ -224,7 +233,7 @@ export class IcrDataAggregatorService {
     //   conditions.push(`LOWER(ISNULL(i.status, '')) <> 'closed'`);
     // }
 
-    const whereClause = conditions.join(' AND ');
+    const whereClause = conditions.join(' AND ') + this.userFunctionAccess.buildDirectFunctionFilter('i', 'function_id', access);
 
     const sql = `
       SELECT
@@ -253,6 +262,7 @@ export class IcrDataAggregatorService {
         GROUP BY incident_id
       ) ri_first ON ri_first.incident_id = i.id
       LEFT JOIN dbo.[Risks] r ON ri_first.risk_id = r.id AND r.isDeleted = 0
+        ${this.userFunctionAccess.buildRiskFunctionFilter('r', access)}
       LEFT JOIN users u ON i.created_by = u.id AND u.deletedAt IS NULL
       WHERE ${whereClause}
       ORDER BY
@@ -270,7 +280,7 @@ export class IcrDataAggregatorService {
     return (rows || []).map((f: any) => this.shapeFinding(f, today));
   }
 
-  private async fetchActionPlans(scope: AggregationScope): Promise<IcrActionPlanSummary[]> {
+  private async fetchActionPlans(scope: AggregationScope, access: UserFunctionAccess): Promise<IcrActionPlanSummary[]> {
     const sql = `
       SELECT
         a.id,
@@ -289,6 +299,7 @@ export class IcrDataAggregatorService {
       WHERE a.deletedAt IS NULL
         AND LTRIM(RTRIM(ISNULL(a.[from], ''))) = 'incident'
         AND (a.implementation_date IS NULL OR a.implementation_date <= @param0)
+        ${this.userFunctionAccess.buildDirectFunctionFilter('a', 'actionOwner', access)}
       ORDER BY a.implementation_date ASC
     `;
 
@@ -297,7 +308,7 @@ export class IcrDataAggregatorService {
     return (rows || []).map((a: any) => this.shapeActionPlan(a, today));
   }
 
-  private async fetchKris(scope: AggregationScope): Promise<IcrKriSummary[]> {
+  private async fetchKris(scope: AggregationScope, access: UserFunctionAccess): Promise<IcrKriSummary[]> {
     const sql = `
       SELECT
         k.id,
@@ -317,6 +328,7 @@ export class IcrDataAggregatorService {
         GROUP BY kri_id
       ) kr_first ON kr_first.kri_id = k.id
       LEFT JOIN dbo.[Risks] r ON kr_first.risk_id = r.id AND r.isDeleted = 0
+        ${this.userFunctionAccess.buildRiskFunctionFilter('r', access)}
       OUTER APPLY (
         SELECT TOP 1
           kv.value,
@@ -331,6 +343,7 @@ export class IcrDataAggregatorService {
       ) latestVal
       WHERE k.isDeleted = 0 AND k.deletedAt IS NULL
         AND latestVal.recordedAt IS NOT NULL
+        ${this.userFunctionAccess.buildKriFunctionFilter('k', access)}
       ORDER BY
         CASE WHEN latestVal.value IS NOT NULL
           AND TRY_CAST(k.threshold AS FLOAT) IS NOT NULL

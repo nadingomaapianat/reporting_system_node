@@ -4,6 +4,7 @@ import axios from 'axios';
 import { IcrService } from './icr.service';
 import { IcrTemplateAdminService } from './icr-template-admin.service';
 import { IcrTagConfigService } from './icr-tag-config.service';
+import { UserFunctionAccess } from '../../shared/user-function-access.service';
 import { IcrReportRecord } from '../interfaces/icr-report.types';
 
 export type ExportFormat = 'WORD' | 'PDF' | 'BOTH';
@@ -150,7 +151,8 @@ export class IcrExportService {
   async exportFromTaggedTemplate(
     reportId: number,
     format: 'WORD' | 'PDF' = 'WORD',
-    templateId?: number,
+    templateId: number | undefined,
+    access: UserFunctionAccess,
   ): Promise<Buffer> {
     const report = await this.icrService.findById(reportId);
 
@@ -173,7 +175,7 @@ export class IcrExportService {
       );
     }
 
-    const tagConfigsMap = await this.loadAllTagConfigs(report);
+    const tagConfigsMap = await this.loadAllTagConfigs(report, access);
     const payload = this.buildTaggedPayload(report, filePath, format, tagConfigsMap);
 
     try {
@@ -239,6 +241,7 @@ export class IcrExportService {
 
   private async loadAllTagConfigs(
     report: IcrReportRecord,
+    access: UserFunctionAccess,
   ): Promise<Record<string, any[]>> {
     const result: Record<string, any[]> = {};
     const sections = report.sections?.filter((s) => s.isVisible) ?? [];
@@ -248,6 +251,7 @@ export class IcrExportService {
         const configs = await this.tagConfigService.getTagConfigsForExport(
           report.id,
           sec.sectionType,
+          access,
         );
         if (configs.length) {
           result[sec.sectionType] = configs.map((c) => ({

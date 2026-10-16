@@ -18,6 +18,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { UserFunctionAccess, UserFunctionAccessService } from '../shared/user-function-access.service';
 import { IcrService } from './services/icr.service';
 import {
   CreateIcrReportDto,
@@ -61,7 +62,13 @@ export class IcrController {
     private readonly notificationService: IcrNotificationService,
     private readonly templateAdminService: IcrTemplateAdminService,
     private readonly tagConfigService: IcrTagConfigService,
+    private readonly userFunctionAccess: UserFunctionAccessService,
   ) {}
+
+  /** The viewer's functions: live ICR data (tag tables, tagged export) is limited to them. */
+  private accessFor(user: IcrReportUser): Promise<UserFunctionAccess> {
+    return this.userFunctionAccess.getUserFunctionAccess(user as unknown as { id: string; groupName?: string });
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -244,9 +251,10 @@ export class IcrController {
     @Param('sectionType') sectionType: string,
     @Param('tableName') tableName: string,
     @Query('columns') columnsStr: string,
+    @CurrentUser() user: IcrReportUser,
   ) {
     const columns = columnsStr ? columnsStr.split(',').map(c => c.trim()).filter(Boolean) : [];
-    return this.tagConfigService.fetchTableDataForPreview(id, tableName, columns);
+    return this.tagConfigService.fetchTableDataForPreview(id, tableName, columns, await this.accessFor(user));
   }
 
   @Get(':id/sections/:sectionType/tag-chart/:chartId')
@@ -382,6 +390,7 @@ export class IcrController {
       id,
       fmt,
       templateId ? Number(templateId) : undefined,
+      await this.accessFor(user),
     );
     const ext = fmt === 'PDF' ? 'pdf' : 'docx';
     const mime = fmt === 'PDF'

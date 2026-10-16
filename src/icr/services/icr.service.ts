@@ -42,6 +42,7 @@ import { CreateIcrReportDto, UpdateIcrStatusDto } from '../dto/icr.dto';
 import { getEditableKeysForSection } from '../constants/icr-section-editable';
 import { IcrTemplateAdminService, type SectionConfigRow } from './icr-template-admin.service';
 import { IcrNotificationService } from './icr-notification.service';
+import { UserFunctionAccess, UserFunctionAccessService } from '../../shared/user-function-access.service';
 
 import type { AggregationScope, SectionOutput } from './interfaces/icr.interfaces';
 
@@ -302,7 +303,13 @@ export class IcrService implements OnModuleInit {
     private readonly templateEngine: IcrTemplateEngineService,
     private readonly templateAdmin: IcrTemplateAdminService,
     private readonly notifications: IcrNotificationService,
+    private readonly userFunctionAccess: UserFunctionAccessService,
   ) {}
+
+  /** Functions whose data this user may put in a report (request.user carries groupName etc.). */
+  private accessFor(user: IcrReportUser): Promise<UserFunctionAccess> {
+    return this.userFunctionAccess.getUserFunctionAccess(user as unknown as { id: string; groupName?: string });
+  }
 
   private async loadSectionConfigs(templateId: number | null): Promise<SectionConfigRecord[]> {
     let tid = templateId;
@@ -563,7 +570,7 @@ export class IcrService implements OnModuleInit {
 
     this.logger.log(`[ICR] Creating report "${dto.title}" for user ${user.id}`);
 
-    const data = await this.aggregator.aggregate(scope);
+    const data = await this.aggregator.aggregate(scope, await this.accessFor(user));
 
     const pool = await this.db.getConnection();
     const transaction = new sql.Transaction(pool);
@@ -1098,7 +1105,7 @@ export class IcrService implements OnModuleInit {
     };
 
     this.logger.log(`[ICR] Regenerating report #${id}`);
-    const data = await this.aggregator.aggregate(scope);
+    const data = await this.aggregator.aggregate(scope, await this.accessFor(user));
 
     const pool = await this.db.getConnection();
     const transaction = new sql.Transaction(pool);
@@ -1194,7 +1201,7 @@ export class IcrService implements OnModuleInit {
       ...(report.scopeFilters ?? {}),
     };
 
-    const data = await this.aggregator.aggregate(scope);
+    const data = await this.aggregator.aggregate(scope, await this.accessFor(user));
     const allBuilt = this.templateEngine.buildAllSections(report, data);
     const rebuilt = allBuilt.find((s) => s.sectionType === dto.sectionType);
 

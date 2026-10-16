@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
+import { UserFunctionAccess, UserFunctionAccessService } from '../../shared/user-function-access.service';
 
 export interface TagColumnMeta {
   key: string;
@@ -197,7 +198,27 @@ export class IcrTagConfigService {
 
   constructor(
     private readonly db: DatabaseService,
+    private readonly userFunctionAccess: UserFunctionAccessService,
   ) {}
+
+  /**
+   * Rows of `logical` limited to the viewer's functions, with the same rules as the other
+   * reporting modules (super admin: no limit). Findings belong to their control design test's function.
+   */
+  private functionScopeFilter(logical: string, alias: string, access: UserFunctionAccess): string {
+    const fa = this.userFunctionAccess;
+    switch (logical) {
+      case 'risks': return fa.buildRiskFunctionFilter(alias, access);
+      case 'controls': return fa.buildControlFunctionFilter(alias, access);
+      case 'kris': return fa.buildKriFunctionFilter(alias, access);
+      case 'incidents': return fa.buildDirectFunctionFilter(alias, 'function_id', access);
+      case 'finding':
+        if (access.isSuperAdmin) return '';
+        return ` AND EXISTS (SELECT 1 FROM dbo.[ControlDesignTests] cdt
+          WHERE cdt.id = ${alias}.controlDesignTest_id${fa.buildDirectFunctionFilter('cdt', 'function_id', access)})`;
+      default: return ' AND 1 = 0';
+    }
+  }
 
   /**
    * Column list comes from SQL Server INFORMATION_SCHEMA for the real dbo table.
@@ -317,6 +338,7 @@ export class IcrTagConfigService {
   async getTagConfigsForExport(
     reportId: number,
     sectionType: string,
+    access: UserFunctionAccess,
   ): Promise<TagConfigRecord[]> {
     const configs = await this.getTagConfigs(reportId, sectionType);
 
@@ -367,6 +389,7 @@ export class IcrTagConfigService {
           reportId,
           cfg.dbTable,
           cfg.dbColumns,
+          access,
           null,
         );
         return { ...cfg, dbData };
@@ -383,6 +406,7 @@ export class IcrTagConfigService {
     reportId: number,
     tableName: string,
     columns: string[],
+    access: UserFunctionAccess,
     maxRows: number | null = 200,
   ): Promise<Record<string, unknown>[]> {
     const logical = (tableName ?? '').trim().toLowerCase();
@@ -391,7 +415,7 @@ export class IcrTagConfigService {
     }
 
     if (logical === 'finding') {
-      return this.fetchFindingDataForPreview(reportId, columns, maxRows);
+      return this.fetchFindingDataForPreview(reportId, columns, maxRows, access);
     }
 
     const schemaRows = await this.queryInformationSchemaColumns(LOGICAL_TO_PHYSICAL[logical]);
@@ -427,7 +451,7 @@ export class IcrTagConfigService {
       sourceAlias,
       reportPeriod.periodFrom,
       reportPeriod.periodTo,
-    );
+    ) + this.functionScopeFilter(logical, sourceAlias, access);
     const topClause = maxRows && maxRows > 0 ? `TOP (${Math.floor(maxRows)}) ` : '';
     const createdAtCol = this.findColumnName(allColumns, 'createdAt');
     const orderClause = createdAtCol
@@ -882,6 +906,7 @@ export class IcrTagConfigService {
     reportId: number,
     columns: string[],
     maxRows: number | null,
+    access: UserFunctionAccess,
   ): Promise<Record<string, unknown>[]> {
     const schemaByTable = await Promise.all(
       FINDING_SOURCE_TABLES.map(async (table) => ({
@@ -948,7 +973,7 @@ export class IcrTagConfigService {
         sourceAlias,
         reportPeriod.periodFrom,
         reportPeriod.periodTo,
-      );
+      ) + this.functionScopeFilter('finding', sourceAlias, access);
       const createdAtCol = this.findColumnName(allColumns, 'createdAt');
       unionParts.push(`
         SELECT
