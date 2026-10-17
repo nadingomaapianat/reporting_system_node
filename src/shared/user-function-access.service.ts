@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { fq } from './db-config';
+import { isSuperAdminGroup } from '../auth/group-roles';
 
 export interface UserFunctionAccess {
   isSuperAdmin: boolean;
@@ -50,10 +51,11 @@ export class UserFunctionAccessService {
 
   /**
    * Whether the user is admin (sees all functions and all data when no filter selected).
-   * Admin: groupName === 'super_admin_' from main backend, or userId in REPORTING_SUPER_ADMIN_USER_IDS, or role === 'admin' / isAdmin.
+   * Admin: a super_admin group (word-based, same rule as the main backend — see group-roles.ts),
+   * or userId in REPORTING_SUPER_ADMIN_USER_IDS, or role === 'admin' / isAdmin.
    */
   private isAdmin(userId: string, groupName?: string, role?: string, isAdmin?: boolean): boolean {
-    if (groupName === 'super_admin_') return true;
+    if (isSuperAdminGroup(groupName)) return true;
     const allowedIds = (process.env.REPORTING_SUPER_ADMIN_USER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
     if (allowedIds.includes(userId)) return true;
     if (role === 'admin' || isAdmin === true) return true;
