@@ -60,7 +60,8 @@ export class IcrTemplateAdminController {
     limits: { fileSize: uploadMaxFileBytes() }, // UPLOAD_MAX_FILE_MB
     fileFilter: (_req, file, cb) => {
       if (!file.originalname.endsWith('.docx')) {
-        return cb(new Error('Only .docx files are accepted.'), false);
+        // multer 2.x: pass the error alone to reject (the 2-arg form is for the no-error case)
+        return cb(new Error('Only .docx files are accepted.'));
       }
       cb(null, true);
     },

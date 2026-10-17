@@ -46,24 +46,24 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(RateLimitMiddleware)
-      .forRoutes({ path: '*', method: RequestMethod.ALL });
+      .forRoutes({ path: '{*splat}', method: RequestMethod.ALL });
 
     consumer
       .apply(cookieParser())
-      .forRoutes({ path: '*', method: RequestMethod.ALL });
+      .forRoutes({ path: '{*splat}', method: RequestMethod.ALL });
 
     consumer
       .apply(FrameAncestorsMiddleware)
-      .forRoutes({ path: '*', method: RequestMethod.ALL });
+      .forRoutes({ path: '{*splat}', method: RequestMethod.ALL });
 
     consumer
       .apply(CsrfMiddleware)
-      .forRoutes({ path: '*', method: RequestMethod.ALL });
+      .forRoutes({ path: '{*splat}', method: RequestMethod.ALL });
 
     // startDate / endDate reach SQL text in many GRC queries: refuse anything but a date.
     consumer
       .apply(DateParamsMiddleware)
-      .forRoutes({ path: '*', method: RequestMethod.ALL });
+      .forRoutes({ path: '{*splat}', method: RequestMethod.ALL });
   }
 }
 

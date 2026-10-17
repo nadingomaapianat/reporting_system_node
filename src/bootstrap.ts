@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import * as bodyParser from 'body-parser';
+import * as express from 'express';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import helmet from 'helmet';
@@ -31,7 +31,7 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   // Parse form POSTs (e.g. /api/auth/entry-token from HTML form with application/x-www-form-urlencoded)
-  app.use(bodyParser.urlencoded({ extended: true }));
+  app.use(express.urlencoded({ extended: true }));
 
   // Security middleware
   app.use(helmet());
@@ -125,8 +125,8 @@ async function bootstrap() {
   });
 
   // Configure body parser with increased limits
-  app.use(bodyParser.json({ limit: '50mb' }));
-  app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Configure body parser for large payloads (already set above with 50mb limit)
 

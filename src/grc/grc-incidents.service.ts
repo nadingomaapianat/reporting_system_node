@@ -1990,8 +1990,8 @@ export class GrcIncidentsService {
       });
       const contentType = ax.headers['content-type'];
       const contentDisposition = ax.headers['content-disposition'];
-      if (contentType) res.setHeader('Content-Type', contentType);
-      if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition);
+      if (contentType) res.setHeader('Content-Type', contentType as string);
+      if (contentDisposition) res.setHeader('Content-Disposition', contentDisposition as string);
       res.status(ax.status);
       ax.data.pipe(res);
     } catch (err: any) {

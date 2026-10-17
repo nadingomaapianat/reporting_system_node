@@ -17,7 +17,8 @@ import { getJwtSecret } from './jwt-secret';
       useFactory: (config: ConfigService) => {
         return {
           secret: getJwtSecret(),
-          signOptions: { expiresIn: config.get<string>('JWT_EXPIRES_IN') || '2h' },
+          // @nestjs/jwt 11 types expiresIn as number | ms.StringValue; the runtime value is a string like "2h"
+          signOptions: { expiresIn: (config.get<string>('JWT_EXPIRES_IN') || '2h') as any },
         };
       },
       inject: [ConfigService],
