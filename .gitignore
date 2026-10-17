@@ -9,3 +9,6 @@ config.bat
 # Written at start-up by the env vault (src/env-vault.ts)
 .passcode
 .env.enc
+
+# local-testing env backup (never commit)
+.env.localtest

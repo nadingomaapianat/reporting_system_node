@@ -14,6 +14,7 @@ import { getCandidateTokens, TokenSource } from './utils/extract-token';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
 import { TokenBlocklistService } from './token-blocklist.service';
 import { LivePermissionsService } from './live-permissions.service';
+import { UserSessionService } from './user-session.service';
 
 interface JwtPayload {
   id?: string;
@@ -34,6 +35,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly blocklist: TokenBlocklistService,
     private readonly livePermissions: LivePermissionsService,
+    private readonly userSession: UserSessionService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -121,6 +123,18 @@ export class JwtAuthGuard implements CanActivate {
       usable.find((u) => hasPermissions(u.payload)) ?? usable[0];
     let payload = chosen.payload;
     const source = chosen.source;
+
+    // 3.5) Follow the main app's session. Reporting's own 2h JWT survives an admin force-logout
+    //      or a logout in another browser (the main app can't revoke it individually), so tie it
+    //      to the shared Users.isSessionActive flag: once the main session ends, reject here —
+    //      the same way the main front and compliance stop working after a logout.
+    const sessionUserId = payload.id ?? payload.sub;
+    if (sessionUserId && !(await this.userSession.isActive(String(sessionUserId)))) {
+      this.logger.warn(
+        `[Reporting][JwtAuth] session_ended user=${sessionUserId} route=${handler} source=${source}`,
+      );
+      throw new UnauthorizedException('Session has ended. Please sign in again.');
+    }
 
     // 4) Use the group's current rows from the DB (what the main app's permission matrix edits),
     //    not the copy frozen into the token. A failed lookup keeps the token's rows.
