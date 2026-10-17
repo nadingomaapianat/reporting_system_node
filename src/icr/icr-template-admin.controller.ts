@@ -1,7 +1,7 @@
 import {
   Controller, Post, Get, Patch, Delete, Query,
   Param, Body, UseInterceptors, UseGuards,
-  UploadedFile, Logger, HttpCode, HttpStatus, Req,
+  UploadedFile, Logger, HttpCode, HttpStatus, Req, BadRequestException,
 } from '@nestjs/common';
 import { IcrTemplateAdminService } from './services/icr-template-admin.service';
 import { IcrRequestHydrateInterceptor } from './icr-user-context';
@@ -60,8 +60,9 @@ export class IcrTemplateAdminController {
     limits: { fileSize: uploadMaxFileBytes() }, // UPLOAD_MAX_FILE_MB
     fileFilter: (_req, file, cb) => {
       if (!file.originalname.endsWith('.docx')) {
-        // multer 2.x: pass the error alone to reject (the 2-arg form is for the no-error case)
-        return cb(new Error('Only .docx files are accepted.'));
+        // multer 2.x: pass the error alone to reject (the 2-arg form is for the no-error case).
+        // BadRequestException so the client gets a clean 400 with this message, not a generic 500.
+        return cb(new BadRequestException('Only .docx files are accepted.'));
       }
       cb(null, true);
     },
