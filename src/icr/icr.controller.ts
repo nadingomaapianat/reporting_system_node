@@ -404,30 +404,4 @@ export class IcrController {
     res.end(buffer);
   }
 
-  @Get(':id/export/:format')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Reports', ['create'], true)
-  async exportReport(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('format') format: string,
-    @CurrentUser() user: IcrReportUser,
-    @Res() res: Response,
-  ) {
-    this.logger.log(`[GET /api/icr/${id}/export/${format}] user=${user.id}`);
-    const fmt = format.toUpperCase();
-    const buffer = fmt === 'PDF'
-      ? await this.exportService.exportToPdf(id)
-      : await this.exportService.exportToWord(id);
-    const ext = fmt === 'PDF' ? 'pdf' : 'docx';
-    const mime = fmt === 'PDF'
-      ? 'application/pdf'
-      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    res.set({
-      'Content-Type': mime,
-      'Content-Disposition': `attachment; filename="ICR_Report_${id}.${ext}"`,
-      'Content-Length': buffer.length.toString(),
-    });
-    res.end(buffer);
-  }
-
 }
