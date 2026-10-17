@@ -4,7 +4,7 @@ import { DatabaseService } from '../database/database.service';
 import { fq } from '../shared/db-config';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
 import axios from 'axios';
-import * as https from 'https';
+import { getHttpsAgentForOutbound } from '../common/utils/https-cert.util';
 
 
 const MAIN_BACKEND_URL = process.env.MAIN_BACKEND_URL || process.env.NEXT_PUBLIC_NODE_API_URL || 'https://dcc-grc-api.theubeg.ub.dom';
@@ -49,13 +49,15 @@ export class AuthService {
       timeout: 15000,
     };
 
-    const allowSelfSigned =
-      process.env.NODE_ENV === 'development' ||
-      process.env.ALLOW_SELF_SIGNED_CERTS === 'true';
-    const isHttps = MAIN_BACKEND_URL.startsWith('https://');
-
-    if (allowSelfSigned && isHttps && https?.Agent) {
-      config.httpsAgent = new https.Agent({ rejectUnauthorized: false });
+    // Outbound TLS to the main backend. Respect VERIFY_SSL and verify against the bank CA
+    // (CERT_PATH) rather than only skipping verification in development: with
+    // NODE_ENV=production + VERIFY_SSL=true this validates the main backend's internal
+    // cert via CERT_PATH instead of failing against the system trust store, and never
+    // blanket-accepts a cert. VERIFY_SSL=false still disables verification if a deployment
+    // explicitly opts out.
+    if (MAIN_BACKEND_URL.startsWith('https://')) {
+      const agent = getHttpsAgentForOutbound();
+      if (agent) config.httpsAgent = agent;
     }
 
     return config;
