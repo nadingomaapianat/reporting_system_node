@@ -147,7 +147,16 @@ async function bootstrap() {
   });
 
  
-  app.useGlobalPipes(new ValidationPipe());
+  // Strip unknown properties from typed DTOs (defense in depth; matches the main backend).
+  // forbidNonWhitelisted:false => extra fields are dropped, not rejected, so @Body() any routes are unaffected.
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
 
   // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));
