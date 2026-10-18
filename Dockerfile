@@ -1,5 +1,7 @@
 # Build stage: install everything, compile, then drop dev dependencies
-FROM node:20 AS build
+# Node 22: mssql/tedious@20 use Promise.withResolvers (Node >=22); on Node 20 the DB
+# driver throws "Promise.withResolvers is not a function" on connect.
+FROM node:22 AS build
 
 WORKDIR /app
 
@@ -12,7 +14,7 @@ RUN npm run build && npm prune --omit=dev --force
 # Runtime stage: compiled output and production dependencies only, run as the
 # unprivileged "node" user in production mode (secure cookies, TLS verification on).
 # Configuration comes from the environment (docker-compose env_file); .env is not baked in.
-FROM node:20
+FROM node:22
 
 ENV NODE_ENV=production
 
