@@ -538,10 +538,10 @@ export class GrcKrisService {
         WITH KrisStatus AS (
           SELECT 
             CASE 
-              WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
-              WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
-              WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
-              WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
+              WHEN ISNULL(k.preparerStatus, '') <> 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingPreparer'
+              WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingChecker'
+              WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingReviewer'
+              WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingAcceptance'
               WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'approved'
               ELSE 'Other'
             END AS status
@@ -579,10 +579,10 @@ export class GrcKrisService {
         KriValuesStatus AS (
           SELECT
             CASE
-              WHEN ISNULL(kv.preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
-              WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') <> 'approved' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
-              WHEN ISNULL(kv.checkerStatus, '') = 'approved' AND ISNULL(kv.reviewerStatus, '') <> 'sent' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
-              WHEN ISNULL(kv.reviewerStatus, '') = 'sent' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
+              WHEN ISNULL(kv.preparerStatus, '') <> 'sent' AND ISNULL(kv.checkerStatus, '') IN ('', 'pending') AND ISNULL(kv.reviewerStatus, '') IN ('', 'pending') AND ISNULL(kv.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingPreparer'
+              WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') IN ('', 'pending') AND ISNULL(kv.reviewerStatus, '') IN ('', 'pending') AND ISNULL(kv.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingChecker'
+              WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') = 'approved' AND ISNULL(kv.reviewerStatus, '') IN ('', 'pending') AND ISNULL(kv.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingReviewer'
+              WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') = 'approved' AND ISNULL(kv.reviewerStatus, '') = 'sent' AND ISNULL(kv.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingAcceptance'
               WHEN ISNULL(kv.acceptanceStatus, '') = 'approved' THEN 'approved'
               ELSE 'Other'
             END AS status
@@ -1126,12 +1126,12 @@ export class GrcKrisService {
           k.kriName          AS kri_name,
           ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
           CASE
-            WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+            WHEN ISNULL(k.preparerStatus, '') <> 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
             WHEN ISNULL(k.checkerStatus, '') = 'refused' THEN 'Checker Refused'
-            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
             WHEN ISNULL(k.acceptanceStatus, '') = 'refused' THEN 'Acceptance Refused'
-            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
             WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Unknown'
           END AS status
@@ -1159,10 +1159,10 @@ export class GrcKrisService {
           k.code             AS code,
           k.kriName          AS kriName,
           CASE
-            WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(k.preparerStatus, '') <> 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+            WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
             WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Unknown'
           END AS combined_status,
@@ -1833,12 +1833,12 @@ export class GrcKrisService {
         ISNULL(COALESCE(frel.name, fkf.name), 'Unknown') AS function_name,
         k.createdAt AS createdAt,
         CASE
-          WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
+          WHEN ISNULL(k.preparerStatus, '') <> 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
           WHEN ISNULL(k.checkerStatus, '') = 'refused' THEN 'Checker Refused'
-          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
+          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
           WHEN ISNULL(k.acceptanceStatus, '') = 'refused' THEN 'Acceptance Refused'
-          WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-          WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
           WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
           ELSE 'Unknown'
         END AS status
@@ -1989,10 +1989,10 @@ export class GrcKrisService {
         k.code AS code,
         k.kriName AS kriName,
         CASE
-          WHEN ISNULL(k.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') <> 'approved' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-          WHEN ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') <> 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-          WHEN ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+          WHEN ISNULL(k.preparerStatus, '') <> 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
+          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') IN ('', 'pending') AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
+          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') IN ('', 'pending') AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+          WHEN ISNULL(k.preparerStatus, '') = 'sent' AND ISNULL(k.checkerStatus, '') = 'approved' AND ISNULL(k.reviewerStatus, '') = 'sent' AND ISNULL(k.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
           WHEN ISNULL(k.acceptanceStatus, '') = 'approved' THEN 'Approved'
           ELSE 'Unknown'
         END AS combined_status,
@@ -2572,7 +2572,7 @@ export class GrcKrisService {
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
     const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL", "ISNULL(k.preparerStatus, '') <> 'sent'"];
+    const where: string[] = ["k.isDeleted = 0", "k.deletedAt IS NULL", "ISNULL(k.preparerStatus, '') <> 'sent'", "ISNULL(k.checkerStatus, '') IN ('', 'pending')", "ISNULL(k.reviewerStatus, '') IN ('', 'pending')", "ISNULL(k.acceptanceStatus, '') IN ('', 'pending')"];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
@@ -2621,8 +2621,9 @@ export class GrcKrisService {
       "k.isDeleted = 0",
       "k.deletedAt IS NULL",
       "ISNULL(k.preparerStatus, '') = 'sent'",
-      "ISNULL(k.checkerStatus, '') <> 'approved'",
-      "ISNULL(k.acceptanceStatus, '') <> 'approved'"
+      "ISNULL(k.checkerStatus, '') IN ('', 'pending')",
+      "ISNULL(k.reviewerStatus, '') IN ('', 'pending')",
+      "ISNULL(k.acceptanceStatus, '') IN ('', 'pending')"
     ];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
@@ -2671,9 +2672,10 @@ export class GrcKrisService {
     const where: string[] = [
       "k.isDeleted = 0",
       "k.deletedAt IS NULL",
+      "ISNULL(k.preparerStatus, '') = 'sent'",
       "ISNULL(k.checkerStatus, '') = 'approved'",
-      "ISNULL(k.reviewerStatus, '') <> 'sent'",
-      "ISNULL(k.acceptanceStatus, '') <> 'approved'"
+      "ISNULL(k.reviewerStatus, '') IN ('', 'pending')",
+      "ISNULL(k.acceptanceStatus, '') IN ('', 'pending')"
     ];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
@@ -2722,8 +2724,10 @@ export class GrcKrisService {
     const where: string[] = [
       "k.isDeleted = 0",
       "k.deletedAt IS NULL",
+      "ISNULL(k.preparerStatus, '') = 'sent'",
+      "ISNULL(k.checkerStatus, '') = 'approved'",
       "ISNULL(k.reviewerStatus, '') = 'sent'",
-      "ISNULL(k.acceptanceStatus, '') <> 'approved'"
+      "ISNULL(k.acceptanceStatus, '') IN ('', 'pending')"
     ];
     if (startDate) where.push(`k.createdAt >= '${startDate}'`);
     if (endDate) where.push(`k.createdAt <= '${endDate}'`);
@@ -2935,20 +2939,27 @@ export class GrcKrisService {
     switch (status) {
       case 'Pending Preparer':
         where.push("ISNULL(k.preparerStatus, '') <> 'sent'");
+        where.push("ISNULL(k.checkerStatus, '') IN ('', 'pending')");
+        where.push("ISNULL(k.reviewerStatus, '') IN ('', 'pending')");
+        where.push("ISNULL(k.acceptanceStatus, '') IN ('', 'pending')");
         break;
       case 'Pending Checker':
         where.push("ISNULL(k.preparerStatus, '') = 'sent'");
-        where.push("ISNULL(k.checkerStatus, '') <> 'approved'");
-        where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
+        where.push("ISNULL(k.checkerStatus, '') IN ('', 'pending')");
+        where.push("ISNULL(k.reviewerStatus, '') IN ('', 'pending')");
+        where.push("ISNULL(k.acceptanceStatus, '') IN ('', 'pending')");
         break;
       case 'Pending Reviewer':
+        where.push("ISNULL(k.preparerStatus, '') = 'sent'");
         where.push("ISNULL(k.checkerStatus, '') = 'approved'");
-        where.push("ISNULL(k.reviewerStatus, '') <> 'sent'");
-        where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
+        where.push("ISNULL(k.reviewerStatus, '') IN ('', 'pending')");
+        where.push("ISNULL(k.acceptanceStatus, '') IN ('', 'pending')");
         break;
       case 'Pending Acceptance':
+        where.push("ISNULL(k.preparerStatus, '') = 'sent'");
+        where.push("ISNULL(k.checkerStatus, '') = 'approved'");
         where.push("ISNULL(k.reviewerStatus, '') = 'sent'");
-        where.push("ISNULL(k.acceptanceStatus, '') <> 'approved'");
+        where.push("ISNULL(k.acceptanceStatus, '') IN ('', 'pending')");
         break;
       case 'Approved':
         where.push("ISNULL(k.acceptanceStatus, '') = 'approved'");
@@ -3150,10 +3161,10 @@ export class GrcKrisService {
 
     const bucketCase = `
       CASE
-        WHEN ISNULL(kv.preparerStatus, '') <> 'sent' THEN 'pendingPreparer'
-        WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') <> 'approved' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingChecker'
-        WHEN ISNULL(kv.checkerStatus, '') = 'approved' AND ISNULL(kv.reviewerStatus, '') <> 'sent' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingReviewer'
-        WHEN ISNULL(kv.reviewerStatus, '') = 'sent' AND ISNULL(kv.acceptanceStatus, '') <> 'approved' THEN 'pendingAcceptance'
+        WHEN ISNULL(kv.preparerStatus, '') <> 'sent' AND ISNULL(kv.checkerStatus, '') IN ('', 'pending') AND ISNULL(kv.reviewerStatus, '') IN ('', 'pending') AND ISNULL(kv.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingPreparer'
+        WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') IN ('', 'pending') AND ISNULL(kv.reviewerStatus, '') IN ('', 'pending') AND ISNULL(kv.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingChecker'
+        WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') = 'approved' AND ISNULL(kv.reviewerStatus, '') IN ('', 'pending') AND ISNULL(kv.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingReviewer'
+        WHEN ISNULL(kv.preparerStatus, '') = 'sent' AND ISNULL(kv.checkerStatus, '') = 'approved' AND ISNULL(kv.reviewerStatus, '') = 'sent' AND ISNULL(kv.acceptanceStatus, '') IN ('', 'pending') THEN 'pendingAcceptance'
         WHEN ISNULL(kv.acceptanceStatus, '') = 'approved' THEN 'approved'
         ELSE 'Other'
       END
@@ -4438,3 +4449,4 @@ export class GrcKrisService {
     };
   }
 }
+
