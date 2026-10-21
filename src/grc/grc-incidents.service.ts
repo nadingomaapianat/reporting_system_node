@@ -18,17 +18,7 @@ export class GrcIncidentsService {
   private buildDateFilter(timeframe?: string, startDate?: string, endDate?: string): string {
     // If startDate and endDate are provided, use them
     if (startDate || endDate) {
-      let filter = '';
-      if (startDate) {
-        filter += ` AND i.createdAt >= '${startDate}'`;
-      }
-      if (endDate) {
-        // Add one day to endDate to include the entire end date
-        const endDateObj = new Date(endDate);
-        endDateObj.setDate(endDateObj.getDate() + 1);
-        filter += ` AND i.createdAt < '${endDateObj.toISOString()}'`;
-      }
-      return filter;
+      return this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
     }
     
     // Otherwise use timeframe if provided
@@ -124,18 +114,20 @@ export class GrcIncidentsService {
       const totalIncidentsQuery = `
         SELECT COUNT(*) as total
         FROM Incidents i
-        WHERE i.isDeleted = 0 ${dateFilter} ${functionFilter}
+        WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
       `;
       const totalIncidentsTask = () => this.runDashboardQuery<any[]>('Total incidents', totalIncidentsQuery, []);
 
       // Get incidents status counts using standardized pending rules
       const incidentsStatusCountsQuery = `
         SELECT 
-          SUM(CASE WHEN ISNULL(preparerStatus, '') <> 'sent' THEN 1 ELSE 0 END) AS pendingPreparer,
-          SUM(CASE WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') <> 'approved' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingChecker,
-          SUM(CASE WHEN ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') <> 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingReviewer,
-          SUM(CASE WHEN ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') <> 'approved' THEN 1 ELSE 0 END) AS pendingAcceptance,
-          SUM(CASE WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 1 ELSE 0 END) AS approved
+          SUM(CASE WHEN ISNULL(preparerStatus, '') <> 'sent' AND ISNULL(checkerStatus, '') IN ('', 'pending') AND ISNULL(reviewerStatus, '') IN ('', 'pending') AND ISNULL(acceptanceStatus, '') IN ('', 'pending') THEN 1 ELSE 0 END) AS pendingPreparer,
+          SUM(CASE WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') IN ('', 'pending') AND ISNULL(reviewerStatus, '') IN ('', 'pending') AND ISNULL(acceptanceStatus, '') IN ('', 'pending') THEN 1 ELSE 0 END) AS pendingChecker,
+          SUM(CASE WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') IN ('', 'pending') AND ISNULL(acceptanceStatus, '') IN ('', 'pending') THEN 1 ELSE 0 END) AS pendingReviewer,
+          SUM(CASE WHEN ISNULL(preparerStatus, '') = 'sent' AND ISNULL(checkerStatus, '') = 'approved' AND ISNULL(reviewerStatus, '') = 'sent' AND ISNULL(acceptanceStatus, '') IN ('', 'pending') THEN 1 ELSE 0 END) AS pendingAcceptance,
+          SUM(CASE WHEN ISNULL(acceptanceStatus, '') = 'approved' THEN 1 ELSE 0 END) AS approved,
+          SUM(CASE WHEN ISNULL(checkerStatus, '') = 'refused' THEN 1 ELSE 0 END) AS checkerRefused,
+          SUM(CASE WHEN ISNULL(acceptanceStatus, '') = 'refused' THEN 1 ELSE 0 END) AS acceptanceRefused
         FROM Incidents i
         WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
       `;
@@ -147,10 +139,12 @@ export class GrcIncidentsService {
           SELECT 
             i.id,
             CASE 
-              WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-              WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-              WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-              WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+              WHEN ISNULL(i.preparerStatus, '') <> 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
+              WHEN ISNULL(i.checkerStatus, '') = 'refused' THEN 'Checker Refused'
+              WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
+              WHEN ISNULL(i.acceptanceStatus, '') = 'refused' THEN 'Acceptance Refused'
+              WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+              WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
               WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
               ELSE 'Other'
             END AS status
@@ -166,7 +160,9 @@ export class GrcIncidentsService {
         ),
         AllStatuses AS (
           SELECT 'Pending Preparer' AS status_name
+          UNION ALL SELECT 'Checker Refused'
           UNION ALL SELECT 'Pending Checker'
+          UNION ALL SELECT 'Acceptance Refused'
           UNION ALL SELECT 'Pending Reviewer'
           UNION ALL SELECT 'Pending Acceptance'
           UNION ALL SELECT 'Approved'
@@ -278,10 +274,12 @@ export class GrcIncidentsService {
           i.title,
           f.name AS function_name,
           CASE 
-            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.preparerStatus, '') <> 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
+            WHEN ISNULL(i.checkerStatus, '') = 'refused' THEN 'Checker Refused'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
+            WHEN ISNULL(i.acceptanceStatus, '') = 'refused' THEN 'Acceptance Refused'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
             WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Other'
           END as status,
@@ -307,12 +305,14 @@ export class GrcIncidentsService {
           i.net_loss AS netLoss, 
           i.total_loss AS totalLoss, 
           i.recovery_amount AS recoveryAmount, 
-          (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount, 
+          ISNULL(i.total_loss, 0) AS grossAmount, 
           CASE 
-            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.preparerStatus, '') <> 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
+            WHEN ISNULL(i.checkerStatus, '') = 'refused' THEN 'Checker Refused'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
+            WHEN ISNULL(i.acceptanceStatus, '') = 'refused' THEN 'Acceptance Refused'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
             WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Other'
           END AS status 
@@ -379,10 +379,11 @@ export class GrcIncidentsService {
           FROM Incidents i
           WHERE i.isDeleted = 0 AND i.deletedAt IS NULL ${dateFilter} ${functionFilter}
         ), 
-        months AS ( 
-          SELECT start_month AS month_date 
-          FROM month_series 
-          UNION ALL 
+        months AS (
+          SELECT start_month AS month_date
+          FROM month_series
+          WHERE start_month IS NOT NULL
+          UNION ALL
           SELECT DATEADD(MONTH, 1, month_date) 
           FROM months, month_series 
           WHERE DATEADD(MONTH, 1, month_date) <= (SELECT end_month FROM month_series) 
@@ -396,9 +397,10 @@ export class GrcIncidentsService {
           AND MONTH(i.createdAt) = MONTH(m.month_date)
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
+          ${dateFilter}
           ${functionFilter}
-        GROUP BY  
-          m.month_date 
+        GROUP BY
+          m.month_date
         ORDER BY  
           m.month_date 
         OPTION (MAXRECURSION 0)
@@ -545,24 +547,33 @@ export class GrcIncidentsService {
       const pendingChecker = statusCountsRow?.pendingChecker || 0;
       const pendingReviewer = statusCountsRow?.pendingReviewer || 0;
       const pendingAcceptance = statusCountsRow?.pendingAcceptance || 0;
+      // Approved / Checker Refused / Acceptance Refused cards (direct equality, same as KRI)
+      const approved = statusCountsRow?.approved || 0;
+      const checkerRefused = statusCountsRow?.checkerRefused || 0;
+      const acceptanceRefused = statusCountsRow?.acceptanceRefused || 0;
 
       // Operational Loss Metrics - Calculate date range (last 12 months)
       // Use occurrence_date if available, otherwise fall back to createdAt
-      const operationalLossDateFilter = ` AND COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())`;
+      const operationalLossDateFilter = this.opLossWindow(startDate, endDate, 'COALESCE(i.occurrence_date, i.createdAt)');
+      const operationalLossOccurrenceFilter = this.opLossWindow(startDate, endDate, 'i.occurrence_date');
 
       // 1. Value of Operational Loss Incidents (monthly)
       const operationalLossValueQuery = `
         SELECT 
           YEAR(i.occurrence_date) AS [Year],
           MONTH(i.occurrence_date) AS [Month],
-          CAST(SUM(i.net_loss) AS DECIMAL(18,2)) AS TotalLossValue,
+          -- same amounts as the catalog columns (Total Loss / Recoveries Amount / Net Loss)
+          CAST(SUM(ISNULL(i.total_loss, 0)) AS DECIMAL(18,2)) AS TotalLossValue,
+          CAST(SUM(ISNULL(i.recovery_amount, 0)) AS DECIMAL(18,2)) AS RecoveryValue,
+          CAST(SUM(ISNULL(i.net_loss, 0)) AS DECIMAL(18,2)) AS NetLossValue,
           COUNT(*) AS IncidentCount
         FROM Incidents i
-        WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
+        WHERE 1=1 ${operationalLossOccurrenceFilter}
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${functionFilter}
-          AND i.net_loss IS NOT NULL
+          AND i.occurrence_date IS NOT NULL
+          AND ${this.incidentHasLossSql('i')}
         GROUP BY YEAR(i.occurrence_date), MONTH(i.occurrence_date)
         ORDER BY [Year], [Month]
       `;
@@ -587,7 +598,7 @@ export class GrcIncidentsService {
         SELECT CAST(AVG(CAST(DATEDIFF(DAY, i.occurrence_date, i.reported_date) AS FLOAT)) / 30.44 AS DECIMAL(10,2))
                AS AvgRecognitionTimeMonths
         FROM Incidents i
-        WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
+        WHERE 1=1 ${operationalLossOccurrenceFilter}
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -602,8 +613,8 @@ export class GrcIncidentsService {
         SELECT COUNT(*) AS InternalFraudCount
         FROM Incidents i
         INNER JOIN IncidentEvents ie ON i.event_type_id = ie.id
-          AND ie.deletedAt IS NULL
-        WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
+          AND ie.deletedAt IS NULL AND ie.isDeleted = 0
+        WHERE 1=1 ${operationalLossDateFilter}
           AND i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -618,8 +629,8 @@ export class GrcIncidentsService {
           COUNT(*) AS IncidentCount
         FROM Incidents i
         INNER JOIN IncidentEvents ie ON i.event_type_id = ie.id
-          AND ie.deletedAt IS NULL
-        WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
+          AND ie.deletedAt IS NULL AND ie.isDeleted = 0
+        WHERE 1=1 ${operationalLossOccurrenceFilter}
           AND i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -633,7 +644,7 @@ export class GrcIncidentsService {
         SELECT COUNT(*) AS ExternalFraudCount
         FROM Incidents i
         INNER JOIN IncidentEvents ie ON i.event_type_id = ie.id
-          AND ie.deletedAt IS NULL
+          AND ie.deletedAt IS NULL AND ie.isDeleted = 0
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
@@ -649,8 +660,8 @@ export class GrcIncidentsService {
           COUNT(*) AS IncidentCount
         FROM Incidents i
         INNER JOIN IncidentEvents ie ON i.event_type_id = ie.id
-          AND ie.deletedAt IS NULL
-        WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
+          AND ie.deletedAt IS NULL AND ie.isDeleted = 0
+        WHERE 1=1 ${operationalLossOccurrenceFilter}
           AND i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -664,7 +675,7 @@ export class GrcIncidentsService {
         SELECT COUNT(*) AS PhysicalAssetDamageCount
         FROM Incidents i
         INNER JOIN IncidentEvents ie ON i.event_type_id = ie.id
-          AND ie.deletedAt IS NULL
+          AND ie.deletedAt IS NULL AND ie.isDeleted = 0
         WHERE i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
@@ -680,8 +691,8 @@ export class GrcIncidentsService {
           COUNT(*) AS IncidentCount
         FROM Incidents i
         INNER JOIN IncidentEvents ie ON i.event_type_id = ie.id
-          AND ie.deletedAt IS NULL
-        WHERE i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())
+          AND ie.deletedAt IS NULL AND ie.isDeleted = 0
+        WHERE 1=1 ${operationalLossOccurrenceFilter}
           AND i.isDeleted = 0 
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -782,6 +793,9 @@ export class GrcIncidentsService {
           pendingChecker,
           pendingReviewer,
           pendingAcceptance,
+          approved,
+          checkerRefused,
+          acceptanceRefused,
           atmTheftCount,
           avgRecognitionTime,
           internalFraudCount,
@@ -824,8 +838,11 @@ export class GrcIncidentsService {
         SELECT 
           c.name AS RiskCategory,
           COUNT(*) AS IncidentCount,
-          CAST(SUM(ISNULL(i.net_loss, 0)) AS DECIMAL(18,2)) AS TotalLoss,
-          CAST(AVG(NULLIF(i.net_loss, 0)) AS DECIMAL(18,2)) AS AverageLoss
+          -- same amounts as the catalog columns (Total Loss / Recoveries Amount / Net Loss)
+          CAST(SUM(ISNULL(i.total_loss, 0)) AS DECIMAL(18,2)) AS TotalLoss,
+          CAST(SUM(ISNULL(i.recovery_amount, 0)) AS DECIMAL(18,2)) AS RecoveryAmount,
+          CAST(SUM(ISNULL(i.net_loss, 0)) AS DECIMAL(18,2)) AS NetLoss,
+          CAST(AVG(CAST(ISNULL(i.total_loss, 0) AS DECIMAL(18,2))) AS DECIMAL(18,2)) AS AverageLoss
         FROM Incidents i
         INNER JOIN Categories c ON i.category_id = c.id
           AND c.deletedAt IS NULL
@@ -833,7 +850,7 @@ export class GrcIncidentsService {
           AND i.deletedAt IS NULL
           ${operationalLossDateFilter}
           ${functionFilter}
-          AND i.net_loss IS NOT NULL
+          AND ${this.incidentHasLossSql('i')}
         GROUP BY c.name
         ORDER BY TotalLoss DESC
       `;
@@ -934,6 +951,58 @@ export class GrcIncidentsService {
       `;
       const incidentActionPlanByStatusTask = () => this.runDashboardQuery<any[]>('Incident action plan by status', incidentActionPlanByStatusQuery, []);
 
+      // 14b. Incident Action Plans by Function: per action-owner function (same scoping as the
+      // action plan chart/table), split into Overdue / Open / Closed.
+      const incidentActionPlansByFunctionQuery = `
+        WITH ap AS (
+          SELECT
+            ISNULL(f_owner.name, 'Unknown') AS function_name,
+            ${this.actionPlanStateSql('a')} AS plan_state
+          FROM dbo.[Actionplans] a
+          INNER JOIN dbo.[Incidents] i ON a.incident_id = i.id
+          LEFT JOIN dbo.[Functions] f_owner ON a.actionOwner = f_owner.id
+            AND f_owner.isDeleted = 0
+            AND f_owner.deletedAt IS NULL
+          WHERE a.deletedAt IS NULL
+            AND a.[from] = 'incident'
+            AND i.isDeleted = 0
+            AND i.deletedAt IS NULL
+            ${dateFilter}
+            ${actionOwnerFunctionFilter}
+        )
+        SELECT
+          function_name,
+          SUM(CASE WHEN plan_state = 'Overdue' THEN 1 ELSE 0 END) AS overdue,
+          SUM(CASE WHEN plan_state = 'Open' THEN 1 ELSE 0 END) AS [open],
+          SUM(CASE WHEN plan_state = 'Closed' THEN 1 ELSE 0 END) AS closed,
+          COUNT(*) AS total
+        FROM ap
+        GROUP BY function_name
+        ORDER BY overdue DESC, total DESC, function_name
+      `;
+      const incidentActionPlansByFunctionTask = () => this.runDashboardQuery<any[]>('Incident action plans by function', incidentActionPlansByFunctionQuery, []);
+
+      // 14c. Incident Loss & Recovery by Function: same amounts as the catalog columns
+      // (Total Loss / Recoveries Amount / Net Loss), added as recorded.
+      const incidentLossByFunctionQuery = `
+        SELECT
+          ISNULL(f.name, 'Unknown') AS function_name,
+          COUNT(*) AS incident_count,
+          CAST(SUM(ISNULL(i.total_loss, 0)) AS DECIMAL(18,2)) AS gross_loss,
+          CAST(SUM(ISNULL(i.recovery_amount, 0)) AS DECIMAL(18,2)) AS recovery,
+          CAST(SUM(ISNULL(i.net_loss, 0)) AS DECIMAL(18,2)) AS net_loss
+        FROM Incidents i
+        LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+        WHERE i.isDeleted = 0
+          AND i.deletedAt IS NULL
+          AND ${this.incidentHasLossSql()}
+          ${dateFilter}
+          ${functionFilter}
+        GROUP BY ISNULL(f.name, 'Unknown')
+        ORDER BY net_loss DESC, gross_loss DESC
+      `;
+      const incidentLossByFunctionTask = () => this.runDashboardQuery<any[]>('Incident loss by function', incidentLossByFunctionQuery, []);
+
       // 14c. Overdue Incidents — same rows/columns as Incident Action Plan, filtered by
       // Actionplans.business_unit = pending|overdue (case-insensitive) and implementation date before today.
       const overdueIncidentsQuery = `
@@ -1007,9 +1076,9 @@ export class GrcIncidentsService {
         SELECT 
           'Total Operational Loss Incidents' as Metric,
           COUNT(*) as Count,
-          CAST(SUM(COALESCE(i.net_loss, 0)) AS DECIMAL(18,2)) as TotalValue
+          CAST(SUM(COALESCE(i.total_loss, 0)) AS DECIMAL(18,2)) as TotalValue
         FROM Incidents i
-        WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
+        WHERE 1=1 ${operationalLossDateFilter}
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -1019,11 +1088,11 @@ export class GrcIncidentsService {
         SELECT 
           'ATM Issues' as Metric,
           COUNT(*) as Count,
-          CAST(SUM(COALESCE(i.net_loss, 0)) AS DECIMAL(18,2)) as TotalValue
+          CAST(SUM(COALESCE(i.total_loss, 0)) AS DECIMAL(18,2)) as TotalValue
         FROM Incidents i
         INNER JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id
           AND sc.deletedAt IS NULL
-        WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
+        WHERE 1=1 ${operationalLossDateFilter}
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -1034,11 +1103,11 @@ export class GrcIncidentsService {
         SELECT 
           'Internal Fraud' as Metric,
           COUNT(*) as Count,
-          CAST(SUM(COALESCE(i.net_loss, 0)) AS DECIMAL(18,2)) as TotalValue
+          CAST(SUM(COALESCE(i.total_loss, 0)) AS DECIMAL(18,2)) as TotalValue
         FROM Incidents i
         INNER JOIN IncidentEvents ie ON i.event_type_id = ie.id
-          AND ie.deletedAt IS NULL
-        WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
+          AND ie.deletedAt IS NULL AND ie.isDeleted = 0
+        WHERE 1=1 ${operationalLossDateFilter}
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -1049,11 +1118,11 @@ export class GrcIncidentsService {
         SELECT 
           'External Fraud' as Metric,
           COUNT(*) as Count,
-          CAST(SUM(COALESCE(i.net_loss, 0)) AS DECIMAL(18,2)) as TotalValue
+          CAST(SUM(COALESCE(i.total_loss, 0)) AS DECIMAL(18,2)) as TotalValue
         FROM Incidents i
         INNER JOIN IncidentEvents ie ON i.event_type_id = ie.id
-          AND ie.deletedAt IS NULL
-        WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
+          AND ie.deletedAt IS NULL AND ie.isDeleted = 0
+        WHERE 1=1 ${operationalLossDateFilter}
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -1064,11 +1133,11 @@ export class GrcIncidentsService {
         SELECT 
           'Human Mistakes' as Metric,
           COUNT(*) as Count,
-          CAST(SUM(COALESCE(i.net_loss, 0)) AS DECIMAL(18,2)) as TotalValue
+          CAST(SUM(COALESCE(i.total_loss, 0)) AS DECIMAL(18,2)) as TotalValue
         FROM Incidents i
         INNER JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id
           AND sc.deletedAt IS NULL
-        WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
+        WHERE 1=1 ${operationalLossDateFilter}
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -1079,11 +1148,11 @@ export class GrcIncidentsService {
         SELECT 
           'System Errors' as Metric,
           COUNT(*) as Count,
-          CAST(SUM(COALESCE(i.net_loss, 0)) AS DECIMAL(18,2)) as TotalValue
+          CAST(SUM(COALESCE(i.total_loss, 0)) AS DECIMAL(18,2)) as TotalValue
         FROM Incidents i
         INNER JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id
           AND sc.deletedAt IS NULL
-        WHERE COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())
+        WHERE 1=1 ${operationalLossDateFilter}
           AND i.isDeleted = 0
           AND i.deletedAt IS NULL
           ${functionFilter}
@@ -1095,13 +1164,17 @@ export class GrcIncidentsService {
       let lossByRiskCategory: any[] = [];
       let incidentActionPlan: any[] = [];
       let incidentActionPlanByStatus: any[] = [];
+      let incidentActionPlansByFunction: any[] = [];
+      let incidentLossByFunction: any[] = [];
       let overdueIncidentsRows: any[] = [];
       let comprehensiveOperationalLoss: any[] = [];
 
       if (needsCharts) {
-        [monthlyTrendByType, incidentActionPlanByStatus] = await this.runQueryBatches<any[]>([
+        [monthlyTrendByType, incidentActionPlanByStatus, incidentActionPlansByFunction, incidentLossByFunction] = await this.runQueryBatches<any[]>([
           monthlyTrendByTypeTask,
           incidentActionPlanByStatusTask,
+          incidentActionPlansByFunctionTask,
+          incidentLossByFunctionTask,
         ], 2);
       }
 
@@ -1133,13 +1206,8 @@ export class GrcIncidentsService {
             financial_impact_name: item.financial_impact_name || 'Unknown',
             incident_count: item.incident_count || 0,
           })),
-          incidentsByStatus: [
-            { status: 'Pending Preparer', count: pendingPreparer },
-            { status: 'Pending Checker', count: pendingChecker },
-            { status: 'Pending Reviewer', count: pendingReviewer },
-            { status: 'Pending Acceptance', count: pendingAcceptance },
-            { status: 'Approved', count: statusCountsRow?.approved || 0 },
-          ],
+          // same buckets as the status pie (incl. Checker / Acceptance Refused)
+          incidentsByStatus: incidentsByStatusDistribution.map(item => ({ status: item.status_name || 'Unknown', count: item.count || 0 })),
           incidentsByStatusDistribution: incidentsByStatusDistribution.map(item => ({
             status_name: item.status_name || 'Unknown',
             count: item.count || 0,
@@ -1164,6 +1232,8 @@ export class GrcIncidentsService {
             year: item.Year || 0,
             month: item.Month || 0,
             totalLossValue: item.TotalLossValue || 0,
+            recoveryValue: item.RecoveryValue || 0,
+            netLossValue: item.NetLossValue || 0,
             incidentCount: item.IncidentCount || 0,
           })),
           monthlyTrendByType: monthlyTrendByType.map(item => ({
@@ -1178,6 +1248,20 @@ export class GrcIncidentsService {
           incidentActionPlanByStatus: (incidentActionPlanByStatus || []).map((row: any) => ({
             status_name: row.status_name || 'N/A',
             count: row.count || 0,
+          })),
+          incidentActionPlansByFunction: (incidentActionPlansByFunction || []).map((row: any) => ({
+            function_name: row.function_name || 'Unknown',
+            overdue: Number(row.overdue || 0),
+            open: Number(row.open || 0),
+            closed: Number(row.closed || 0),
+            total: Number(row.total || 0),
+          })),
+          incidentLossByFunction: (incidentLossByFunction || []).map((row: any) => ({
+            function_name: row.function_name || 'Unknown',
+            incident_count: Number(row.incident_count || 0),
+            gross_loss: Number(row.gross_loss || 0),
+            recovery: Number(row.recovery || 0),
+            net_loss: Number(row.net_loss || 0),
           })),
         };
       }
@@ -1216,6 +1300,8 @@ export class GrcIncidentsService {
             riskCategory: item.RiskCategory || 'Unknown',
             incidentCount: item.IncidentCount || 0,
             totalLoss: item.TotalLoss || 0,
+            recoveryAmount: item.RecoveryAmount || 0,
+            netLoss: item.NetLoss || 0,
             averageLoss: item.AverageLoss || 0,
           })),
           comprehensiveOperationalLoss: comprehensiveOperationalLoss.map(item => ({
@@ -1304,6 +1390,9 @@ export class GrcIncidentsService {
         pendingChecker,
         pendingReviewer,
         pendingAcceptance,
+        approved,
+        checkerRefused,
+        acceptanceRefused,
         incidentsByCategory: incidentsByCategory.map(item => ({
           category_name: item.category_name || 'Unknown',
           count: item.count
@@ -1316,13 +1405,8 @@ export class GrcIncidentsService {
           financial_impact_name: item.financial_impact_name || 'Unknown',
           incident_count: item.incident_count || 0
         })),
-        incidentsByStatus: [
-          { status: 'Pending Preparer', count: pendingPreparer },
-          { status: 'Pending Checker', count: pendingChecker },
-          { status: 'Pending Reviewer', count: pendingReviewer },
-          { status: 'Pending Acceptance', count: pendingAcceptance },
-          { status: 'Approved', count: statusCountsRow?.approved || 0 }
-        ],
+        // same buckets as the status pie (incl. Checker / Acceptance Refused)
+        incidentsByStatus: incidentsByStatusDistribution.map(item => ({ status: item.status_name || 'Unknown', count: item.count || 0 })),
         // Status distribution for pie charts (same format as Python: status_name, count)
         incidentsByStatusDistribution: incidentsByStatusDistribution.map(item => ({
           status_name: item.status_name || 'Unknown',
@@ -1381,6 +1465,8 @@ export class GrcIncidentsService {
           year: item.Year || 0,
           month: item.Month || 0,
           totalLossValue: item.TotalLossValue || 0,
+          recoveryValue: item.RecoveryValue || 0,
+          netLossValue: item.NetLossValue || 0,
           incidentCount: item.IncidentCount || 0
         })),
         atmTheftCount,
@@ -1406,6 +1492,8 @@ export class GrcIncidentsService {
           riskCategory: item.RiskCategory || 'Unknown',
           incidentCount: item.IncidentCount || 0,
           totalLoss: item.TotalLoss || 0,
+          recoveryAmount: item.RecoveryAmount || 0,
+          netLoss: item.NetLoss || 0,
           averageLoss: item.AverageLoss || 0
         })),
         // Comprehensive Operational Loss Dashboard
@@ -1455,6 +1543,20 @@ export class GrcIncidentsService {
         incidentActionPlanByStatus: (incidentActionPlanByStatus || []).map((row: any) => ({
           status_name: row.status_name || 'N/A',
           count: row.count || 0
+        })),
+        incidentActionPlansByFunction: (incidentActionPlansByFunction || []).map((row: any) => ({
+          function_name: row.function_name || 'Unknown',
+          overdue: Number(row.overdue || 0),
+          open: Number(row.open || 0),
+          closed: Number(row.closed || 0),
+          total: Number(row.total || 0),
+        })),
+        incidentLossByFunction: (incidentLossByFunction || []).map((row: any) => ({
+          function_name: row.function_name || 'Unknown',
+          incident_count: Number(row.incident_count || 0),
+          gross_loss: Number(row.gross_loss || 0),
+          recovery: Number(row.recovery || 0),
+          net_loss: Number(row.net_loss || 0),
         })),
         overdueIncidents: (overdueIncidentsRows || []).map((row: any) => ({
           code: row.incident_code != null && row.incident_code !== '' ? String(row.incident_code) : 'N/A',
@@ -1622,10 +1724,12 @@ export class GrcIncidentsService {
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
         CASE
-          WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-          WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-          WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+          WHEN ISNULL(i.preparerStatus, '') <> 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
+          WHEN ISNULL(i.checkerStatus, '') = 'refused' THEN 'Checker Refused'
+          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
+          WHEN ISNULL(i.acceptanceStatus, '') = 'refused' THEN 'Acceptance Refused'
+          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
           WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
           ELSE 'Other'
         END as status,
@@ -1819,7 +1923,7 @@ export class GrcIncidentsService {
         i.net_loss AS netLoss,
         i.total_loss AS totalLoss,
         i.recovery_amount AS recoveryAmount,
-        (ISNULL(i.total_loss, 0) + ISNULL(i.recovery_amount, 0)) AS grossAmount,
+        ISNULL(i.total_loss, 0) AS grossAmount,
         ISNULL(fi.name, '') as financialImpactName,
         ISNULL(cu.name, '') as currencyName,
         ISNULL(i.exchange_rate, 0) as exchangeRate,
@@ -1831,10 +1935,12 @@ export class GrcIncidentsService {
         CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
         ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
         CASE
-          WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-          WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-          WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+          WHEN ISNULL(i.preparerStatus, '') <> 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
+          WHEN ISNULL(i.checkerStatus, '') = 'refused' THEN 'Checker Refused'
+          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
+          WHEN ISNULL(i.acceptanceStatus, '') = 'refused' THEN 'Acceptance Refused'
+          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+          WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
           WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
           ELSE 'Other'
         END AS status,
@@ -2340,11 +2446,8 @@ export class GrcIncidentsService {
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
     const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = ["i.isDeleted = 0"];
-    const validStart = startDate && /^\d{4}-\d{2}-\d{2}/.test(String(startDate).trim());
-    const validEnd = endDate && /^\d{4}-\d{2}-\d{2}/.test(String(endDate).trim());
-    if (validStart) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`);
-    if (validEnd) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`);
+    const where: string[] = ["i.isDeleted = 0", "i.deletedAt IS NULL"];
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`;
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -2433,9 +2536,15 @@ export class GrcIncidentsService {
     const pageInt = Math.floor(Number(page)) || 1;
     const limitInt = Math.floor(Number(limit)) || 10;
     const offset = Math.floor((pageInt - 1) * limitInt);
-    const where: string[] = ["i.isDeleted = 0", "i.deletedAt IS NULL", "ISNULL(i.preparerStatus, '') <> 'sent'"]
-    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
-    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
+    const where: string[] = [
+      "i.isDeleted = 0",
+      "i.deletedAt IS NULL",
+      "ISNULL(i.preparerStatus, '') <> 'sent'",
+      "ISNULL(i.checkerStatus, '') IN ('', 'pending')",
+      "ISNULL(i.reviewerStatus, '') IN ('', 'pending')",
+      "ISNULL(i.acceptanceStatus, '') IN ('', 'pending')"
+    ]
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -2523,11 +2632,11 @@ export class GrcIncidentsService {
       "i.isDeleted = 0",
       "i.deletedAt IS NULL",
       "ISNULL(i.preparerStatus, '') = 'sent'",
-      "ISNULL(i.checkerStatus, '') <> 'approved'",
-      "ISNULL(i.acceptanceStatus, '') <> 'approved'"
+      "ISNULL(i.checkerStatus, '') IN ('', 'pending')",
+      "ISNULL(i.reviewerStatus, '') IN ('', 'pending')",
+      "ISNULL(i.acceptanceStatus, '') IN ('', 'pending')"
     ]
-    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
-    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -2614,12 +2723,12 @@ export class GrcIncidentsService {
     const where: string[] = [
       "i.isDeleted = 0",
       "i.deletedAt IS NULL",
+      "ISNULL(i.preparerStatus, '') = 'sent'",
       "ISNULL(i.checkerStatus, '') = 'approved'",
-      "ISNULL(i.reviewerStatus, '') <> 'sent'",
-      "ISNULL(i.acceptanceStatus, '') <> 'approved'"
+      "ISNULL(i.reviewerStatus, '') IN ('', 'pending')",
+      "ISNULL(i.acceptanceStatus, '') IN ('', 'pending')"
     ]
-    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
-    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -2706,11 +2815,12 @@ export class GrcIncidentsService {
     const where: string[] = [
       "i.isDeleted = 0",
       "i.deletedAt IS NULL",
+      "ISNULL(i.preparerStatus, '') = 'sent'",
+      "ISNULL(i.checkerStatus, '') = 'approved'",
       "ISNULL(i.reviewerStatus, '') = 'sent'",
-      "ISNULL(i.acceptanceStatus, '') <> 'approved'"
+      "ISNULL(i.acceptanceStatus, '') IN ('', 'pending')"
     ]
-    if (this.isValidDateStr(startDate)) where.push(`i.createdAt >= '${String(startDate).trim().slice(0, 10)}'`)
-    if (this.isValidDateStr(endDate)) where.push(`i.createdAt <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`)
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
     const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
 
     const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
@@ -2745,6 +2855,369 @@ export class GrcIncidentsService {
         ISNULL(i.status, '') as recoveryStatus,
         ISNULL(ie.name, '') as eventType,
         'Pending Acceptance' as status,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
+        i.createdAt
+      FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
+      ${whereSql}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `
+    const data = await this.databaseService.query(dataQuery)
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
+      }
+    }
+  }
+
+  // Approved / Checker Refused / Acceptance Refused (same as KRI): direct equality on the stage
+  // status, independent of the pending waterfall. Same columns and filters as the pending lists.
+  // Drill-down of "Loss & Recovery by Function": incidents of one function that carry a loss/recovery amount.
+  async getIncidentsLossByFunction(user: any, functionName: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      selectedFunctionIds,
+    );
+
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
+    const where: string[] = [
+      "i.isDeleted = 0",
+      "i.deletedAt IS NULL",
+      this.incidentHasLossSql('i'),
+      // looked up here (not via the f join) so the COUNT query, which has no joins, can use it too
+      `ISNULL((SELECT TOP 1 fn.name FROM dbo.[Functions] fn WHERE fn.id = i.function_id), 'Unknown') = N'${String(functionName ?? '').trim().replace(/'/g, "''")}'`
+    ]
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
+
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
+    const totalRes = await this.databaseService.query(countQuery)
+    const total = totalRes?.[0]?.total || 0
+
+    const dataQuery = `
+      SELECT
+        i.code,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
+        f.name AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        NULL as status,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
+        i.createdAt
+      FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
+      ${whereSql}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `
+    const data = await this.databaseService.query(dataQuery)
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
+      }
+    }
+  }
+
+  // Approved / Checker Refused / Acceptance Refused (same as KRI): direct equality on the stage
+  // status, independent of the pending waterfall. Same columns and filters as the pending lists.
+  async getApprovedIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      selectedFunctionIds,
+    );
+
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
+    const where: string[] = [
+      "i.isDeleted = 0",
+      "i.deletedAt IS NULL",
+      "ISNULL(i.acceptanceStatus, '') = 'approved'"
+    ]
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
+
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
+    const totalRes = await this.databaseService.query(countQuery)
+    const total = totalRes?.[0]?.total || 0
+
+    const dataQuery = `
+      SELECT
+        i.code,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
+        f.name AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        'Approved' as status,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
+        i.createdAt
+      FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
+      ${whereSql}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `
+    const data = await this.databaseService.query(dataQuery)
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
+      }
+    }
+  }
+
+  async getCheckerRefusedIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      selectedFunctionIds,
+    );
+
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
+    const where: string[] = [
+      "i.isDeleted = 0",
+      "i.deletedAt IS NULL",
+      "ISNULL(i.checkerStatus, '') = 'refused'"
+    ]
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
+
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
+    const totalRes = await this.databaseService.query(countQuery)
+    const total = totalRes?.[0]?.total || 0
+
+    const dataQuery = `
+      SELECT
+        i.code,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
+        f.name AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        'Checker Refused' as status,
+        ISNULL(i.preparerStatus, 'draft') as preparerStatus,
+        CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
+        CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
+        ISNULL(i.acceptanceStatus, 'pending') as acceptanceStatus,
+        i.createdAt
+      FROM Incidents i
+      LEFT JOIN dbo.[Functions] f ON i.function_id = f.id
+      LEFT JOIN Categories c ON i.category_id = c.id AND c.isDeleted = 0 AND c.deletedAt IS NULL
+      LEFT JOIN IncidentEvents ie ON i.event_type_id = ie.id AND ie.isDeleted = 0 AND ie.deletedAt IS NULL
+      LEFT JOIN IncidentSubCategories sc ON i.sub_category_id = sc.id AND sc.isDeleted = 0 AND sc.deletedAt IS NULL
+      LEFT JOIN RootCauses rc ON i.cause_id = rc.id AND rc.isDeleted = 0 AND rc.deletedAt IS NULL
+      LEFT JOIN FinancialImpacts fi ON i.financial_impact_id = fi.id AND fi.isDeleted = 0 AND fi.deletedAt IS NULL
+      LEFT JOIN Currencies cu ON i.currency = cu.id AND cu.isDeleted = 0 AND cu.deletedAt IS NULL
+      LEFT JOIN Users u ON i.created_by = u.id AND u.deletedAt IS NULL
+      LEFT JOIN Kris kr ON i.kri = kr.id AND kr.deletedAt IS NULL
+      LEFT JOIN DiscoveredTypes dt ON i.discovered_type_id = dt.id AND dt.isDeleted = 0
+      ${whereSql}
+      ORDER BY ${orderByFunctionAsc ? 'function_name ASC, i.createdAt DESC' : 'i.createdAt DESC'}
+      OFFSET ${offset} ROWS FETCH NEXT ${limitInt} ROWS ONLY
+    `
+    const data = await this.databaseService.query(dataQuery)
+
+    return {
+      data,
+      pagination: {
+        page: pageInt,
+        limit: limitInt,
+        total,
+        totalPages: Math.ceil(total / limitInt),
+        hasNext: offset + limitInt < total,
+        hasPrev: pageInt > 1
+      }
+    }
+  }
+
+  async getAcceptanceRefusedIncidents(user: any, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, selectedFunctionIds?: string[], orderByFunctionAsc: boolean = false) {
+    // Get user function access
+    const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
+    const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
+      'i',
+      'function_id',
+      access,
+      selectedFunctionIds,
+    );
+
+    // Ensure page and limit are integers
+    const pageInt = Math.floor(Number(page)) || 1;
+    const limitInt = Math.floor(Number(limit)) || 10;
+    const offset = Math.floor((pageInt - 1) * limitInt);
+    const where: string[] = [
+      "i.isDeleted = 0",
+      "i.deletedAt IS NULL",
+      "ISNULL(i.acceptanceStatus, '') = 'refused'"
+    ]
+    where.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')} ${functionFilter}` : `WHERE 1=1 ${functionFilter}`
+
+    const countQuery = `SELECT COUNT(*) as total FROM Incidents i ${whereSql}`
+    const totalRes = await this.databaseService.query(countQuery)
+    const total = totalRes?.[0]?.total || 0
+
+    const dataQuery = `
+      SELECT
+        i.code,
+        ISNULL(i.importance, '') as importance,
+        i.reported_date as reportedDate,
+        i.occurrence_date as occurrenceDate,
+        ISNULL(i.timeFrame, '') as timeFrame,
+        ISNULL(u.name, '') as owner,
+        f.name AS function_name,
+        ISNULL(c.name, '') as categoryName,
+        ISNULL(sc.name, '') as subCategoryName,
+        i.title,
+        CAST(ISNULL(i.description, '') AS NVARCHAR(MAX)) as description,
+        CAST(ISNULL(i.rootCause, '') AS NVARCHAR(MAX)) as rootCause,
+        ISNULL(rc.name, '') as causeName,
+        (SELECT STRING_AGG(rsk.name, ' / ') FROM RiskIncidents ri INNER JOIN Risks rsk ON rsk.id = ri.risk_id WHERE ri.incident_id = i.id AND ri.deletedAt IS NULL) as rcm,
+        ISNULL(kr.kriName, '') as kriName,
+        ISNULL(dt.name, '') as discoveredType,
+        ISNULL(i.total_loss, 0) as totalLoss,
+        ISNULL(i.recovery_amount, 0) as recoveryAmount,
+        ISNULL(i.net_loss, 0) as netLoss,
+        ISNULL(fi.name, '') as financialImpactName,
+        ISNULL(cu.name, '') as currencyName,
+        ISNULL(i.exchange_rate, 0) as exchangeRate,
+        (ISNULL(i.net_loss, 0) * ISNULL(i.exchange_rate, 0)) as financialEquivalent,
+        ISNULL(i.status, '') as recoveryStatus,
+        ISNULL(ie.name, '') as eventType,
+        'Acceptance Refused' as status,
         ISNULL(i.preparerStatus, 'draft') as preparerStatus,
         CASE WHEN i.reviewerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.reviewerStatus END as reviewerStatus,
         CASE WHEN i.checkerStatus IS NULL THEN (CASE WHEN LOWER(i.preparerStart) LIKE '%orm%' THEN 'N/A' ELSE 'pending' END) ELSE i.checkerStatus END as checkerStatus,
@@ -2954,14 +3427,17 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    selectedFunctionIds?: string[],
+    // operationalLoss: the fraud / physical-asset cards (same window + column as their card query);
+    // lossOnly: the matching "Value of losses" cards (occurrence_date window, net_loss present).
+    opts: { operationalLoss?: boolean; lossOnly?: boolean } = {}
   ) {
     try {
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
-      
+
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
@@ -2971,16 +3447,16 @@ export class GrcIncidentsService {
         selectedFunctionIds,
       );
 
-      // Build date filter - match the chart query logic (uses createdAt, not occurrence_date)
-      // The chart query uses buildDateFilter(timeframe) which filters by createdAt
+      // Event Type chart drill-down: createdAt, like the chart. Operational-loss cards: same window as the card.
       let dateFilter = '';
-      if (startDate || endDate) {
-        dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
+      if (opts.lossOnly) {
+        dateFilter = this.opLossWindow(startDate, endDate, 'i.occurrence_date') + ' AND i.net_loss IS NOT NULL';
+      } else if (opts.operationalLoss) {
+        dateFilter = this.opLossWindow(startDate, endDate, 'COALESCE(i.occurrence_date, i.createdAt)');
       } else {
-        // No date filter by default to match chart behavior (chart uses buildDateFilter which returns empty string if no timeframe)
-        dateFilter = '';
+        dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
       }
-      
+
       // Handle 'Unknown' case - match the chart query logic
       let eventTypeFilter = '';
       if (eventType === 'Unknown' || eventType === 'unknown') {
@@ -3041,9 +3517,8 @@ export class GrcIncidentsService {
         FETCH NEXT @param2 ROWS ONLY
       `;
 
-      const queryParams = eventType === 'Unknown' || eventType === 'unknown' 
-        ? [offset, limitInt] 
-        : [eventType, offset, limitInt];
+      // Always bind eventType as @param0 so OFFSET/FETCH stay @param1/@param2 (the Unknown filter just doesn't use it).
+      const queryParams = [eventType, offset, limitInt];
 
       const result = await this.databaseService.query(query, queryParams);
 
@@ -3057,8 +3532,7 @@ export class GrcIncidentsService {
           ${functionFilter}
       `;
       
-      const countParams = eventType === 'Unknown' || eventType === 'unknown' ? [] : [eventType];
-      const countResult = await this.databaseService.query(countQuery, countParams);
+      const countResult = await this.databaseService.query(countQuery, [eventType]);
       const total = countResult[0]?.total || 0;
 
       return {
@@ -3116,7 +3590,9 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    selectedFunctionIds?: string[],
+    // lossOnly: drill-down of Top Financial Impacts (bar = SUM of positive net losses)
+    opts: { lossOnly?: boolean } = {}
   ) {
     try {
       // Get user function access
@@ -3128,7 +3604,8 @@ export class GrcIncidentsService {
         selectedFunctionIds,
       );
 
-      const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
+      const dateFilter = this.buildDateRangeFilter(startDate, endDate, 'i.createdAt')
+        + (opts.lossOnly ? ' AND i.net_loss IS NOT NULL AND i.net_loss > 0' : '');
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
@@ -3294,24 +3771,25 @@ export class GrcIncidentsService {
       // Using the same staged status logic as the dashboard
       let statusCondition = '';
       if (decodedStatus === 'Pending Preparer') {
-        statusCondition = "ISNULL(i.preparerStatus, '') <> 'sent'";
+        statusCondition = "ISNULL(i.preparerStatus, '') <> 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending')";
       } else if (decodedStatus === 'Pending Checker') {
-        statusCondition = "ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
+        statusCondition = "ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending')";
       } else if (decodedStatus === 'Pending Reviewer') {
-        statusCondition = "ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
+        statusCondition = "ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending')";
       } else if (decodedStatus === 'Pending Acceptance') {
-        statusCondition = "ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved'";
-      } else if (decodedStatus === 'Approved') {
-        statusCondition = "ISNULL(i.acceptanceStatus, '') = 'approved'";
+        statusCondition = "ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending')";
       } else {
-        // For unknown or other statuses, use computed status matching
+        // Approved / Checker Refused / Acceptance Refused / Other: same CASE as the chart, so a
+        // slice and its drill-down always agree
         const escapedStatus = decodedStatus.replace(/'/g, "''");
         statusCondition = `(
           CASE 
-            WHEN ISNULL(i.preparerStatus, '') <> 'sent' THEN 'Pending Preparer'
-            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') <> 'approved' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Checker'
-            WHEN ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') <> 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Reviewer'
-            WHEN ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') <> 'approved' THEN 'Pending Acceptance'
+            WHEN ISNULL(i.preparerStatus, '') <> 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Preparer'
+            WHEN ISNULL(i.checkerStatus, '') = 'refused' THEN 'Checker Refused'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') IN ('', 'pending') AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Checker'
+            WHEN ISNULL(i.acceptanceStatus, '') = 'refused' THEN 'Acceptance Refused'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') IN ('', 'pending') AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Reviewer'
+            WHEN ISNULL(i.preparerStatus, '') = 'sent' AND ISNULL(i.checkerStatus, '') = 'approved' AND ISNULL(i.reviewerStatus, '') = 'sent' AND ISNULL(i.acceptanceStatus, '') IN ('', 'pending') THEN 'Pending Acceptance'
             WHEN ISNULL(i.acceptanceStatus, '') = 'approved' THEN 'Approved'
             ELSE 'Other'
           END
@@ -3444,7 +3922,10 @@ export class GrcIncidentsService {
     startDate?: string,
     endDate?: string,
     selectedFunctionIds?: string[],
-    businessUnit?: string
+    businessUnit?: string,
+    // Drill-down of "Action Plans by Function": the bar's owner function, optionally one segment
+    ownerFunction?: string,
+    planState?: string
   ) {
     try {
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
@@ -3469,6 +3950,12 @@ export class GrcIncidentsService {
         } catch {
           businessUnitFilter = '';
         }
+      }
+      if (ownerFunction && String(ownerFunction).trim()) {
+        businessUnitFilter += ` AND ISNULL(f_owner.name, 'Unknown') = N'${String(ownerFunction).trim().replace(/'/g, "''")}'`;
+      }
+      if (planState && ['Overdue', 'Open', 'Closed'].includes(String(planState))) {
+        businessUnitFilter += ` AND (${this.actionPlanStateSql('a')}) = '${planState}'`;
       }
 
       const countQuery = `
@@ -3664,8 +4151,7 @@ export class GrcIncidentsService {
         `YEAR(i.createdAt) = ${year}`,
         `MONTH(i.createdAt) = ${month}`
       ]
-      if (startDate) whereParts.push(`i.createdAt >= '${startDate}'`)
-      if (endDate) whereParts.push(`i.createdAt <= '${endDate}'`)
+      whereParts.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
       const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`
 
       const dataQuery = `
@@ -3783,14 +4269,16 @@ export class GrcIncidentsService {
     limit: number = 10,
     startDate?: string,
     endDate?: string,
-    selectedFunctionIds?: string[]
+    selectedFunctionIds?: string[],
+    // lossOnly: the matching "Value of losses" card (only incidents with a net loss)
+    opts: { lossOnly?: boolean } = {}
   ) {
     try {
       // Ensure page and limit are integers
       const pageInt = Math.floor(Number(page)) || 1;
       const limitInt = Math.floor(Number(limit)) || 10;
       const offset = Math.floor((pageInt - 1) * limitInt);
-      
+
       // Get user function access
       const access: UserFunctionAccess = await this.userFunctionAccess.getUserFunctionAccess(user);
       const functionFilter = this.userFunctionAccess.buildDirectFunctionFilter(
@@ -3806,6 +4294,7 @@ export class GrcIncidentsService {
         'i.deletedAt IS NULL',
         'sc.deletedAt IS NULL'
       ];
+      if (opts.lossOnly) whereParts.push('i.net_loss IS NOT NULL');
       
       // Handle sub-category filter
       if (subCategory) {
@@ -3815,12 +4304,9 @@ export class GrcIncidentsService {
         whereParts.push(`sc.name = N'${escaped}'`);
       }
       
-      if (startDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= '${startDate}'`);
-      if (endDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) <= '${endDate}'`);
-      
-      // Add 12-month filter for operational loss metrics
-      const operationalLossFilter = ` AND COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())`;
-      
+      // Same window as the card: the user's range, or the last 12 months when none is set
+      const operationalLossFilter = this.opLossWindow(startDate, endDate, 'COALESCE(i.occurrence_date, i.createdAt)');
+
       const whereSql = `WHERE ${whereParts.join(' AND ')}${operationalLossFilter} ${functionFilter}`;
       
       const dataQuery = `
@@ -3961,7 +4447,6 @@ export class GrcIncidentsService {
       );
 
       const whereParts: string[] = [
-        'i.occurrence_date >= DATEADD(MONTH, -12, GETDATE())',
         'i.isDeleted = 0',
         'i.deletedAt IS NULL',
         'i.occurrence_date IS NOT NULL',
@@ -3969,10 +4454,8 @@ export class GrcIncidentsService {
         'i.reported_date >= i.occurrence_date'
       ];
       
-      if (startDate) whereParts.push(`i.occurrence_date >= '${startDate}'`);
-      if (endDate) whereParts.push(`i.occurrence_date <= '${endDate}'`);
-      
-      const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`;
+      // Same window as the card: the user's range, or the last 12 months when none is set
+      const whereSql = `WHERE ${whereParts.join(' AND ')}${this.opLossWindow(startDate, endDate, 'i.occurrence_date')} ${functionFilter}`;
       
       const dataQuery = `
         SELECT
@@ -4067,8 +4550,8 @@ export class GrcIncidentsService {
           acceptanceStatus: r.acceptance_status || null,
           occurrence_date: r.occurrence_date || null,
           reported_date: r.reported_date || null,
-          recognition_time: r.recognition_days || null,
-          recognition_months: r.recognition_months || null
+          recognition_time: r.recognition_days ?? null,
+          recognition_months: r.recognition_months ?? null
         })),
         pagination: {
           page: pageInt,
@@ -4125,12 +4608,13 @@ export class GrcIncidentsService {
       const whereParts: string[] = [
         'i.isDeleted = 0',
         'i.deletedAt IS NULL',
-        `YEAR(COALESCE(i.occurrence_date, i.createdAt)) = ${year}`,
-        `MONTH(COALESCE(i.occurrence_date, i.createdAt)) = ${month}`
+        // Same rows as the Operational Loss Value chart bar: occurrence month, net loss present
+        `YEAR(i.occurrence_date) = ${year}`,
+        `MONTH(i.occurrence_date) = ${month}`,
+        this.incidentHasLossSql('i')
       ];
       
-      if (startDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= '${startDate}'`);
-      if (endDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) <= '${endDate}'`);
+      whereParts.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
       
       const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter}`;
       
@@ -4298,10 +4782,6 @@ export class GrcIncidentsService {
         `MONTH(COALESCE(i.occurrence_date, i.createdAt)) = ${month}`
       ];
       
-      // Apply 12-month filter if no startDate/endDate provided (matching chart behavior)
-      if (!startDate && !endDate) {
-        whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())`);
-      }
       
       // Handle incident type filter - match chart's CASE statement logic exactly
       let typeFilter = '';
@@ -4321,8 +4801,7 @@ export class GrcIncidentsService {
         throw new Error(`Unknown incident type: ${incidentType}`);
       }
       
-      if (startDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= '${startDate}'`);
-      if (endDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) <= '${endDate}'`);
+      whereParts.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
       
       const whereSql = `WHERE ${whereParts.join(' AND ')} ${functionFilter} AND ${typeFilter}`;
       
@@ -4475,13 +4954,8 @@ export class GrcIncidentsService {
         'i.deletedAt IS NULL'
       ];
       
-      // Apply 12-month filter if no startDate/endDate provided (matching chart behavior)
-      if (!startDate && !endDate) {
-        whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= DATEADD(MONTH, -12, GETDATE())`);
-      }
       
-      if (startDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) >= '${startDate}'`);
-      if (endDate) whereParts.push(`COALESCE(i.occurrence_date, i.createdAt) <= '${endDate}'`);
+      whereParts.push(...this.dateRangeParts(startDate, endDate, 'i.createdAt'));
       
       // Determine which filter to apply based on metric type
       let joinClause = '';
@@ -4627,14 +5101,41 @@ export class GrcIncidentsService {
     return !!(s && /^\d{4}-\d{2}-\d{2}/.test(String(s).trim()));
   }
 
+  private isRealDate(s?: string): boolean {
+    if (!this.isValidDateStr(s)) return false;
+    const d = String(s).trim().slice(0, 10);
+    const t = new Date(`${d}T00:00:00Z`);
+    return !isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d;
+  }
+  // Validated range predicates; the end day is included via an exclusive next-day bound.
+  private dateRangeParts(startDate?: string, endDate?: string, field: string = 'createdAt'): string[] {
+    const parts: string[] = [];
+    if (this.isRealDate(startDate)) parts.push(`${field} >= '${String(startDate).trim().slice(0, 10)}'`);
+    if (this.isRealDate(endDate)) parts.push(`${field} < DATEADD(day, 1, '${String(endDate).trim().slice(0, 10)}')`);
+    return parts;
+  }
+  // Operational-loss widgets: only the dashboard date filter (createdAt); no filter = all data.
+  // (field is kept for call-site readability: the column each widget groups by.)
+  private opLossWindow(startDate?: string, endDate?: string, _field: string = 'COALESCE(i.occurrence_date, i.createdAt)'): string {
+    return this.buildDateRangeFilter(startDate, endDate, 'i.createdAt');
+  }
+  // Action plan state used by "Action Plans by Function": Overdue = same rule as the Overdue
+  // Incidents table (pending/overdue and implementation date passed); Closed = status Close.
+  // Incidents that carry any loss or recovery amount (Loss & Recovery by Function chart + drill-down).
+  private incidentHasLossSql(alias: string = 'i'): string {
+    return `(ISNULL(${alias}.total_loss, 0) <> 0 OR ISNULL(${alias}.recovery_amount, 0) <> 0 OR ISNULL(${alias}.net_loss, 0) <> 0)`;
+  }
+
+  private actionPlanStateSql(alias: string = 'a'): string {
+    const st = `LOWER(LTRIM(RTRIM(ISNULL(${alias}.business_unit, N''))))`;
+    return `CASE
+      WHEN ${alias}.implementation_date IS NOT NULL AND CAST(${alias}.implementation_date AS DATE) < CAST(GETDATE() AS DATE) AND ${st} IN (N'pending', N'overdue') THEN 'Overdue'
+      WHEN ${st} IN (N'close', N'closed') THEN 'Closed'
+      ELSE 'Open'
+    END`;
+  }
+
   private buildDateRangeFilter(startDate?: string, endDate?: string, field: string = 'createdAt'): string {
-    let filter = '';
-    if (this.isValidDateStr(startDate)) {
-      filter += ` AND ${field} >= '${String(startDate).trim().slice(0, 10)}'`;
-    }
-    if (this.isValidDateStr(endDate)) {
-      filter += ` AND ${field} <= '${String(endDate).trim().slice(0, 10)} 23:59:59'`;
-    }
-    return filter;
+    return this.dateRangeParts(startDate, endDate, field).map((p) => ` AND ${p}`).join('');
   }
 }

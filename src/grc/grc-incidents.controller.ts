@@ -129,6 +129,9 @@ export class GrcIncidentsController {
         pendingChecker: { pendingChecker: Number(payload?.pendingChecker || 0) },
         pendingReviewer: { pendingReviewer: Number(payload?.pendingReviewer || 0) },
         pendingAcceptance: { pendingAcceptance: Number(payload?.pendingAcceptance || 0) },
+        approved: { approved: Number(payload?.approved || 0) },
+        checkerRefused: { checkerRefused: Number(payload?.checkerRefused || 0) },
+        acceptanceRefused: { acceptanceRefused: Number(payload?.acceptanceRefused || 0) },
         atmTheftCount: { atmTheftCount: Number(payload?.atmTheftCount || 0) },
         avgRecognitionTime: { avgRecognitionTime: Number(payload?.avgRecognitionTime || 0) },
         internalFraudCount: { internalFraudCount: Number(payload?.internalFraudCount || 0) },
@@ -154,6 +157,8 @@ export class GrcIncidentsController {
       operationalLossValue: { operationalLossValue: payload?.operationalLossValue || [] },
       monthlyTrendByType: { monthlyTrendByType: payload?.monthlyTrendByType || [] },
       incidentActionPlanByStatus: { incidentActionPlanByStatus: payload?.incidentActionPlanByStatus || [] },
+      incidentActionPlansByFunction: { incidentActionPlansByFunction: payload?.incidentActionPlansByFunction || [] },
+      incidentLossByFunction: { incidentLossByFunction: payload?.incidentLossByFunction || [] },
     };
     return chartPayload[widgetId] ?? {};
   }
@@ -251,6 +256,63 @@ export class GrcIncidentsController {
     return this.grcIncidentsService.getPendingAcceptanceIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
   }
 
+  @Get('loss-by-function')
+  async getIncidentsLossByFunction(
+    @Req() req: any,
+    @Query('functionName') functionName: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcIncidentsService.getIncidentsLossByFunction(req.user, functionName, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
+  @Get('approved')
+  async getApprovedIncidents(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcIncidentsService.getApprovedIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
+  @Get('checker-refused')
+  async getCheckerRefusedIncidents(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcIncidentsService.getCheckerRefusedIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
+  @Get('acceptance-refused')
+  async getAcceptanceRefusedIncidents(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('functionId') functionId?: string,
+    @Query('functionIds') functionIds?: string
+  ) {
+    const ob = orderByFunctionFromRequest(req);
+    return this.grcIncidentsService.getAcceptanceRefusedIncidents(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), ob);
+  }
+
   @Get('by-category')
   async getIncidentsByCategory(
     @Req() req: any,
@@ -302,14 +364,15 @@ export class GrcIncidentsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('lossOnly') lossOnly?: string
   ) {
     if (!financialImpact) {
       throw new Error('financialImpact parameter is required');
     }
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
+      await this.grcIncidentsService.getIncidentsByFinancialImpact(req.user, financialImpact, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), { lossOnly: lossOnly === '1' || lossOnly === 'true' }),
       ob
     );
   }
@@ -344,11 +407,13 @@ export class GrcIncidentsController {
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
     @Query('functionIds') functionIds?: string,
-    @Query('businessUnit') businessUnit?: string
+    @Query('businessUnit') businessUnit?: string,
+    @Query('ownerFunction') ownerFunction?: string,
+    @Query('planState') planState?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentActionPlans(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), businessUnit),
+      await this.grcIncidentsService.getIncidentActionPlans(req.user, page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), businessUnit, ownerFunction, planState),
       ob
     );
   }
@@ -424,11 +489,12 @@ export class GrcIncidentsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('lossOnly') lossOnly?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Internal Fraud', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Internal Fraud', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), { operationalLoss: true, lossOnly: lossOnly === '1' || lossOnly === 'true' }),
       ob
     );
   }
@@ -441,11 +507,12 @@ export class GrcIncidentsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('lossOnly') lossOnly?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'External Fraud', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'External Fraud', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), { operationalLoss: true, lossOnly: lossOnly === '1' || lossOnly === 'true' }),
       ob
     );
   }
@@ -458,11 +525,12 @@ export class GrcIncidentsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('lossOnly') lossOnly?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Damage to Physical Assets', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
+      await this.grcIncidentsService.getIncidentsByEventType(req.user, 'Damage to Physical Assets', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), { operationalLoss: true, lossOnly: lossOnly === '1' || lossOnly === 'true' }),
       ob
     );
   }
@@ -475,11 +543,12 @@ export class GrcIncidentsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('lossOnly') lossOnly?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'ATM issue', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
+      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'ATM issue', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), { lossOnly: lossOnly === '1' || lossOnly === 'true' }),
       ob
     );
   }
@@ -492,11 +561,12 @@ export class GrcIncidentsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('functionId') functionId?: string,
-    @Query('functionIds') functionIds?: string
+    @Query('functionIds') functionIds?: string,
+    @Query('lossOnly') lossOnly?: string
   ) {
     const ob = orderByFunctionFromRequest(req);
     return sortPaginatedResponseIfNeeded(
-      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'Human Mistake', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds)),
+      await this.grcIncidentsService.getIncidentsBySubCategory(req.user, 'Human Mistake', page, limit, startDate, endDate, parseGrcFunctionIdsFromQueries(functionId, functionIds), { lossOnly: lossOnly === '1' || lossOnly === 'true' }),
       ob
     );
   }
