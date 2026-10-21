@@ -11,10 +11,12 @@ import {
   IcrSectionStatus,
   IcrSectionType,
   SectionWorkflowEntry,
+  SECTION_OWNERSHIP_MAP,
 } from '../interfaces/icr-section.types';
 import { IcrStatus } from '../interfaces/icr-report.types';
 import { IcrReportUser } from '../decorators/current-user.decorator';
 import { IcrNotificationService } from './icr-notification.service';
+import { isSuperAdminGroup } from '../../auth/group-roles';
 
 function parseJsonColumn<T>(raw: any, fallback: T): T {
   if (raw == null) return fallback;
@@ -105,6 +107,7 @@ export class IcrWorkflowService {
     const section = await this.loadSection(reportId, sectionType);
     this.assertNotLocked(section);
     this.assertCanTransition(section.sectionStatus, IcrSectionStatus.UNDER_REVIEW);
+    await this.assertCanCheck(section, user);
 
     const entry = this.buildEntry('UNDER_REVIEW', user, section.sectionStatus, IcrSectionStatus.UNDER_REVIEW);
     const history = [...(section.workflowHistory ?? []), entry];
@@ -132,6 +135,7 @@ export class IcrWorkflowService {
     const section = await this.loadSection(reportId, sectionType);
     this.assertNotLocked(section);
     this.assertCanTransition(section.sectionStatus, IcrSectionStatus.APPROVED);
+    await this.assertCanCheck(section, user);
 
     const entry = this.buildEntry('APPROVED', user, section.sectionStatus, IcrSectionStatus.APPROVED, notes);
     const history = [...(section.workflowHistory ?? []), entry];
@@ -184,6 +188,7 @@ export class IcrWorkflowService {
     const section = await this.loadSection(reportId, sectionType);
     this.assertNotLocked(section);
     this.assertCanTransition(section.sectionStatus, IcrSectionStatus.REJECTED);
+    await this.assertCanCheck(section, user);
 
     const entry = this.buildEntry('REJECTED', user, section.sectionStatus, IcrSectionStatus.REJECTED, reason);
     const history = [...(section.workflowHistory ?? []), entry];
@@ -347,6 +352,43 @@ export class IcrWorkflowService {
   private assertNotLocked(section: IcrSectionRecord): void {
     if (section.sectionStatus === IcrSectionStatus.LOCKED) {
       throw new ForbiddenException('This section is locked and cannot be modified.');
+    }
+  }
+
+  /**
+   * Checker actions (begin review, approve, reject) — maker/checker separation:
+   * the user may not be the section's maker (whoever last submitted it), and when the section
+   * names a checker function (its ownership, else the section type's default) must belong to it.
+   * Super admins skip both rules.
+   */
+  private async assertCanCheck(section: IcrSectionRecord, user: IcrReportUser): Promise<void> {
+    // Super admins may review and approve any section, including one they submitted.
+    if (user?.id && isSuperAdminGroup((user as IcrReportUser & { groupName?: string }).groupName)) return;
+
+    const norm = (v: unknown) => String(v ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const me = norm(user?.id);
+    const lastSubmit = [...(section.workflowHistory ?? [])].reverse().find((e) => e.action === 'SUBMITTED');
+    if (!me || (lastSubmit && norm(lastSubmit.userId) === me)) {
+      this.logger.warn(`[ICR-WF] Maker ${user?.id} refused as checker of section ${section.id}`);
+      throw new ForbiddenException('You cannot review a section you submitted.');
+    }
+
+    const ownership = section.ownership ?? SECTION_OWNERSHIP_MAP[section.sectionType as IcrSectionType] ?? null;
+    const checkerFn = norm(ownership?.checkerFunction);
+    if (!checkerFn) return;
+    const rows = await this.db.query(
+      `SELECT f.name
+       FROM dbo.UserFunction uf
+       JOIN dbo.Functions f ON f.id = uf.functionId
+       WHERE uf.userId = @param0
+         AND uf.deletedAt IS NULL
+         AND f.isDeleted = 0
+         AND f.deletedAt IS NULL`,
+      [user.id],
+    );
+    if (!(rows ?? []).some((r: any) => norm(r.name) === checkerFn)) {
+      this.logger.warn(`[ICR-WF] User ${user.id} is not in checker function "${ownership?.checkerFunction}" (section ${section.id})`);
+      throw new ForbiddenException('Only the checker function of this section can review it.');
     }
   }
 

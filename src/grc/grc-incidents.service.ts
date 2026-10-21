@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { Response } from 'express';
 import { DatabaseService } from '../database/database.service';
@@ -10,6 +10,8 @@ const DASHBOARD_PREVIEW_LIMIT = 10;
 
 @Injectable()
 export class GrcIncidentsService {
+  private readonly logger = new Logger(GrcIncidentsService.name);
+
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly userFunctionAccess: UserFunctionAccessService,
@@ -1957,14 +1959,16 @@ export class GrcIncidentsService {
   }
 
   /**
-   * Proxy incident export to Python so user context (X-User-Id, X-Group-Name) is sent
-   * and export applies the same function filter as the UI (same row count).
+   * Proxy incident export to Python with the user's verified JWT (Python's JWTAuthMiddleware
+   * checks it, plus the blocklist and session), so export applies the same function filter as
+   * the UI (same row count). X-User-Id / X-Group-Name stay as Python's fallback context.
    */
   async proxyExportToPython(
     user: any,
     format: 'pdf' | 'excel',
     query: Record<string, any>,
     res: Response,
+    userToken?: string,
   ): Promise<void> {
     const base = PYTHON_API_URL.replace(/\/$/, '');
     const path = `/api/grc/incidents/export-${format}`;
@@ -1976,6 +1980,7 @@ export class GrcIncidentsService {
     });
     const url = qs.toString() ? `${base}${path}?${qs.toString()}` : `${base}${path}`;
     const headers: Record<string, string> = {};
+    if (userToken) headers['Authorization'] = `Bearer ${userToken}`;
     if (user?.id) headers['X-User-Id'] = String(user.id);
     if (user?.groupName) headers['X-Group-Name'] = String(user.groupName);
     else if (user?.group) headers['X-Group-Name'] = String(user.group);
@@ -1995,7 +2000,9 @@ export class GrcIncidentsService {
       res.status(ax.status);
       ax.data.pipe(res);
     } catch (err: any) {
-      res.status(500).json({ detail: err?.message || 'Export proxy failed' });
+      // The reason stays in the server log; the client gets a plain message.
+      this.logger.error(`Incidents ${format} export proxy failed: ${err?.message ?? err}`);
+      res.status(500).json({ detail: 'Export failed' });
     }
   }
 

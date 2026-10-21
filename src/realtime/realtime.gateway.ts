@@ -13,6 +13,7 @@ import { getJwtSecret } from '../auth/jwt-secret';
 import { getReportingJwtFromCookieHeader } from '../auth/utils/extract-token';
 import { RealtimeService } from './realtime.service';
 import { TokenBlocklistService } from '../auth/token-blocklist.service';
+import { UserSessionService } from '../auth/user-session.service';
 
 // CORS origins from .env: CORS_ORIGINS (comma-separated) or fallback dev list
 const wsCorsOrigins = (() => {
@@ -43,6 +44,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(
     private readonly realtimeService: RealtimeService,
     private readonly blocklist: TokenBlocklistService,
+    private readonly userSession: UserSessionService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -61,15 +63,22 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       client.disconnect(true);
       return;
     }
+    let decoded: jwt.JwtPayload;
     try {
-      const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
+      decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] }) as jwt.JwtPayload;
       (client.data as { user?: unknown }).user = decoded;
     } catch {
       client.disconnect(true);
       return;
     }
-    // Same revocation check as HTTP requests (JwtAuthGuard): a logged-out token may not connect.
-    if (await this.blocklist.isTokenBlocked(token).catch(() => false)) {
+    // Same checks as HTTP requests (JwtAuthGuard), fail-closed: a logged-out token, or a user whose
+    // main-app session has ended, may not connect; a check that cannot run refuses the connection.
+    if (await this.blocklist.isTokenBlocked(token).catch(() => true)) {
+      client.disconnect(true);
+      return;
+    }
+    const sessionUserId = decoded?.id ?? decoded?.sub;
+    if (sessionUserId && !(await this.userSession.isActive(String(sessionUserId)).catch(() => false))) {
       client.disconnect(true);
       return;
     }

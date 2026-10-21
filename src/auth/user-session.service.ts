@@ -35,7 +35,7 @@ export class UserSessionService {
 
   constructor(private readonly db: DatabaseService) {}
 
-  /** True if the user's main-app session is still active. Fail-open on DB error. */
+  /** True if the user's main-app session is still active. Fail-closed on DB error. */
   async isActive(userId: string): Promise<boolean> {
     if (!userId || !String(userId).trim()) return false;
     const id = String(userId).trim();
@@ -58,12 +58,12 @@ export class UserSessionService {
       );
       active = Array.isArray(rows) && rows.length > 0;
     } catch (err) {
-      // Fail-open, consistent with TokenBlocklistService: a transient DB outage must not
-      // lock everyone out. The next successful check catches a real logout.
-      this.logger.warn(
-        `[Reporting][UserSession] DB check failed (allowing through): ${(err as Error)?.message ?? err}`,
+      // Fail-closed, consistent with TokenBlocklistService: a session that cannot be checked is
+      // not accepted. Not cached, so the next request re-checks as soon as the DB is back.
+      this.logger.error(
+        `[Reporting][UserSession] DB check failed (denying): ${(err as Error)?.message ?? err}`,
       );
-      return true;
+      return false;
     }
 
     this.cache.set(id, { active, expires: now + SESSION_CACHE_TTL_MS });

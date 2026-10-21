@@ -23,7 +23,7 @@ export class GrcIncidentsController {
     @Query() query: Record<string, any>,
     @Res() res: Response,
   ) {
-    return this.grcIncidentsService.proxyExportToPython(req.user, 'pdf', query, res);
+    return this.grcIncidentsService.proxyExportToPython(req.user, 'pdf', query, res, req.reportingToken);
   }
 
   @Get('export-excel')
@@ -32,7 +32,7 @@ export class GrcIncidentsController {
     @Query() query: Record<string, any>,
     @Res() res: Response,
   ) {
-    return this.grcIncidentsService.proxyExportToPython(req.user, 'excel', query, res);
+    return this.grcIncidentsService.proxyExportToPython(req.user, 'excel', query, res, req.reportingToken);
   }
 
   @Get()

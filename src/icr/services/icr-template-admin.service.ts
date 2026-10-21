@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -6,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as path from 'path';
 import * as jwt from 'jsonwebtoken';
 import * as FormData from 'form-data';
 import * as sql from 'mssql';
@@ -141,10 +143,24 @@ function mapTemplateRow(row: any): IcrTemplate {
   };
 }
 
+/** How long a file path returned by parse-template may be saved into a template. */
+const PARSED_FILE_TTL_MS = 60 * 60 * 1000;
+
+/** Python audiences for X-Internal-Token: one per route, so a token for one cannot be replayed on another. */
+export const PYTHON_AUDIENCE_PARSE_TEMPLATE = 'reporting-python:parse-template';
+
+/** Comparable form of a path written by Python (Windows or POSIX), rooted at "/". */
+function normalizeTemplatePath(p: string): string {
+  const resolved = path.posix.resolve('/', String(p).replace(/\\/g, '/'));
+  return /^\/[A-Za-z]:\//.test(resolved) ? resolved.toLowerCase() : resolved;
+}
+
 @Injectable()
 export class IcrTemplateAdminService {
   private readonly logger = new Logger(IcrTemplateAdminService.name);
   private readonly pythonUrl: string;
+  /** userId → (savedFilePath → expiry): the only paths that user may store as a template file. */
+  private readonly parsedFiles = new Map<string, Map<string, number>>();
 
   constructor(
     private readonly db: DatabaseService,
@@ -260,6 +276,42 @@ export class IcrTemplateAdminService {
     );
   }
 
+  /** Folder Python keeps template files in (ICR_TEMPLATE_DIR, default files/template under Python's cwd). */
+  private templateDir(): string {
+    return (this.configService.get<string>('ICR_TEMPLATE_DIR') || 'files/template').trim();
+  }
+
+  /** True if `filePath` resolves inside the template folder (no "..", no other folder). */
+  isInsideTemplateDir(filePath: string): boolean {
+    if (!filePath || filePath.includes('\0')) return false;
+    const dir = normalizeTemplatePath(this.templateDir()).replace(/\/+$/, '');
+    return normalizeTemplatePath(filePath).startsWith(`${dir}/`);
+  }
+
+  /** Remember a path the parse step returned, so this user may save it into a template. */
+  rememberParsedFile(userId: string, filePath?: string | null): void {
+    if (!userId || typeof filePath !== 'string' || !filePath.trim()) return;
+    const now = Date.now();
+    const files = this.parsedFiles.get(userId) ?? new Map<string, number>();
+    for (const [p, exp] of files) if (exp <= now) files.delete(p);
+    files.set(filePath, now + PARSED_FILE_TTL_MS);
+    this.parsedFiles.set(userId, files);
+  }
+
+  /**
+   * A `filePath` from a save / update body: accepted only when this user's parse step returned
+   * it (recently) and it resolves inside the template folder. Anything else is a 400.
+   */
+  resolveParsedFilePath(userId: string, filePath: unknown): string {
+    const value = typeof filePath === 'string' ? filePath : '';
+    const exp = this.parsedFiles.get(userId)?.get(value);
+    if (!value || !exp || exp <= Date.now() || !this.isInsideTemplateDir(value)) {
+      this.logger.warn(`Refused template filePath not returned by parse-template (user=${userId})`);
+      throw new BadRequestException('Invalid template file. Upload and parse the template again.');
+    }
+    return value;
+  }
+
   // ═══════════════════════════════════════════════════════════════════
   // Template Parsing (calls Python)
   // ═══════════════════════════════════════════════════════════════════
@@ -295,13 +347,17 @@ export class IcrTemplateAdminService {
    * send the user's own token, plus a CSRF token/cookie pair fetched from Python for this call.
    * X-Internal-Token tells Python the call came through here, after the upload quota: Python
    * refuses /parse-template without it, so the quota cannot be skipped by calling Python directly.
+   * `audience` names the Python route the internal token is for.
    */
-  private async pythonAuthHeaders(userToken?: string): Promise<Record<string, string>> {
+  async pythonAuthHeaders(
+    userToken?: string,
+    audience: string = PYTHON_AUDIENCE_PARSE_TEMPLATE,
+  ): Promise<Record<string, string>> {
     if (!userToken) return {};
     const claims = jwt.decode(userToken) as { id?: string; sub?: string } | null;
     const internal = jwt.sign({ sub: String(claims?.id ?? claims?.sub ?? '') }, getJwtSecret(), {
       algorithm: 'HS256',
-      audience: 'reporting-python:parse-template',
+      audience,
       expiresIn: 60,
     });
     const auth = { Authorization: `Bearer ${userToken}` };

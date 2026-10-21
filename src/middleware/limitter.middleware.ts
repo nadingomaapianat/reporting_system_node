@@ -1,7 +1,7 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import rateLimit from 'express-rate-limit';
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          /** Paths that are not counted toward rate limit (auth check + activity used often by frontend). */
+/** Paths that are not counted toward rate limit (auth check + activity used often by frontend). */
 const RATE_LIMIT_SKIP_PATHS = [
   '/csrf/token',
   '/api/auth/profile',

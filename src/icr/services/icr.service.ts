@@ -1297,9 +1297,7 @@ export class IcrService implements OnModuleInit {
         `[updateSectionNotes] Unexpected error for report=${reportId} section=${sectionType}: ${error}`,
         error instanceof Error ? error.stack : undefined,
       );
-      throw new InternalServerErrorException(
-        `Failed to save notes for section "${sectionType}": ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new InternalServerErrorException('Failed to save the section notes.');
     }
   }
 
@@ -1376,9 +1374,7 @@ export class IcrService implements OnModuleInit {
         `[updateSectionContent] Unexpected error for report=${reportId} section=${sectionType}: ${error}`,
         error instanceof Error ? error.stack : undefined,
       );
-      throw new InternalServerErrorException(
-        `Failed to save section "${sectionType}": ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw new InternalServerErrorException('Failed to save the section.');
     }
   }
 

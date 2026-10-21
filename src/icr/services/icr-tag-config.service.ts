@@ -110,6 +110,18 @@ const FINDING_VIRTUAL_COLUMNS: TagColumnMeta[] = [
 ];
 
 const ALLOWED_TABLES = new Set(Object.keys(LOGICAL_TO_PHYSICAL));
+/**
+ * dbo tables a saved dynamic chart may read: the physical tables behind ALLOWED_TABLES
+ * (the findings pseudo-table is its two source tables). Lower-case name → name.
+ */
+const DYNAMIC_CHART_TABLES = new Map<string, string>(
+  [
+    ...Object.values(LOGICAL_TO_PHYSICAL).filter((t) => !t.startsWith('__')),
+    ...FINDING_SOURCE_TABLES,
+  ].map((t) => [t.toLowerCase(), t]),
+);
+/** Columns never read or returned through ICR tags / charts, whatever table carries them. */
+const DENIED_COLUMNS = new Set(['password', 'currenttoken', 'token', 'permissions']);
 const ALLOWED_CHART_TYPES = new Set(['bar', 'line', 'area', 'pie']);
 const SAFE_IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const ALLOWED_WHERE_OPERATORS = new Set(['=', '!=', '<>', '>', '>=', '<', '<=', 'LIKE', 'IN', 'BETWEEN']);
@@ -226,7 +238,7 @@ export class IcrTagConfigService {
   async getAvailableColumns(tableName: string): Promise<TagColumnMeta[]> {
     const logical = (tableName ?? '').trim().toLowerCase();
     if (!ALLOWED_TABLES.has(logical)) {
-      throw new BadRequestException(`Invalid table name: ${tableName}. Allowed: ${[...ALLOWED_TABLES].join(', ')}`);
+      throw new BadRequestException('Invalid table name.');
     }
     const now = Date.now();
     const hit = this.columnMetaCache.get(logical);
@@ -293,10 +305,10 @@ export class IcrTagConfigService {
 
     for (const cfg of configs) {
       if (!['user', 'database', 'chart', 'empty'].includes(cfg.sourceType)) {
-        throw new BadRequestException(`Invalid sourceType: ${cfg.sourceType}`);
+        throw new BadRequestException('Invalid sourceType.');
       }
       if (cfg.sourceType === 'database' && cfg.dbTable && !ALLOWED_TABLES.has(cfg.dbTable)) {
-        throw new BadRequestException(`Invalid dbTable: ${cfg.dbTable}`);
+        throw new BadRequestException('Invalid table name.');
       }
       if (cfg.sourceType === 'chart') {
         if (!cfg.chartId || !Number.isFinite(Number(cfg.chartId))) {
@@ -411,7 +423,7 @@ export class IcrTagConfigService {
   ): Promise<Record<string, unknown>[]> {
     const logical = (tableName ?? '').trim().toLowerCase();
     if (!ALLOWED_TABLES.has(logical)) {
-      throw new BadRequestException(`Invalid table: ${tableName}`);
+      throw new BadRequestException('Invalid table name.');
     }
 
     if (logical === 'finding') {
@@ -483,7 +495,7 @@ export class IcrTagConfigService {
       });
     } catch (err: any) {
       this.logger.error(`Failed to fetch preview rows from dbo.${physicalTable}: ${err?.message}`);
-      throw new BadRequestException(`Could not load preview data for table "${tableName}".`);
+      throw new BadRequestException('Could not load preview data.');
     }
   }
 
@@ -622,9 +634,10 @@ export class IcrTagConfigService {
       rows = await this.db.query(sql, [physicalTable]) || [];
     } catch (err: any) {
       this.logger.error(`INFORMATION_SCHEMA lookup failed for dbo.${physicalTable}: ${err?.message}`);
-      throw new BadRequestException(`Could not read columns for table "${physicalTable}".`);
+      throw new BadRequestException('Could not load the table columns.');
     }
-    return rows;
+    // never expose credential / session / permission columns (Users.password, currentToken, Groups.permissions …)
+    return rows.filter((r: any) => !DENIED_COLUMNS.has(String(r?.columnName ?? '').trim().toLowerCase()));
   }
 
   private buildPreviewSelectExpression(
@@ -890,7 +903,7 @@ export class IcrTagConfigService {
 
     const createdAtCol = this.findColumnName(columnNames, 'createdAt');
     if (!createdAtCol) {
-      throw new BadRequestException('Selected table does not expose a createdAt column for report period filtering.');
+      throw new BadRequestException('The selected table cannot be filtered by the report period.');
     }
     parts.push(`${tableAlias}.[${this.escapeIdentifier(createdAtCol)}] >= @param0`);
     parts.push(`${tableAlias}.[${this.escapeIdentifier(createdAtCol)}] <= @param1`);
@@ -1014,7 +1027,7 @@ export class IcrTagConfigService {
       });
     } catch (err: any) {
       this.logger.error(`Failed to fetch preview rows from combined findings: ${err?.message}`);
-      throw new BadRequestException('Could not load preview data for table "finding".');
+      throw new BadRequestException('Could not load preview data.');
     }
   }
 
@@ -1044,7 +1057,7 @@ export class IcrTagConfigService {
   private async loadDynamicChart(chartId: number): Promise<DynamicChartRecord> {
     const configColumn = await this.resolveDynamicChartConfigColumn();
     if (!configColumn) {
-      throw new BadRequestException('Dynamic dashboard charts table is not available.');
+      throw new BadRequestException('Dynamic charts are not available.');
     }
 
     const rows = await this.db.query(
@@ -1062,12 +1075,12 @@ export class IcrTagConfigService {
     const row = rows[0];
     const chartType = String(row.chartType ?? '').trim().toLowerCase();
     if (!ALLOWED_CHART_TYPES.has(chartType)) {
-      throw new BadRequestException(`Unsupported dynamic chart type: ${row.chartType}`);
+      throw this.chartConfigError(`unsupported chart type ${row.chartType} (chart ${chartId})`);
     }
 
     const config = this.parseJson(row.chartConfig) as DynamicChartConfig | null;
     if (!config || typeof config !== 'object') {
-      throw new BadRequestException(`Dynamic chart #${chartId} has invalid saved config.`);
+      throw this.chartConfigError(`unparseable config (chart ${chartId})`);
     }
 
     return {
@@ -1131,12 +1144,12 @@ export class IcrTagConfigService {
     for (const join of config.joins ?? []) {
       const joinType = String(join.type ?? 'INNER').trim().toUpperCase();
       if (!ALLOWED_JOIN_TYPES.has(joinType)) {
-        throw new BadRequestException(`Unsupported join type: ${join.type}`);
+        throw this.chartConfigError(`unsupported join type ${join.type}`);
       }
       const leftTable = this.validateDynamicTableName(join.leftTable ?? '');
       const rightTable = this.validateDynamicTableName(join.rightTable ?? '');
       if (!config.tables.includes(leftTable) || !config.tables.includes(rightTable)) {
-        throw new BadRequestException(`Join tables must exist in saved chart tables.`);
+        throw this.chartConfigError('join table not in the chart tables');
       }
       const leftCol = this.validateExistingDynamicColumn(leftTable, join.leftColumn ?? '', tableColumns);
       const rightCol = this.validateExistingDynamicColumn(rightTable, join.rightColumn ?? '', tableColumns);
@@ -1156,7 +1169,7 @@ export class IcrTagConfigService {
       const resolved = this.resolveDynamicChartColumnToken(condition.column ?? '', primaryTable, tableColumns);
       const operator = String(condition.operator ?? '=').trim().toUpperCase();
       if (!ALLOWED_WHERE_OPERATORS.has(operator)) {
-        throw new BadRequestException(`Unsupported where operator: ${condition.operator}`);
+        throw this.chartConfigError(`unsupported where operator ${condition.operator}`);
       }
       const logical = index === 0
         ? ''
@@ -1213,12 +1226,19 @@ export class IcrTagConfigService {
     }
   }
 
+  /** Only the ICR tag tables (ALLOWED_TABLES → DYNAMIC_CHART_TABLES); any other table is refused. */
   private validateDynamicTableName(tableName: string): string {
     const trimmed = String(tableName ?? '').trim();
-    if (!SAFE_IDENTIFIER_RE.test(trimmed)) {
-      throw new BadRequestException(`Unsafe table name in saved chart: ${tableName}`);
+    if (!SAFE_IDENTIFIER_RE.test(trimmed) || !DYNAMIC_CHART_TABLES.has(trimmed.toLowerCase())) {
+      throw this.chartConfigError(`table not allowed: ${tableName}`);
     }
     return trimmed;
+  }
+
+  /** Details go to the log; the client only learns the saved chart cannot be used. */
+  private chartConfigError(detail: string): BadRequestException {
+    this.logger.warn(`[ICR] saved dynamic chart refused: ${detail}`);
+    return new BadRequestException('Saved chart has an invalid configuration.');
   }
 
   private validateExistingDynamicColumn(
@@ -1228,13 +1248,13 @@ export class IcrTagConfigService {
   ): string {
     const trimmed = String(columnName ?? '').trim();
     if (!SAFE_IDENTIFIER_RE.test(trimmed)) {
-      throw new BadRequestException(`Unsafe column name in saved chart: ${columnName}`);
+      throw this.chartConfigError(`unsafe column name ${columnName}`);
     }
     const match = (tableColumns.get(tableName) ?? []).find(
       (row) => String(row.columnName ?? '').toLowerCase() === trimmed.toLowerCase(),
     );
     if (!match) {
-      throw new BadRequestException(`Saved chart column ${tableName}.${columnName} does not exist.`);
+      throw this.chartConfigError(`column not available ${tableName}.${columnName}`);
     }
     return String(match.columnName);
   }
@@ -1246,7 +1266,7 @@ export class IcrTagConfigService {
   ): { sql: string; sqlType: string } {
     const trimmed = String(token ?? '').trim();
     if (!trimmed || trimmed === '#') {
-      throw new BadRequestException(`Invalid chart column token: ${token}`);
+      throw this.chartConfigError(`invalid column token ${token}`);
     }
 
     const [tableCandidate, columnCandidate] = trimmed.includes('.')
@@ -1461,9 +1481,7 @@ export class IcrTagConfigService {
       [reportId, sectionType],
     );
     if (!rows?.length) {
-      throw new NotFoundException(
-        `Section "${sectionType}" not found for report #${reportId}.`,
-      );
+      throw new NotFoundException('Section not found.');
     }
     return rows[0].id;
   }

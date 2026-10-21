@@ -8,7 +8,6 @@ import {
   Param,
   Query,
   Req,
-  Res,
   ParseIntPipe,
   HttpCode,
   HttpStatus,
@@ -17,7 +16,6 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import { Response } from 'express';
 import { UserFunctionAccess, UserFunctionAccessService } from '../shared/user-function-access.service';
 import { IcrService } from './services/icr.service';
 import {
@@ -36,7 +34,6 @@ import { Permissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { ParseSectionTypePipe } from './pipes/parse-section-type.pipe';
 import { IcrSectionType } from './interfaces/icr-section.types';
-import { IcrExportService } from './services/icr-export.service';
 import { IcrWorkflowService } from './services/icr-workflow.service';
 import { IcrNotificationService } from './services/icr-notification.service';
 import { IcrTemplateAdminService } from './services/icr-template-admin.service';
@@ -57,7 +54,6 @@ export class IcrController {
 
   constructor(
     private readonly icrService: IcrService,
-    private readonly exportService: IcrExportService,
     private readonly workflowService: IcrWorkflowService,
     private readonly notificationService: IcrNotificationService,
     private readonly templateAdminService: IcrTemplateAdminService,
@@ -368,40 +364,6 @@ export class IcrController {
   ) {
     this.logger.log(`[POST /api/icr/${id}/sections/${sectionType}/reject] user=${user.id}`);
     return this.workflowService.rejectSection(id, sectionType, user, dto.reason ?? '');
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // EXPORT
-  // ══════════════════════════════════════════════════════════════════════════
-
-  @Get(':id/export/tagged/:format')
-  @HttpCode(HttpStatus.OK)
-  @Permissions('ICR Reports', ['create'], true)
-  async exportFromTaggedTemplate(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('format') format: string,
-    @Query('templateId') templateId: string | undefined,
-    @CurrentUser() user: IcrReportUser,
-    @Res() res: Response,
-  ) {
-    this.logger.log(`[GET /api/icr/${id}/export/tagged/${format}] user=${user.id}`);
-    const fmt = format.toUpperCase() as 'WORD' | 'PDF';
-    const buffer = await this.exportService.exportFromTaggedTemplate(
-      id,
-      fmt,
-      templateId ? Number(templateId) : undefined,
-      await this.accessFor(user),
-    );
-    const ext = fmt === 'PDF' ? 'pdf' : 'docx';
-    const mime = fmt === 'PDF'
-      ? 'application/pdf'
-      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    res.set({
-      'Content-Type': mime,
-      'Content-Disposition': `attachment; filename="UnitedBank_ICR_Tagged_${id}.${ext}"`,
-      'Content-Length': buffer.length.toString(),
-    });
-    res.end(buffer);
   }
 
 }

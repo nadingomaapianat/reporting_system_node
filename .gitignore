@@ -13,4 +13,3 @@ config.bat
 # local-testing env backup (never commit)
 .env.localtest
 # runtime env (deploy team creates it from .env.bank); never commit
-.env

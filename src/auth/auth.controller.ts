@@ -1,8 +1,12 @@
-import { Controller, Post, Body, Get, Request, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
-import { Response } from 'express';
+import { Controller, Post, Body, Get, Request, Req, Headers, ForbiddenException, Res, Logger } from '@nestjs/common';
+import { Request as ExpressRequest, Response } from 'express';
+import * as jwt from 'jsonwebtoken';
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
 import { isReportingVerboseLog } from '../shared/reporting-verbose';
+import { TokenBlocklistService } from './token-blocklist.service';
+import { getJwtSecret } from './jwt-secret';
+import { getCandidateTokens } from './utils/extract-token';
 
 
 const REPORTING_FRONTEND_URL = process.env.REPORTING_FRONTEND_URL || process.env.NEXT_PUBLIC_REPORTING_FRONTEND_URL || 'https://dcc-reporting.theubeg.ub.dom';
@@ -105,7 +109,10 @@ function isAllowedRedirectUri(uri: string): boolean {
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly blocklist: TokenBlocklistService,
+  ) {}
 
   /**
    * Validate IET with main backend, create JWT, set it in cookie (backend sets cookie – no token in body).
@@ -219,7 +226,7 @@ export class AuthController {
       id: user?.id || '1',
       email: user?.email || 'demo@example.com',
       name: user?.name || 'Demo User',
-      role: user?.role || 'admin',
+      role: user?.role ?? null,
     };
   }
 
@@ -231,6 +238,7 @@ export class AuthController {
    */
   @Get('logout')
   async logoutGet(
+    @Req() req: ExpressRequest,
     @Headers('origin') origin: string,
     @Headers('referer') referer: string,
     @Res({ passthrough: false }) res: Response,
@@ -242,7 +250,8 @@ export class AuthController {
         `[AUDIT] event=LOGOUT_ORIGIN_UNKNOWN origin=${origin || '(none)'} referer=${referer || '(none)'} – cookie cleared anyway`,
       );
     }
-    // Always clear the cookie when this endpoint is hit so iframe_d_c_c_t_p is removed (e.g. after main app logout)
+    // Revoke the token itself (blocked_tokens), then always clear the cookie so iframe_d_c_c_t_p is removed
+    await this.blockRequestTokens(req);
     this.clearReportingCookies(res);
     res.status(200).json({ success: true, message: 'Logged out' });
   }
@@ -250,6 +259,7 @@ export class AuthController {
   @Public()
   @Post('logout')
   async logoutPost(
+    @Req() req: ExpressRequest,
     @Headers('origin') origin: string,
     @Headers('referer') referer: string,
     @Res({ passthrough: false }) res: Response,
@@ -261,8 +271,38 @@ export class AuthController {
         `[AUDIT] event=LOGOUT_ORIGIN_UNKNOWN origin=${origin || '(none)'} referer=${referer || '(none)'} – cookie cleared anyway`,
       );
     }
+    await this.blockRequestTokens(req);
     this.clearReportingCookies(res);
     res.status(200).json({ success: true, message: 'Logged out' });
+  }
+
+  /**
+   * Revoke the reporting token(s) this request carries by adding them to `blocked_tokens`, as the
+   * main backend does for its own token on logout — clearing the cookie alone leaves a copied
+   * token valid until it expires. Only tokens that verify with our secret are written, so a caller
+   * cannot fill the table; the main app's d_c_c_t_p token is left to the main backend.
+   */
+  private async blockRequestTokens(req: ExpressRequest): Promise<void> {
+    const secret = getJwtSecret();
+    for (const { token, source } of getCandidateTokens(req)) {
+      if (source === 'd_c_c_t_p') continue;
+      let payload: { id?: string; sub?: string; exp?: number };
+      try {
+        payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as typeof payload;
+      } catch {
+        continue; // expired or foreign: nothing to revoke
+      }
+      const userId = String(payload.id ?? payload.sub ?? '').trim();
+      if (!userId) continue;
+      // keep the row a little past the token's own expiry (Python allows 30s clock drift)
+      const expiresAt = new Date(payload.exp ? payload.exp * 1000 + 60_000 : Date.now() + 24 * 60 * 60 * 1000);
+      try {
+        await this.blocklist.blockToken(token, userId, expiresAt);
+        this.logger.log(`[AUDIT] event=LOGOUT_TOKEN_BLOCKED user_id=${userId} source=${source}`);
+      } catch (err) {
+        this.logger.error(`[AUDIT] event=LOGOUT_TOKEN_BLOCK_FAIL user_id=${userId}: ${(err as Error)?.message ?? err}`);
+      }
+    }
   }
 
   /** Clear reporting auth cookies (same path/domain/options as when set). */

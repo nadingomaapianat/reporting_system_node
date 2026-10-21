@@ -152,6 +152,11 @@ export class GrcComplyService {
       .trim();
   }
 
+  /** Quote a request-supplied function id as a SQL string literal (same rule as UserFunctionAccessService). */
+  private sqlQuoteId(id: unknown): string {
+    return `'${String(id ?? '').replace(/'/g, "''")}'`;
+  }
+
   /**
    * Build date filter clause for SQL queries
    */
@@ -179,7 +184,7 @@ export class GrcComplyService {
       if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
         return ' AND 1 = 0';
       }
-      return ` AND ${tableAlias}.id = '${selectedFunctionId}'`;
+      return ` AND ${tableAlias}.id = ${this.sqlQuoteId(selectedFunctionId)}`;
     }
 
     // If no specific function selected, super admins see everything
@@ -212,7 +217,7 @@ export class GrcComplyService {
           ON cf.control_id = cd_filter.control_id
          AND cf.deletedAt IS NULL
         WHERE cd_filter.domain_id = D.id
-          AND cf.function_id = '${selectedFunctionId}'
+          AND cf.function_id = ${this.sqlQuoteId(selectedFunctionId)}
       )`;
     }
 
@@ -248,7 +253,7 @@ export class GrcComplyService {
       if (!access.isSuperAdmin && !access.functionIds.includes(selectedFunctionId)) {
         return ' AND 1 = 0';
       }
-      return ` AND EXISTS (SELECT 1 FROM UserFunction uf WHERE uf.userId = ${userIdColumn} AND uf.functionId = '${selectedFunctionId}' AND uf.deletedAt IS NULL)`;
+      return ` AND EXISTS (SELECT 1 FROM UserFunction uf WHERE uf.userId = ${userIdColumn} AND uf.functionId = ${this.sqlQuoteId(selectedFunctionId)} AND uf.deletedAt IS NULL)`;
     }
 
     if (access.isSuperAdmin) return '';
@@ -845,7 +850,7 @@ GROUP BY
               FROM BankQuestionControls bqc
               JOIN Controls ctrl ON bqc.control_id = ctrl.id
               JOIN ControlFunctions cf ON cf.control_id = ctrl.id 
-                AND cf.function_id = '${functionId}' 
+                AND cf.function_id = ${this.sqlQuoteId(functionId)} 
                 AND cf.deletedAt IS NULL
               WHERE bqc.bank_question_id = bq.id
                 AND bqc.deletedAt IS NULL
@@ -1873,7 +1878,7 @@ ORDER BY month;
           FROM BankQuestionControls bqc
           JOIN Controls ctrl ON bqc.control_id = ctrl.id
           JOIN ControlFunctions cf ON cf.control_id = ctrl.id 
-            AND cf.function_id = '${functionId}' 
+            AND cf.function_id = ${this.sqlQuoteId(functionId)} 
             AND cf.deletedAt IS NULL
           WHERE bqc.bank_question_id = bq.id
             AND bqc.deletedAt IS NULL

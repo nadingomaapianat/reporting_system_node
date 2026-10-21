@@ -100,11 +100,14 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     // 2) Reject revoked tokens (DCC inserts into `blocked_tokens` on logout / force-logout).
-    //    Run the blocklist lookup once per verified token in parallel; treat DB errors as "not blocked"
-    //    (fail-open) — TokenBlocklistService already logs the underlying failure.
+    //    Run the blocklist lookup once per verified token in parallel; a lookup that fails counts as
+    //    "blocked" (fail-closed) — TokenBlocklistService already logs the underlying failure.
     const blockedFlags = await Promise.all(
       verified.map((v) =>
-        this.blocklist.isTokenBlocked(v.token).catch(() => false),
+        this.blocklist.isTokenBlocked(v.token).catch((err) => {
+          this.logger.error(`[Reporting][JwtAuth] blocklist check failed (denying): ${(err as Error)?.message ?? err}`);
+          return true;
+        }),
       ),
     );
     const usable = verified.filter((_, i) => !blockedFlags[i]);

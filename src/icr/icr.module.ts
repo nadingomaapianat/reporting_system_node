@@ -5,7 +5,6 @@ import { IcrTemplateAdminController } from './icr-template-admin.controller';
 import { IcrService } from './services/icr.service';
 import { IcrDataAggregatorService } from './services/icr-data-aggregator.service';
 import { IcrTemplateEngineService } from './services/icr-template-engine.service';
-import { IcrExportService } from './services/icr-export.service';
 import { IcrWorkflowService } from './services/icr-workflow.service';
 import { IcrTemplateAdminService } from './services/icr-template-admin.service';
 import { IcrNotificationService } from './services/icr-notification.service';
@@ -23,7 +22,6 @@ import { AuthModule } from '../auth/auth.module';
     IcrService,
     IcrDataAggregatorService,
     IcrTemplateEngineService,
-    IcrExportService,
     IcrWorkflowService,
     IcrTemplateAdminService,
     IcrNotificationService,

@@ -30,9 +30,6 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
-  // Parse form POSTs (e.g. /api/auth/entry-token from HTML form with application/x-www-form-urlencoded)
-  app.use(express.urlencoded({ extended: true }));
-
   // Security middleware
   app.use(helmet());
   
@@ -124,18 +121,17 @@ async function bootstrap() {
     next();
   });
 
-  // Configure body parser with increased limits
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-  // Configure body parser for large payloads (already set above with 50mb limit)
+  // Body parsers, registered once (Nest then skips its own). urlencoded is for form POSTs such as
+  // /api/auth/entry-token. File uploads are multipart and go through multer with their own limit.
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // Error handling middleware
   app.use((err, req, res, next) => {
     if (err.status === 413 || err.type === 'entity.too.large') {
       return res.status(413).json({
         statusCode: 413,
-        message: 'File size exceeds the maximum limit of 50MB',
+        message: 'Request body exceeds the maximum limit of 10MB',
         error: 'Payload Too Large'
       });
     }

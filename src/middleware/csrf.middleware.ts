@@ -4,7 +4,6 @@ import { Request, Response, NextFunction } from 'express';
 const EXCLUDED_PATHS = [
   '/csrf/token',
   '/api/auth/entry-token',
-  '/api/auth/validate-token',
   '/api/auth/logout',
 ];
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);

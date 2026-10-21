@@ -69,10 +69,16 @@ export class IcrTemplateAdminController {
   })))
   @HttpCode(HttpStatus.OK)
   @Permissions('ICR Templates', ['create', 'edit'], true)
-  async parseTemplate(@UploadedFile() file: MemoryUploadedFile, @Req() req: { reportingToken?: string }) {
+  async parseTemplate(
+    @UploadedFile() file: MemoryUploadedFile,
+    @Req() req: { reportingToken?: string },
+    @CurrentUser() user: IcrReportUser,
+  ) {
     this.logger.log(`Parsing template: ${file.originalname} (${file.size} bytes)`);
 
     const parsed = await this.adminService.parseTemplate(file.buffer, file.originalname, req.reportingToken);
+    // Only a path returned here may later be saved as the template's file (save / update-sections).
+    this.adminService.rememberParsedFile(user.id, parsed.savedFilePath);
     const preview = this.adminService.previewSections(parsed);
 
     return {
@@ -97,13 +103,16 @@ export class IcrTemplateAdminController {
     },
     @CurrentUser() user: IcrReportUser,
   ) {
+    const filePath = body.filePath != null && body.filePath !== ''
+      ? this.adminService.resolveParsedFilePath(user.id, body.filePath)
+      : null;
     const tpl = await this.adminService.createTemplate(
       body.templateName || body.filename,
       body.description ?? null,
       body.filename,
       user.fullName,
       user.id,
-      body.filePath ?? null,
+      filePath,
     );
 
     const saved = await this.adminService.saveConfigs(tpl.id, body.sections, body.filename);
@@ -128,13 +137,16 @@ export class IcrTemplateAdminController {
     @CurrentUser() user: IcrReportUser,
   ) {
     const templateId = Number(id);
+    const filePath = body.filePath != null && body.filePath !== ''
+      ? this.adminService.resolveParsedFilePath(user.id, body.filePath)
+      : null;
     const tpl = await this.adminService.getTemplate(templateId);
 
     await this.adminService.clearConfigs(templateId);
     const saved = await this.adminService.saveConfigs(templateId, body.sections, body.filename);
 
-    if (body.filePath) {
-      await this.adminService.updateTemplateFile(templateId, body.filename, body.filePath);
+    if (filePath) {
+      await this.adminService.updateTemplateFile(templateId, body.filename, filePath);
     }
 
     return {
