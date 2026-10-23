@@ -17,7 +17,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "add-chart": "ts-node src/scripts/add-chart.ts",
-    "init-charts": "ts-node src/scripts/init-sample-charts.ts"
+    "init-charts": "ts-node src/scripts/init-sample-charts.ts",
+    "prepare": "git config core.hooksPath .githooks || exit 0"
   },
   "dependencies": {
     "@nestjs/bull": "^10.0.1",
